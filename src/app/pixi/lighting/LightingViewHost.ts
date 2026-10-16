@@ -1,13 +1,17 @@
-import type { ViewAtlasStore } from '../../storeFactory';
 import type { ExploredEdit } from '../../lighting/exploredEdits';
+import type { SceneStore } from '../../lighting/shownTokens';
+import type { ViewState } from '../../types/viewState';
 import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
 import type { HideableLayer } from '../playerSafeFrame';
 import type { SceneFrame } from './engine/types';
 import type { LightingUnavailable } from './LightingRenderer';
 import type { SceneLightingView } from './sceneLightingView';
 
+/** What the host reads of its view's state: the map it lights, whether that map is loading, and the lighting switch. */
+export type LightingHostState = Pick<ViewState, 'mapPath' | 'isMapLoading' | 'lighting'>;
+
 export interface LightingViewHostDeps {
-  store: ViewAtlasStore;
+  store: SceneStore<LightingHostState>;
   /** PIXI draws with Canvas 2D, which has no shaders: the fallback from the start, for good. */
   canvasRenderer: boolean;
   /** The GPU engine's view; it calls `onUnavailable` once when it cannot light the map, and has stopped by then. */

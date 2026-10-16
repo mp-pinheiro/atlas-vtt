@@ -2,7 +2,6 @@ import { GM_SIGHT_POLICY, PLAYER_SIGHT_POLICY } from '../../vision/tokenSightPol
 import { selectSight } from '../../vision/selectSight';
 import type { Viewport } from 'pixi-viewport';
 import type { SceneStore } from '../../lighting/shownTokens';
-import type { ViewAtlasState } from '../../storeFactory';
 import type { WallSegment } from '../../types/wallTypes';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
@@ -22,6 +21,7 @@ import { PlayerView } from './PlayerView';
 import { SightMask } from './SightMask';
 import { LightReaches } from '../../vision/lightReaches';
 import { sourcesInDarkness } from '../../vision/magicalDarkness';
+import type { SceneState } from '../../vision/sceneModel';
 import { activeLights, engineLight } from '../../vision/lightSources';
 import type { SceneLightingView } from './sceneLightingView';
 
@@ -32,7 +32,7 @@ const NO_REACHES: LightReach[] = [];
 
 export interface CanvasLightingDeps {
   viewport: Viewport;
-  store: SceneStore<ViewAtlasState>;
+  store: SceneStore<SceneState>;
   measurement: () => MeasurementSettings;
   bounds: () => MapBounds | null;
   /** The senses and conditions of the map's collection; the generic ones without it. */
@@ -72,7 +72,7 @@ export class CanvasLightingFallback implements SceneLightingView {
   /** What the last update read: a store change that touches none of it works nothing out. */
   private inputs: readonly unknown[] = [];
   /** The walls with their bridges, kept while the drawn walls and the map's size stay, so the sight cache knows them. */
-  private sealed: { drawn: ViewAtlasState['objects']['walls']; texel: number; walls: readonly WallSegment[] } | null = null;
+  private sealed: { drawn: SceneState['objects']['walls']; texel: number; walls: readonly WallSegment[] } | null = null;
   /** What the black is composed from; none while there is none to show. */
   private source: DarknessSource | null = null;
   /** `source` changed since the black was composed. */
@@ -117,7 +117,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     }
   }
 
-  private update(state: ViewAtlasState): void {
+  private update(state: SceneState): void {
     const bounds = this.deps.bounds();
     const rules = this.deps.rules?.();
     const measurement = this.deps.measurement();
@@ -150,7 +150,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     this.deps.onSightChange?.();
   }
 
-  private sealedWalls(drawn: ViewAtlasState['objects']['walls'], texel: number): readonly WallSegment[] {
+  private sealedWalls(drawn: SceneState['objects']['walls'], texel: number): readonly WallSegment[] {
     const kept = this.sealed;
     if (kept && kept.drawn === drawn && kept.texel === texel) return kept.walls;
     const walls = sealedWalls(wallList(drawn), texel);

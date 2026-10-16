@@ -140,7 +140,12 @@
     "src/app/statblocks/roles/roleValidation.ts",
     "src/app/statblocks/roles/collectionStatblockRoles.ts",
     "src/app/online/limits/**/*.ts",
-    "src/app/online/limits/**/*.tsx"
+    "src/app/online/limits/**/*.tsx",
+    "src/app/pixi/lighting/hardenTexels.ts",
+    "src/app/pixi/lighting/SightMask.ts",
+    "src/app/pixi/lighting/CanvasLightingFallback.ts",
+    "src/app/pixi/lighting/LightingViewHost.ts",
+    "src/app/pixi/lighting/createLightingHost.ts"
   ],
   "exclude": [
     "src/app/grid/GridController.ts",
