@@ -43,7 +43,9 @@ export function checkBoundaries(root, manifest) {
   root = path.resolve(root);
   const violations = [];
   const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
-  const code = [...new Set(files)].filter(file => CODE.test(file) && !TEST.test(file) && (file.startsWith('src/') || file === 'main.ts'));
+  const roots = manifest.SOURCE_ROOTS ?? ['src/', 'main.ts'];
+  const inSource = file => roots.some(entry => (entry.endsWith('/') ? file.startsWith(entry) : file === entry));
+  const code = [...new Set(files)].filter(file => CODE.test(file) && !TEST.test(file) && inSource(file));
   const memberships = new Map();
   const counts = { plugin: 0 };
   for (const [name, rule] of Object.entries(manifest.BOUNDARIES)) {

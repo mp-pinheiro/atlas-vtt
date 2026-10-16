@@ -200,11 +200,27 @@ export const BOUNDARIES = {
   }
 };
 
+// The player client under player/ is browser code like the shared boundary: it may import shared
+// code, its own files and the same packages, and nothing of the plugin, Obsidian or Node.
+BOUNDARIES.player = {
+  include: ["player/src/**/*.ts", "player/src/**/*.tsx"],
+  exclude: ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"],
+  mayImport: ["shared", "player"],
+  packages: [...BOUNDARIES.shared.packages],
+};
+
+/** The code the dependency checks read: a folder when the entry ends in a slash, else one file. */
+export const SOURCE_ROOTS = ["src/", "player/src/", "main.ts"];
 export const ASSET_ROOTS = ["src/app/assets/", "src/app/sounds/", "styles/"];
 export const TYPE_PROJECTS = {
   "tsconfig.shared.json": {
     include: ["src/assets.d.ts", ...BOUNDARIES.shared.include],
     exclude: BOUNDARIES.shared.exclude,
+  },
+  // Paths are relative to player/tsconfig.json, which the checker compares verbatim.
+  "player/tsconfig.json": {
+    include: ["../src/assets.d.ts", "src/**/*.ts", "src/**/*.tsx"],
+    exclude: ["src/**/*.test.*", "src/**/*.spec.*", "src/**/__tests__/**"],
   },
 };
 
