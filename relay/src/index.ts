@@ -8,9 +8,10 @@ export { TableObject } from './table/TableObject.ts';
 const API_PREFIX = '/api/';
 
 /**
- * The Atlas relay. The assets layer answers the player client's files before this runs (only
- * `/api/*` and the seat path run the Worker first); a path that matches no file comes here and is
- * left to the assets layer's own answer.
+ * The Atlas relay. Only `/api/*` and the seat path run the Worker first (`run_worker_first`); for
+ * every other path Cloudflare routes assets first, serves the player client's file when one matches
+ * and otherwise runs the Worker. A path that matches no file therefore comes here too, and is handed
+ * back to the assets layer, whose answer for it is 404 (`not_found_handling` is not set).
  */
 export default {
   fetch(request: Request, env: Cloudflare.Env): Response | Promise<Response> {
