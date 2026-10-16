@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CLOSE } from '../../src/app/online/protocol/relay.ts';
 import { randomBase32, sha256Hex } from '../src/table/codec.ts';
 import { cleanup, supersede, teardown } from '../src/table/lifecycle.ts';
-import { EVENT_RETRY_MS, GM_AWAY_MS } from '../src/table/limits.ts';
+import { EVENT_RETRY_MS } from '../src/table/limits.ts';
 import type { TableObject } from '../src/table/TableObject.ts';
 import { acceptSockets, createTable, sqlRows, tableNames, tableStub } from './helpers.ts';
 
@@ -103,6 +103,9 @@ describe('cleanup', () => {
 });
 
 describe('a table whose GM never connects', () => {
+  /** 24 hours, written out in milliseconds on purpose: these tests must not follow a change of `ONE_DAY_MS`. */
+  const ONE_DAY_MS = 86_400_000;
+
   async function tableWithClock(): Promise<{ stub: DurableObjectStub<TableObject>; createdAt: number }> {
     const { code } = await createTable();
     const stub = tableStub(code);
@@ -117,13 +120,13 @@ describe('a table whose GM never connects', () => {
 
   it('is set to end 24 hours after it was made: the alarm and the cleanup event stand at that moment', async () => {
     const { stub, createdAt } = await tableWithClock();
-    expect(await runInDurableObject(stub, (_table, state) => state.storage.getAlarm())).toBe(createdAt + GM_AWAY_MS);
-    expect(await sqlRows(stub, 'SELECT kind, subject, due FROM events')).toEqual([{ kind: 'cleanup', subject: 'table', due: createdAt + GM_AWAY_MS }]);
+    expect(await runInDurableObject(stub, (_table, state) => state.storage.getAlarm())).toBe(createdAt + ONE_DAY_MS);
+    expect(await sqlRows(stub, 'SELECT kind, subject, due FROM events')).toEqual([{ kind: 'cleanup', subject: 'table', due: createdAt + ONE_DAY_MS }]);
   });
 
   it('is deleted by the alarm once the 24 hours have passed: its storage is empty', async () => {
     const { stub, createdAt } = await tableWithClock();
-    await setClock(stub, createdAt + GM_AWAY_MS + 1);
+    await setClock(stub, createdAt + ONE_DAY_MS + 1);
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     expect(await stub.isInitialised()).toBe(false);
     expect(await tableNames(stub)).toEqual([]);
@@ -132,18 +135,18 @@ describe('a table whose GM never connects', () => {
 
   it('is deleted at the very moment the 24 hours are over, and not a moment before', async () => {
     const { stub, createdAt } = await tableWithClock();
-    await setClock(stub, createdAt + GM_AWAY_MS - 1);
+    await setClock(stub, createdAt + ONE_DAY_MS - 1);
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     expect(await stub.isInitialised()).toBe(true);
-    expect(await runInDurableObject(stub, (_table, state) => state.storage.getAlarm())).toBe(createdAt + GM_AWAY_MS);
-    await setClock(stub, createdAt + GM_AWAY_MS);
+    expect(await runInDurableObject(stub, (_table, state) => state.storage.getAlarm())).toBe(createdAt + ONE_DAY_MS);
+    await setClock(stub, createdAt + ONE_DAY_MS);
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     expect(await stub.isInitialised()).toBe(false);
   });
 
   it('is not left without a cleanup when its teardown fails: the cleanup is tried again and the next alarm ends it', async () => {
     const { stub, createdAt } = await tableWithClock();
-    const failedAt = createdAt + GM_AWAY_MS;
+    const failedAt = createdAt + ONE_DAY_MS;
     await setClock(stub, failedAt);
     await runInDurableObject(stub, (_table, state) => {
       vi.spyOn(state.storage, 'deleteAll').mockRejectedValueOnce(new Error('A transient storage failure.'));
@@ -163,14 +166,14 @@ describe('a table whose GM never connects', () => {
   it('closes the sockets it has with ended when it goes', async () => {
     const { stub, createdAt } = await tableWithClock();
     const closings = await acceptSockets(stub, 2);
-    await setClock(stub, createdAt + GM_AWAY_MS);
+    await setClock(stub, createdAt + ONE_DAY_MS);
     await runDurableObjectAlarm(stub);
     expect(await Promise.all(closings)).toEqual([{ code: 4008, reason: 'ended' }, { code: 4008, reason: 'ended' }]);
   });
 
   it('is not recreated when the object wakes after it went', async () => {
     const { stub, createdAt } = await tableWithClock();
-    await setClock(stub, createdAt + GM_AWAY_MS);
+    await setClock(stub, createdAt + ONE_DAY_MS);
     await runDurableObjectAlarm(stub);
     expect(await runDurableObjectAlarm(stub)).toBe(false);
     expect(await tableNames(stub)).toEqual([]);

@@ -38,6 +38,9 @@ describe('POST /api/tables', () => {
     expect(body.code).toMatch(TABLE_CODE_PATTERN);
     expect(String(body.secret).length).toBeGreaterThanOrEqual(32);
     expect(body.secret).toMatch(SECRET_PATTERN);
+    // 32 random bytes are 43 characters of base64url, 16 are 26 characters of base32 (128 bits each way or more).
+    expect(String(body.secret)).toHaveLength(43);
+    expect(String(body.code)).toHaveLength(26);
     expect(body.maxPlayers).toBe(MAX_PLAYERS);
   });
 
