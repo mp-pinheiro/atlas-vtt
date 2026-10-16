@@ -12,6 +12,11 @@ export interface DiceLook {
 
 export const DEFAULT_DICE_LOOK: Readonly<DiceLook> = { colour: 'light', font: 'medieval' };
 
+/** The class that sets the dice font for the numbers inside an element. */
+export function diceFontClass(look: DiceLook): string | false {
+  return look.font === 'scifi' && 'atlas-dice-font--scifi';
+}
+
 export const DICE_COLOUR_OPTIONS: readonly { value: DiceColour; label: string }[] = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
