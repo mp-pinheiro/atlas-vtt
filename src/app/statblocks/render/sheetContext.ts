@@ -1,13 +1,8 @@
 import { createContext, useContext } from 'react';
-import type { App } from 'obsidian';
 import type { SheetState } from './sheetState';
 
 export interface SheetContextValue {
   state: SheetState;
-  /** Renders Markdown and resolves images; without it values show as plain text. */
-  app: App | undefined;
-  /** The statblock note, which links and images resolve from. */
-  sourcePath: string | undefined;
 }
 
 export const SheetContext = createContext<SheetContextValue | null>(null);

@@ -8,7 +8,7 @@
  */
 
 import { newFieldFor } from '../model/newFields';
-import { kindName } from '../model/templateGrid';
+import { kindName } from '../model/tileKinds'
 import type { TemplateBlock } from '../model/templateTypes';
 import { fieldLabels, readerFor } from '../values/fieldValues';
 import { startTableValue } from '../values/tableValues';

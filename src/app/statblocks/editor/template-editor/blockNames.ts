@@ -1,8 +1,8 @@
 /** How the template editor names a block to people: in tags, toolbar labels and announcements. */
 
 import { blockSpec } from '../../model/blockCatalogue';
-import { fieldByKey } from '../../model/fieldKeys';
-import { kindName } from '../../model/templateGrid';
+import { fieldByKey } from '../../model/fieldLookup'
+import { kindName } from '../../model/tileKinds'
 import { boundField } from '../../model/treeQueries';
 import type { BlockType, FieldKey, TemplateBlock, TemplateField } from '../../model/templateTypes';
 

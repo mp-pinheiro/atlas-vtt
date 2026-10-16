@@ -5,7 +5,7 @@
  */
 
 import { updateField, type FieldChanges } from '../../../model/fieldOps';
-import { fieldByKey } from '../../../model/fieldKeys';
+import { fieldByKey } from '../../../model/fieldLookup'
 import { updateBlock, type BlockChanges } from '../../../model/treeOps';
 import { boundField } from '../../../model/treeQueries';
 import type {

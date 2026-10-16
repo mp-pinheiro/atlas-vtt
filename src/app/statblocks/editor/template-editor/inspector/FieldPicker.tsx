@@ -1,6 +1,6 @@
 import React, { useId, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { fieldByKey } from '../../../model/fieldKeys';
+import { fieldByKey } from '../../../model/fieldLookup'
 import type { FieldKey, FieldType } from '../../../model/templateTypes';
 import { useTemplateEditor } from '../editorContext';
 import { fieldChoiceGroups, type FieldChoice } from './fieldChoices';

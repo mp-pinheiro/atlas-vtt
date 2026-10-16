@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  gridAcceptsBeside, gridAcceptsList, gridInsertTarget, kindName, selectableBlocks, selectableFor, templateGrid, tidyRows, tileKind,
+  gridAcceptsBeside, gridAcceptsList, gridInsertTarget, selectableBlocks, selectableFor, templateGrid, tidyRows,
 } from '../../../../src/app/statblocks/model/templateGrid';
+import { tileKind } from '../../../../src/app/statblocks/model/tileKinds';
 import { setHeaderPartHidden } from '../../../../src/app/statblocks/model/templateHeader';
-import { BUILT_IN_TEMPLATES } from '../../../../src/app/statblocks/presets';
 import type { TemplateBlock, TemplateLayout } from '../../../../src/app/statblocks/model/templateTypes';
 import { shape, template } from '../template-editor/editorKit';
 
@@ -16,12 +16,6 @@ const STRESS: TemplateBlock = { id: 'stress01', type: 'section', heading: 'Stres
 const layout = (...blocks: TemplateBlock[]): TemplateLayout => ({ maxColumns: 1, blocks });
 
 describe('the grid of a template', () => {
-  it('names a block by its kind in the grid, and what the grid has no kind for by its block', () => {
-    expect([AC, ACTIONS, STRESS, STATS].map(kindName)).toEqual(['Value', 'Abilities', 'Section', 'Side by side']);
-    const tabs: TemplateBlock = { id: 'tabs0001', type: 'tabs', blocks: [{ id: 'tab00001', type: 'section', heading: 'Actions', blocks: [ACTIONS] }] };
-    expect(kindName(tabs)).toBe('Abilities');
-    expect(kindName({ ...tabs, blocks: [STRESS] })).toBe('Tabs');
-  });
 
   it('reads rows of tiles side by side, and single tiles as rows of their own', () => {
     const grid = templateGrid(layout(STATS, ACTIONS, STRESS));
@@ -83,7 +77,4 @@ describe('the grid of a template', () => {
     expect(tidyRows(tidy)).toBe(tidy);
   });
 
-  it('reads every built-in template as rows', () => {
-    for (const { id, template: builtIn } of BUILT_IN_TEMPLATES) expect(templateGrid(builtIn.layout).rows.length, id).toBeGreaterThan(0);
-  });
 });

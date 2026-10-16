@@ -8,9 +8,9 @@
  */
 
 import { createBlock } from './blockCatalogue';
-import { fieldByKey, fieldKeysOf, labelToKey } from './fieldKeys';
+import { fieldByKey } from './fieldLookup'; import { fieldKeysOf, labelToKey } from './fieldKeys'
 import { addField } from './fieldOps';
-import { isAbilityTabs } from './templateGrid';
+import { isAbilityTabs } from './tileKinds'
 import { blockIdSource } from './templateIds';
 import { done, spliced, withChildren, type TreeEdit } from './treeEdit';
 import { updateBlock } from './treeOps';

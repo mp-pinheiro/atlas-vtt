@@ -1,6 +1,6 @@
 import type { PatternContext } from '../expressions/pattern';
 import type { Lookups } from '../expressions/filters';
-import { scriptReads, type ScriptRead } from '../model/scriptReads';
+import type { TemplateBlock } from '../model/templateTypes';
 import { withHeaderFields } from '../model/templateHeader';
 import type { FieldKey, StatblockTemplate, TemplateField } from '../model/templateTypes';
 import { fieldLabels, readField, readerFor, type FieldRecord, type ValueReader } from '../values/fieldValues';
@@ -24,6 +24,12 @@ export interface SheetState {
   provisional?: TemplateField | undefined;
   /** For each script block, by id, the values it reads, each in its block, with the blocks that show it too (`scriptReads`). */
   scriptReads: ReadonlyMap<string, readonly ScriptRead[]>;
+  showEmptyScripts?: boolean | undefined;
+}
+
+export interface ScriptRead {
+  block: TemplateBlock;
+  shownBy: readonly TemplateBlock[];
 }
 
 export interface SheetStateInput {
@@ -34,9 +40,12 @@ export interface SheetStateInput {
   mode: SheetMode;
   token?: StatblockTokenContext | undefined;
   folded?: ReadonlySet<string> | undefined;
+  scriptReads?: ReadonlyMap<string, readonly ScriptRead[]> | undefined;
+  showEmptyScripts?: boolean | undefined;
 }
 
 const NONE_FOLDED: ReadonlySet<string> = new Set();
+const NO_SCRIPT_READS: ReadonlyMap<string, readonly ScriptRead[]> = new Map();
 
 /**
  * The record with every Table that holds no value holding its template's starting table, as a new statblock
@@ -53,7 +62,7 @@ function withStartingTables(record: FieldRecord, fields: readonly TemplateField[
   return filled.length > 0 ? { ...record, ...Object.fromEntries(filled) } : record;
 }
 
-export function sheetState({ template, record: stored, lookups, mode, token, folded }: SheetStateInput): SheetState {
+export function sheetState({ template, record: stored, lookups, mode, token, folded, scriptReads, showEmptyScripts }: SheetStateInput): SheetState {
   // A template not read from a file (one being made, a test's) may lack a header part's field: the part still has its name and prompt.
   const { fields } = withHeaderFields(template);
   const record = withStartingTables(stored, fields);
@@ -68,6 +77,7 @@ export function sheetState({ template, record: stored, lookups, mode, token, fol
     mode,
     token,
     folded: folded ?? NONE_FOLDED,
-    scriptReads: scriptReads(template),
+    scriptReads: scriptReads ?? NO_SCRIPT_READS,
+    showEmptyScripts,
   };
 }

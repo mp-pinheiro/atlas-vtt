@@ -8,7 +8,7 @@
 import { isPlainRecord } from '../values/fieldValueOf';
 import { blockFor } from './autoTemplate';
 import { createBlock } from './blockCatalogue';
-import { fieldByKey, labelFromKey } from './fieldKeys';
+import { fieldByKey } from './fieldLookup'; import { labelFromKey } from './fieldKeys'
 import { findCode, type CodePath } from './fsCodeKeys';
 import { keysShownBy } from './fieldOps';
 import { isReservedKey } from './reservedKeys';

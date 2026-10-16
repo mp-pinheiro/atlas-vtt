@@ -5,6 +5,7 @@ import type { ShownTable } from './values/shownTable';
 import { useSheet } from './sheetContext';
 import { blockMisfits } from './values/blockMisfits';
 import { MisfitChip } from './values/MisfitChip';
+import type { SheetState } from './sheetState';
 
 /**
  * How the statblock pane edits values in place (§7.6). Each block view puts
@@ -39,6 +40,7 @@ export interface ValueEditing {
    * their name is asked for. Unset (a statblock's pane): such a block shows only its prompt, and no value of it is edited.
    */
   drawsUnnamed?: boolean;
+  provisional?(block: TemplateBlock, state: SheetState): SheetState;
 }
 
 /** One ability as its list draws it: the stored item, its identity, its place in the stored list and among those drawn. */

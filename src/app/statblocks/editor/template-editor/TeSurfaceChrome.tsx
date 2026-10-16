@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { isGridTile, kindName, selectableFor } from '../../model/templateGrid';
+import { isGridTile, selectableFor } from '../../model/templateGrid'; import { kindName } from '../../model/tileKinds'
 import { headerPartOf, templateBlock } from '../../model/templateHeader';
 import type { TemplateBlock } from '../../model/templateTypes';
 import { useBlockHandleDrag } from '../dnd/useDragSources';

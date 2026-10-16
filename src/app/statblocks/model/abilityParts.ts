@@ -5,9 +5,9 @@
  * each of them holds the same parts. Pure.
  */
 
-import { fieldByKey } from './fieldKeys';
+import { fieldByKey } from './fieldLookup'
 import { updateField } from './fieldOps';
-import { isAbilityTabs } from './templateGrid';
+import { isAbilityTabs } from './tileKinds'
 import type { EntryExtraShape, EntryShape, FieldKey, StatblockTemplate, TemplateBlock } from './templateTypes';
 
 /** The properties an Abilities component's lists show, in tab order, each once; empty for any other block. */

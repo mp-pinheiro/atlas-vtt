@@ -6,7 +6,8 @@ vi.mock('../../src/app/atlas-view', () => ({ ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 vi.mock('../../src/app/atlasViewType', () => ({ ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 
 import { BUILT_IN_DICE_SETS } from '../../src/app/gameSystems/builtInDiceSets';
-import { attachDiceRolling, diceLinkProps, type RollChoice } from '../../src/app/services/statblockDiceLinks';
+import { attachDiceRolling, type RollChoice } from '../../src/app/services/statblockDiceLinks';
+import { diceLinkProps } from '../../src/app/statblocks/render/shared/diceSegments';
 import { useStatblockDiceRolling } from '../../src/app/statblocks/render/shared/useStatblockDiceRolling';
 import type { RollingDice } from '../../src/app/types/diceSetTypes';
 

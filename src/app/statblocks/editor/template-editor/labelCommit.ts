@@ -11,7 +11,7 @@
 
 import { addField, updateField } from '../../model/fieldOps';
 import { bindsFieldType } from '../../model/blockCatalogue';
-import { fieldByKey, fieldKeysOf, labelToKey } from '../../model/fieldKeys';
+import { fieldByKey } from '../../model/fieldLookup'; import { fieldKeysOf, labelToKey } from '../../model/fieldKeys'
 import { newFieldFor } from '../../model/newFields';
 import { spliced, withChildren } from '../../model/treeEdit';
 import { updateBlock } from '../../model/treeOps';

@@ -2,7 +2,6 @@ import React, { useContext, useMemo } from 'react';
 import type { TemplateBlock } from '../model/templateTypes';
 import { blockDisplay, type BlockDisplay } from './blockDisplay';
 import { BlockFrame } from './BlockFrame';
-import { provisionalSheet } from './provisionalSheet';
 import { SheetContext, useSheet } from './sheetContext';
 import { strandedDividers } from './strandedDividers';
 import { DividerView } from './blocks/DividerView';
@@ -24,6 +23,7 @@ import { TextView } from './blocks/TextView';
 import { TitleView } from './blocks/TitleView';
 import { TrackView } from './blocks/TrackView';
 import { ValueEditingContext } from './valueSlot';
+import { SheetRollLocationContext } from './sheetRenderHost';
 
 /**
  * A list of blocks, each in its frame; the root and every Section and Row render their children with it, Tabs one per
@@ -65,11 +65,12 @@ function content(block: TemplateBlock, display: BlockDisplay): React.ReactNode {
  */
 export function BlockView({ block }: { block: TemplateBlock }): React.JSX.Element | null {
   const sheet = useSheet();
-  const unnamed = useContext(ValueEditingContext)?.drawsUnnamed === true;
-  const state = unnamed ? provisionalSheet(block, sheet.state) : sheet.state;
+  const editing = useContext(ValueEditingContext);
+  const state = editing?.drawsUnnamed ? editing.provisional?.(block, sheet.state) ?? sheet.state : sheet.state;
   const own = useMemo(() => (state === sheet.state ? sheet : { ...sheet, state }), [sheet, state]);
+  const location = useMemo(() => ({ blockId: block.id, valuePath: 'field' in block && typeof block.field === 'string' ? [block.field] : [] }), [block]);
   const display = blockDisplay(block, state);
   if (!display) return null;
   // Always behind a provider, so naming the tile keeps its element.
-  return <SheetContext.Provider value={own}><BlockFrame block={block} display={display}>{content(block, display)}</BlockFrame></SheetContext.Provider>;
+  return <SheetContext.Provider value={own}><SheetRollLocationContext.Provider value={location}><BlockFrame block={block} display={display}>{content(block, display)}</BlockFrame></SheetRollLocationContext.Provider></SheetContext.Provider>;
 }

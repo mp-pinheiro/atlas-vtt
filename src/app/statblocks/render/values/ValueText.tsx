@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '../../../../utils/cn';
 import { StatblockMarkdown } from '../shared/StatblockMarkdown';
 import type { BlockDisplay, StandInDisplay } from '../blockDisplay';
-import { useSheet } from '../sheetContext';
+import type { SheetValuePath } from '../shared/diceSegments';
 import { NO_TEXT, hasText, type ShownText } from './shownText';
 import { ProblemMarker } from './ProblemMarker';
 
@@ -11,15 +11,15 @@ interface ValueTextProps {
   /** Plain text keeps Markdown characters as written; dice still link. */
   markdown?: boolean | undefined;
   className?: string | undefined;
+  valuePath?: SheetValuePath | undefined;
 }
 
 /** A value's text: Markdown and dice links, then a muted mark where its pattern went wrong. */
-export function ValueText({ shown, markdown = true, className }: ValueTextProps): React.JSX.Element {
-  const { app, sourcePath } = useSheet();
+export function ValueText({ shown, markdown = true, className, valuePath }: ValueTextProps): React.JSX.Element {
   return (
     <>
       <span className={cn('atlas-sb-value', className)}>
-        {hasText(shown) && <StatblockMarkdown text={shown.text} app={app} sourcePath={sourcePath} markdown={markdown} />}
+        {hasText(shown) && <StatblockMarkdown text={shown.text} markdown={markdown} valuePath={valuePath} />}
       </span>
       {shown.problems.length > 0 && <ProblemMarker problems={shown.problems} />}
     </>

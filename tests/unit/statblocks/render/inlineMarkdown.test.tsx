@@ -3,7 +3,7 @@ import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MarkdownRenderer, type App } from 'obsidian';
 import { inlineMarkdown } from '../../../../src/app/statblocks/render/shared/inlineMarkdown';
-import { StatblockMarkdown } from '../../../../src/app/statblocks/render/shared/StatblockMarkdown';
+import { StatblockMarkdown } from '../../../../src/app/statblocks/render/shared/PluginMarkdown'
 
 afterEach(() => {
   cleanup();

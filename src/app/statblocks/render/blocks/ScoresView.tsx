@@ -9,6 +9,7 @@ import { StandIn, ValueText } from '../values/ValueText';
 import { ValueEditingContext, ValueSlot } from '../valueSlot';
 import type { BlockViewProps } from './blockViewProps';
 import { CellText, ColumnName, TABLE_COL_ATTRIBUTE, TABLE_ROW_ATTRIBUTE, TableView, type TableDecor } from './TableView';
+import { useSheetRollLocation } from '../sheetRenderHost';
 
 type GridStyle = React.CSSProperties & Record<`--${string}`, number>;
 
@@ -30,6 +31,7 @@ interface LinesProps {
 /** One group of a table of one row: per column its name, its value and its worked-out values ("Str 21 +5 +5"). */
 function LineGroup({ shown, decor, cols }: LinesProps): React.JSX.Element {
   const labelled = shown.derived.some((row) => row.label.trim());
+  const { valuePath } = useSheetRollLocation();
   return (
     <table className="atlas-sb-score-group">
       {labelled && (
@@ -43,7 +45,7 @@ function LineGroup({ shown, decor, cols }: LinesProps): React.JSX.Element {
       <tbody>
         {cols.map((col) => {
           const at = { row: 0, col };
-          const cell = <CellText shown={shown.cells[0]?.[col] ?? NO_TEXT} />;
+          const cell = <CellText shown={shown.cells[0]?.[col] ?? NO_TEXT} valuePath={[...valuePath, 0, col]} />;
           const extra = decor?.cellClass?.(at);
           const attributes = { [TABLE_ROW_ATTRIBUTE]: 0, [TABLE_COL_ATTRIBUTE]: col };
           return (
@@ -51,7 +53,7 @@ function LineGroup({ shown, decor, cols }: LinesProps): React.JSX.Element {
               <th scope="row" className="atlas-sb-score-label"><ColumnName name={shown.grid.columns[col]?.name ?? ''} col={col} /></th>
               <td className={extra ? `atlas-sb-score ${extra}` : 'atlas-sb-score'} {...attributes}>{decor?.cell ? decor.cell(at, cell) : cell}</td>
               {shown.derived.map((row, index) => (
-                <td key={index} className="atlas-sb-score-column"><CellText shown={row.cells[col] ?? NO_TEXT} /></td>
+                <td key={index} className="atlas-sb-score-column"><CellText shown={row.cells[col] ?? NO_TEXT} valuePath={[...valuePath, 'columns', index, col]} /></td>
               ))}
             </tr>
           );

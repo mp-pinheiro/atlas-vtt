@@ -104,9 +104,3 @@ export function fieldKeysOf(fields: readonly TemplateField[]): Set<FieldKey> {
   }
   return keys;
 }
-
-/** The field with this key, else the first that had it as a former key. */
-export function fieldByKey(fields: readonly TemplateField[], key: FieldKey): TemplateField | undefined {
-  return fields.find((field) => field.key === key)
-    ?? fields.find((field) => field.formerKeys?.includes(key) === true);
-}

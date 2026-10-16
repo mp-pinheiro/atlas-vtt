@@ -1,23 +1,7 @@
-import React, { useMemo } from 'react';
-import { diceLinkProps, splitDiceSegments } from '../../../services/statblockDiceLinks';
+import React from 'react';
+import { SheetDiceText } from '../sheetRenderHost';
+import type { SheetValuePath } from './diceSegments';
 
-/**
- * Text as it reads, its dice notation and bare bonuses as roll links: the
- * React twin of `linkDiceIn`, for text no Markdown renderer drew.
- */
-export function DiceText({ text }: { text: string }): React.JSX.Element {
-  const segments = useMemo(() => splitDiceSegments(text), [text]);
-  return (
-    <>
-      {segments.map((segment, index) =>
-        segment.dice ? (
-          <span key={index} {...diceLinkProps(segment.text)}>
-            {segment.text}
-          </span>
-        ) : (
-          <React.Fragment key={index}>{segment.text}</React.Fragment>
-        ),
-      )}
-    </>
-  );
+export function DiceText({ text, valuePath }: { text: string; valuePath?: SheetValuePath | undefined }): React.JSX.Element {
+  return <SheetDiceText text={text} valuePath={valuePath} />;
 }

@@ -1,7 +1,7 @@
 import {
   bindsFieldType, canContain, createBlock, isAuthorableBlockType, type AuthorableBlockType,
 } from './blockCatalogue';
-import { fieldByKey } from './fieldKeys';
+import { fieldByKey } from './fieldLookup'
 import { done, parentTypeOf, refuse, spliced, withChildren, type TreeEdit } from './treeEdit';
 import { boundField, findBlock } from './treeQueries';
 import {

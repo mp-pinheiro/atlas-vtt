@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  fieldByKey, fieldKeysOf, keyProblem, labelFromKey, labelToKey,
+  fieldKeysOf, keyProblem, labelFromKey, labelToKey,
 } from '../../../../src/app/statblocks/model/fieldKeys';
+import { fieldByKey } from '../../../../src/app/statblocks/model/fieldLookup';
 import { isReservedKey } from '../../../../src/app/statblocks/model/reservedKeys';
 import type { TemplateField } from '../../../../src/app/statblocks/model/templateTypes';
 import { int, mulberry32, pick } from './treeFixtures';

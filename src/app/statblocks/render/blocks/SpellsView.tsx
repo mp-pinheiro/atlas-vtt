@@ -1,6 +1,8 @@
 import React from 'react';
-import type { FieldValue, SpellsBlock } from '../../model/templateTypes';
+import type { SpellsBlock } from '../../model/templateTypes';
 import { toFieldValue } from '../../values/fieldValueOf';
+import { spellEntries } from '../values/compoundText';
+import type { SheetValuePath } from '../shared/diceSegments';
 import { valueText } from '../../values/valueText';
 import { spellGroups, type SpellLine } from '../shared/spellGroups';
 import { StatblockMarkdown } from '../shared/StatblockMarkdown';
@@ -11,23 +13,15 @@ import { ValueSlot } from '../valueSlot';
 import type { BlockViewProps } from './blockViewProps';
 import { SpellTabs } from './SpellTabs';
 
-/** A spells value as Fantasy Statblocks writes it: a list, or a record of level lines, or one line. */
-function spellEntries(value: FieldValue | undefined): FieldValue[] {
-  if (value === undefined || value === null) return [];
-  if (Array.isArray(value)) return value;
-  if (typeof value === 'object') return Object.entries(value).map(([level, spells]): FieldValue => ({ [level]: spells }));
-  return [value];
-}
 
-function SpellList({ lines }: { lines: readonly SpellLine[] }): React.JSX.Element | null {
-  const { app, sourcePath } = useSheet();
+function SpellList({ lines, path, indexes }: { lines: readonly SpellLine[]; path: SheetValuePath; indexes: readonly number[] }): React.JSX.Element | null {
   if (lines.length === 0) return null;
   return (
     <ul className="atlas-sb-spell-list">
       {lines.map((spell, index) => (
         <li key={`${spell.level ?? ''}-${index}`}>
           {spell.level && <span className="atlas-sb-spell-level">{spell.level}: </span>}
-          <StatblockMarkdown text={spell.spells} app={app} sourcePath={sourcePath} />
+          <StatblockMarkdown text={spell.spells} valuePath={[...path, indexes[index] ?? index]} />
         </li>
       ))}
     </ul>
@@ -39,7 +33,7 @@ function SpellList({ lines }: { lines: readonly SpellLine[] }): React.JSX.Elemen
  * with the tabs look, a group's levels are tabs under its loose lines.
  */
 export function SpellsView({ block, display }: BlockViewProps<SpellsBlock>): React.JSX.Element {
-  const { state, app, sourcePath } = useSheet();
+  const { state } = useSheet()
   const name = valueText(state.reader('name')) || 'The creature';
   const groups = display.state === 'value'
     ? spellGroups(spellEntries(state.reader(block.field)), `${name} knows the following spells:`, (value) => valueText(toFieldValue(value)))
@@ -56,10 +50,10 @@ export function SpellsView({ block, display }: BlockViewProps<SpellsBlock>): Rea
           return (
             <div key={`${group.header}-${groupIndex}`} className="atlas-sb-spell-group">
               <div className="atlas-sb-spell-header">
-                <StatblockMarkdown text={group.header} app={app} sourcePath={sourcePath} />
+                <StatblockMarkdown text={group.header} valuePath={[block.field, groupIndex, 'header']} />
               </div>
-              <SpellList lines={tabbed ? group.spells.filter((spell) => spell.level === undefined) : group.spells} />
-              {levelled.length > 0 && <SpellTabs strip={`${block.id}:${groupIndex}`} lines={levelled} />}
+              <SpellList lines={tabbed ? group.spells.filter((spell) => spell.level === undefined) : group.spells} path={[block.field, groupIndex, 'spells']} indexes={group.spells.flatMap((spell, index) => !tabbed || spell.level === undefined ? [index] : [])} />
+              {levelled.length > 0 && <SpellTabs strip={`${block.id}:${groupIndex}`} lines={levelled} path={[block.field, groupIndex, 'spells']} indexes={group.spells.flatMap((spell, index) => spell.level !== undefined ? [index] : [])} />}
             </div>
           );
         })}

@@ -3,7 +3,7 @@
 import { isReservedKey } from '../../model/reservedKeys';
 import type { LibraryTemplate } from '../../model/resolvedTypes';
 import type { StatblockRole } from '../../model/roleTypes';
-import { fieldByKey } from '../../model/fieldKeys';
+import { fieldByKey } from '../../model/fieldLookup'
 import { displayNameKey, headerParts, hiddenHeaderParts } from '../../model/templateHeader';
 import { fieldsShownBy, flattenReadingOrder } from '../../model/treeQueries';
 import type { StatblockTemplate, TemplateField } from '../../model/templateTypes';

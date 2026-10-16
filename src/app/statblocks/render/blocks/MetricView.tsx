@@ -46,7 +46,7 @@ function MetricCell({ block, number }: { block: MetricBlock; number: MetricNumbe
   // In the template editor a number not named yet shows the prompt it will have, worded after its placeholder name.
   const unnamedPrompt = useContext(ValueEditingContext)?.drawsUnnamed ? valuePrompt({ label }, label) : BLANK;
   const value = hasText(shown) || shown.problems.length > 0
-    ? <ValueText shown={shown} />
+    ? <ValueText shown={shown} valuePath={[key]} />
     : editing ? <FieldPrompt prompt={key ? valuePrompt(field, label) : unnamedPrompt} /> : <span className="atlas-sb-value atlas-sb-metric__blank">{BLANK}</span>;
 
   return (

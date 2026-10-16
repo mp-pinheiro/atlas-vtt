@@ -1,8 +1,7 @@
 import React from 'react';
-import type { FieldValue, TagsBlock } from '../../model/templateTypes';
-import { isEmptyValue } from '../../values/emptyValue';
-import { splitListText } from '../../values/listText';
-import { valueText } from '../../values/valueText';
+import type { TagsBlock } from '../../model/templateTypes';
+import { tagItems } from '../values/compoundText';
+import { useSheetRollLocation } from '../sheetRenderHost';
 import { StatblockMarkdown } from '../shared/StatblockMarkdown';
 import { useSheet } from '../sheetContext';
 import { LabelledLine } from '../values/LabelledLine';
@@ -10,12 +9,6 @@ import { StandIn, ValueText } from '../values/ValueText';
 import { ValueSlot } from '../valueSlot';
 import type { BlockViewProps } from './blockViewProps';
 
-/** A list field's items; a list written as one line of text is split at its commas. */
-function tagItems(value: FieldValue | undefined): string[] {
-  if (value === undefined || isEmptyValue(value)) return [];
-  if (Array.isArray(value)) return value.map(valueText).filter((text) => text.trim() !== '');
-  return splitListText(valueText(value));
-}
 
 type ItemLook = Exclude<TagsBlock['look'], 'comma'>;
 
@@ -27,13 +20,13 @@ const LIST_CLASS: Readonly<Record<ItemLook, string>> = {
 
 /** One element per item: chips, or a bulleted or numbered list. */
 function Items({ items, look }: { items: readonly string[]; look: ItemLook }): React.JSX.Element {
-  const { app, sourcePath } = useSheet();
+  const { valuePath } = useSheetRollLocation();
   const List = look === 'numbered' ? 'ol' : 'ul';
   return (
     <List className={LIST_CLASS[look]}>
       {items.map((item, index) => (
         <li key={`${item}-${index}`} className={look === 'chips' ? 'atlas-sb-chip' : 'atlas-sb-word'}>
-          <StatblockMarkdown text={item} app={app} sourcePath={sourcePath} />
+          <StatblockMarkdown text={item} valuePath={[...valuePath, index]} />
         </li>
       ))}
     </List>

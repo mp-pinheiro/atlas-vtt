@@ -5,7 +5,7 @@ import { renameFieldKey } from '../../../../src/app/statblocks/model/fieldOps';
 import {
   MAX_METRIC_NUMBERS, addMetricNumber, canAddMetricNumber, metricBlock, removeMetricNumber,
 } from '../../../../src/app/statblocks/model/metricNumbers';
-import { kindName, templateGrid, tileKind } from '../../../../src/app/statblocks/model/templateGrid';
+import { templateGrid } from '../../../../src/app/statblocks/model/templateGrid'; import { kindName, tileKind } from '../../../../src/app/statblocks/model/tileKinds'
 import { boundField, fieldsShownBy } from '../../../../src/app/statblocks/model/treeQueries';
 import { TEMPLATE_FORMAT, type MetricBlock, type StatblockTemplate } from '../../../../src/app/statblocks/model/templateTypes';
 

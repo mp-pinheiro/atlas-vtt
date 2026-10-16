@@ -11,6 +11,7 @@ import { TrackView } from './blocks/TrackView';
 import { useSheet } from './sheetContext';
 import { DisplayText } from './values/ValueText';
 import { ValueSlot } from './valueSlot';
+import { SheetRollLocationContext } from './sheetRenderHost';
 
 /** A part of the header the card draws now, with how it shows. */
 interface DrawnPart {
@@ -42,7 +43,8 @@ function partContent(drawn: DrawnPart): React.ReactNode {
 
 function PartFrame({ drawn }: { drawn: DrawnPart | undefined }): React.JSX.Element | null {
   if (!drawn) return null;
-  return <BlockFrame block={drawn.part.block} display={drawn.display}>{partContent(drawn)}</BlockFrame>;
+  const block = drawn.part.block;
+  return <SheetRollLocationContext.Provider value={{ blockId: block.id, valuePath: 'field' in block && typeof block.field === 'string' ? [block.field] : [] }}><BlockFrame block={block} display={drawn.display}>{partContent(drawn)}</BlockFrame></SheetRollLocationContext.Provider>;
 }
 
 /**

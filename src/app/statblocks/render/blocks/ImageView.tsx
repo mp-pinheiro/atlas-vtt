@@ -1,15 +1,16 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import type { ImageBlock } from '../../model/templateTypes';
 import { valueText } from '../../values/valueText';
-import { linkedTokenArt, statblockImageSrc, statblockImageToken } from '../shared/statblockImage';
+import { SheetRenderHostContext } from '../sheetRenderHost';
 import { useSheet } from '../sheetContext';
 import { StandIn } from '../values/ValueText';
 import { ValueSlot } from '../valueSlot';
 import type { BlockViewProps } from './blockViewProps';
 
 function ImageContent({ block, display }: BlockViewProps<ImageBlock>): React.JSX.Element | null {
-  const { state, app, sourcePath } = useSheet();
+  const { state } = useSheet()
+  const host = useContext(SheetRenderHostContext);
   if (display.state !== 'value') return <StandIn display={display} />;
 
   const art = state.token?.art;
@@ -19,15 +20,10 @@ function ImageContent({ block, display }: BlockViewProps<ImageBlock>): React.JSX
   }
 
   const raw = valueText(state.reader(block.field));
-  const own = statblockImageSrc(app, raw, sourcePath);
-  // A note without a picture it can show shows its linked token's art.
-  const linked = !own && app ? linkedTokenArt(app, sourcePath) : null;
-  const src = own || linked?.src;
+  const src = host?.image(raw);
   if (!src) return null;
   if (block.shape === 'token') {
-    // Art that is a token's is framed as that token is, so the statblock and the map agree.
-    const token = linked?.token ?? (app ? statblockImageToken(app, raw, sourcePath) : null);
-    return <TokenPortrait className="atlas-sb-token-image" src={src} alt={name} showRing={token?.showRing !== false} />;
+    return <TokenPortrait className="atlas-sb-token-image" src={src} alt={name} showRing={host?.imageRing?.(raw) !== false} />;
   }
   return <img className="atlas-sb-portrait-image" src={src} alt={name} draggable={false} decoding="async" />;
 }

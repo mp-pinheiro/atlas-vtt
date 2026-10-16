@@ -4,7 +4,7 @@ import { Button } from '../../../../packages/components/primitives/button';
 import { ToolButton } from '../../../../packages/components/primitives/ToolButton';
 import { abilityFieldKeys } from '../../../model/abilityParts';
 import { addAbilityTab, removeAbilityTab, renameAbilityTab, splitAbilities, type TemplateEdit } from '../../../model/abilityTabs';
-import { fieldByKey } from '../../../model/fieldKeys';
+import { fieldByKey } from '../../../model/fieldLookup'
 import { canContain } from '../../../model/blockCatalogue';
 import { parentTypeOf } from '../../../model/treeEdit';
 import { selectableFor } from '../../../model/templateGrid';

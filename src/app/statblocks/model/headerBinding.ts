@@ -8,7 +8,7 @@
  */
 
 import { bindsFieldType } from './blockCatalogue';
-import { fieldByKey, labelToKey } from './fieldKeys';
+import { fieldByKey } from './fieldLookup'; import { labelToKey } from './fieldKeys'
 import { removeField, updateField } from './fieldOps';
 import { withoutHeaderDuplicates } from './headerDuplicates';
 import { HEADER_PARTS, headerKey, headerParts } from './templateHeader';

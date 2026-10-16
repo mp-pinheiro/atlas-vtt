@@ -6,6 +6,7 @@ import { findBlock } from '../../../../src/app/statblocks/model/treeQueries';
 import { FIVE_E_2014_MONSTER } from '../../../../src/app/statblocks/presets/fiveE2014';
 import { FIVE_E_2024_MONSTER } from '../../../../src/app/statblocks/presets/fiveE2024';
 import type { StatblockTemplate, TemplateBlock } from '../../../../src/app/statblocks/model/templateTypes';
+import { scriptReads } from '../../../../src/app/statblocks/model/scriptReads';
 
 const FIVE_E = FIVE_E_2014_MONSTER.template;
 const headings = (template: StatblockTemplate, record: Record<string, unknown>, unfolded?: Set<string>): string[] =>
@@ -46,15 +47,15 @@ describe('foldedBlocks', () => {
 
   it('hides a folded block from the card and its values from editing', () => {
     const folded = foldedIds(foldedBlocks(FIVE_E, {}));
-    const sheet = sheetState({ template: FIVE_E, record: {}, mode: 'editing', folded });
+    const sheet = sheetState({ template: FIVE_E, record: {}, mode: 'editing', folded, scriptReads: scriptReads(FIVE_E) });
     const spells = findBlock(FIVE_E.layout.blocks, 'e4spell0')!.block;
     expect(blockDisplay(spells, sheet)).toBeNull();
-    expect(blockDisplay(spells, sheetState({ template: FIVE_E, record: {}, mode: 'editing' }))).not.toBeNull();
+    expect(blockDisplay(spells, sheetState({ template: FIVE_E, record: {}, mode: 'editing', scriptReads: scriptReads(FIVE_E) }))).not.toBeNull();
   });
 
   it('leaves a 5E statblock without spells as it was at runtime: the empty Spellcasting block is not drawn', () => {
     const spells = findBlock(FIVE_E.layout.blocks, 'e4spell0')!.block;
-    expect(blockDisplay(spells, sheetState({ template: FIVE_E, record: { name: 'Aboleth' }, mode: 'view' }))).toBeNull();
+    expect(blockDisplay(spells, sheetState({ template: FIVE_E, record: { name: 'Aboleth' }, mode: 'view', scriptReads: scriptReads(FIVE_E) }))).toBeNull();
   });
 });
 
@@ -98,10 +99,10 @@ describe('blocks that fold while empty', () => {
   });
 
   it('is not drawn where the statblock is read, shows its prompt in the template editor, and leaves the card where it folds', () => {
-    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: {}, mode: 'view' }))).toBeNull();
-    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: {}, mode: 'editing' }))).toEqual({ state: 'prompt', prompt: 'Add fantasy AGE stats' });
+    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: {}, mode: 'view', scriptReads: scriptReads(FOLDING) }))).toBeNull();
+    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: {}, mode: 'editing', scriptReads: scriptReads(FOLDING) }))).toEqual({ state: 'prompt', prompt: 'Add fantasy AGE stats' });
     const folded = foldedIds(foldedBlocks(FOLDING, {}));
-    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: {}, mode: 'editing', folded }))).toBeNull();
-    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: { fage_stats: [[12, 3]] }, mode: 'view' }))).not.toBeNull();
+    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: {}, mode: 'editing', folded, scriptReads: scriptReads(FOLDING) }))).toBeNull();
+    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: { fage_stats: [[12, 3]] }, mode: 'view', scriptReads: scriptReads(FOLDING) }))).not.toBeNull();
   });
 });

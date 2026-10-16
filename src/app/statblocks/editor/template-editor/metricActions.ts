@@ -5,7 +5,7 @@
  */
 
 import { UNNAMED_NUMBER } from '../../render/blocks/MetricView';
-import { fieldByKey } from '../../model/fieldKeys';
+import { fieldByKey } from '../../model/fieldLookup'
 import { MAX_METRIC_NUMBERS, addMetricNumber, canAddMetricNumber, metricBlock, removeMetricNumber } from '../../model/metricNumbers';
 import type { StatblockTemplate } from '../../model/templateTypes';
 import { removedMessage } from '../statblock-pane/announcements';

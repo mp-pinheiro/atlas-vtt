@@ -9,12 +9,12 @@ import {
   stringify,
   trimLabel,
 } from './statblockUtils';
-import { StatblockMarkdown } from '../../../statblocks/render/shared/StatblockMarkdown';
+import { StatblockMarkdown } from '../../../statblocks/render/shared/PluginMarkdown'
 import { EditableField } from '../../../statblocks/render/shared/EditableField';
 import { hitPointsAttribute, namesHitPoints } from '../../../statblocks/render/shared/hitPoints';
 import { statblockImageSrc } from '../../../statblocks/render/shared/statblockImage';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { diceLinkProps } from '../../../services/statblockDiceLinks';
+import { diceLinkProps } from '../../../statblocks/render/shared/diceSegments'
 import { t } from '../../../i18n';
 
 /** Values that map cleanly onto a single editable frontmatter entry. */

@@ -6,14 +6,12 @@
  * the format. Pure.
  */
 
-import { blockSpec } from './blockCatalogue';
+import { tileKind, type TileKind } from './tileKinds';
 import { headerPartOf, isHeaderBlockId, shownHeaderParts } from './templateHeader';
 import type { TreeTarget } from './treeEdit';
 import { findBlock } from './treeQueries';
 import type { StatblockTemplate, TemplateBlock, TemplateLayout } from './templateTypes';
 
-/** What a tile is to the person editing: the editor's six kinds, and `other` for blocks it shows as they render. */
-export type TileKind = 'value' | 'metric' | 'abilities' | 'table' | 'text' | 'divider' | 'other';
 
 export interface GridTile {
   id: string;
@@ -32,34 +30,6 @@ export interface TemplateGrid {
   rows: GridRow[];
 }
 
-/** A Tabs block whose every tab holds one list of abilities and nothing else: an Abilities tile with tabs. */
-export function isAbilityTabs(block: TemplateBlock): boolean {
-  return block.type === 'tabs' && block.blocks.length > 0 && block.blocks.every((tab) =>
-    tab.type === 'section' && tab.blocks.length === 1 && tab.blocks[0]?.type === 'entries');
-}
-
-export function tileKind(block: TemplateBlock): TileKind {
-  switch (block.type) {
-    case 'stat': case 'tags': case 'pairs': return 'value';
-    case 'metric': return 'metric';
-    case 'entries': return 'abilities';
-    case 'scores': return 'table';
-    case 'text': return 'text';
-    case 'divider': return 'divider';
-    case 'tabs': return isAbilityTabs(block) ? 'abilities' : 'other';
-    default: return 'other';
-  }
-}
-
-const KIND_NAMES: Readonly<Record<Exclude<TileKind, 'other'>, string>> = {
-  value: 'Value', metric: 'Metric', abilities: 'Abilities', table: 'Table', text: 'Text', divider: 'Divider',
-};
-
-/** What a block is called before it has a name of its own: its kind in the grid, else its block's name in the format ("Section", "Tabs"). */
-export function kindName(block: TemplateBlock): string {
-  const kind = tileKind(block);
-  return kind === 'other' ? blockSpec(block.type).label : KIND_NAMES[kind];
-}
 
 const tileOf = (block: TemplateBlock): GridTile => ({ id: block.id, kind: tileKind(block) });
 

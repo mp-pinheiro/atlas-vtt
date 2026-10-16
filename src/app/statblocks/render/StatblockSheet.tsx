@@ -1,26 +1,20 @@
 import React, { useMemo } from 'react';
 import type { App } from 'obsidian';
-import { cn } from '../../../utils/cn';
 import type { TokenVitals } from '../../services/statblockVitalsSync';
 import type { Lookups } from '../expressions/filters';
-import { slugify } from '../model/templateIds';
 import type { StatblockTemplate } from '../model/templateTypes';
 import type { FieldRecord } from '../values/fieldValues';
 import { valueText } from '../values/valueText';
-import { BlockList } from './BlockView';
-import { StatblockHeader } from './StatblockHeader';
+import { readerFor } from '../values/fieldValues';
 import { useStatblockDiceRolling } from './shared/useStatblockDiceRolling';
-import { SheetContext, type SheetContextValue } from './sheetContext';
-import { sheetState } from './sheetState';
-import { OpenTabsContext, useOpenTabsState } from './tabs/openTabs';
+import { StatblockSheetCore } from './StatblockSheetCore';
+import { pluginSheetHost } from './pluginSheetHost';
+import { scriptReads } from '../model/scriptReads';
 import type { SheetMode, SheetVariant, StatblockTokenContext } from './sheetTypes';
 import type { TokenRollContext } from '../../types/diceRollOrigin';
 import '../../react/components/statblock/statblock.scss';
 import './statblock-sheet.scss';
 
-const DEFAULT_COLUMN_WIDTH_EM = 22;
-
-type ColumnStyle = React.CSSProperties & Record<`--${string}`, string | number>;
 
 export interface StatblockSheetProps {
   template: StatblockTemplate;
@@ -81,48 +75,16 @@ export function StatblockSheet({
   folded,
   reveal = null,
 }: StatblockSheetProps): React.JSX.Element {
-  const state = useMemo(
-    () => sheetState({ template, record: fields, lookups, mode, token, folded }),
-    [template, fields, lookups, mode, token, folded],
-  );
-  const sheet = useMemo((): SheetContextValue => ({ state, app, sourcePath }), [state, app, sourcePath]);
-  const openTabs = useOpenTabsState(template.layout, reveal);
+  const host = useMemo(() => pluginSheetHost(app, sourcePath), [app, sourcePath]);
+  const reads = useMemo(() => scriptReads(template), [template]);
   const [diceRef, rollMenu] = useStatblockDiceRolling({
     app,
     notePath: sourcePath,
     tokens: rollTokens ?? (token ? [token] : []),
-    name: valueText(state.reader('name')) || undefined,
+    name: valueText(readerFor(fields, template.fields)('name')) || undefined,
     viewId,
     originContext,
   });
 
-  const slug = slugify(name) || undefined;
-  const columns: ColumnStyle = {
-    '--atlas-sb-column-width': `${template.layout.columnWidth ?? DEFAULT_COLUMN_WIDTH_EM}em`,
-    '--atlas-sb-max-columns': template.layout.maxColumns,
-  };
-
-  return (
-    <SheetContext.Provider value={sheet}>
-      <OpenTabsContext.Provider value={openTabs}>
-        <div
-          ref={diceRef}
-          className={cn('atlas-statblock', 'atlas-sb-sheet', `atlas-sb-sheet--${variant}`, mode === 'editing' && 'is-editing')}
-          data-template={slug}
-          data-layout={slug}
-          data-variant={variant}
-        >
-          <div className="atlas-statblock-body">
-            {header}
-            <StatblockHeader template={template} />
-            <div className="atlas-sb-columns" style={columns}>
-              <BlockList blocks={template.layout.blocks} />
-            </div>
-            {footer}
-          </div>
-          {rollMenu}
-        </div>
-      </OpenTabsContext.Provider>
-    </SheetContext.Provider>
-  );
+  return <StatblockSheetCore template={template} name={name} fields={fields} variant={variant} host={host} lookups={lookups} token={token} mode={mode} folded={folded} reveal={reveal} scriptReads={reads} header={header} footer={footer} menu={rollMenu} elementRef={diceRef} />;
 }

@@ -7,7 +7,7 @@ import { useListDrag } from '../dnd/useListDrag';
 import { ITEM_SELECTOR } from '../interaction/useSurfaceHover';
 import type { HoverTarget } from '../interaction/hoverStore';
 import { entryList } from './entryPatches';
-import { fieldByKey } from '../../model/fieldKeys';
+import { fieldByKey } from '../../model/fieldLookup'
 import { findBlock } from '../../model/treeQueries';
 import { keyedEntryItems } from '../../values/entryKeys';
 import { entryName } from '../../values/entryValues';

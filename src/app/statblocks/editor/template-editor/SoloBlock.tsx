@@ -10,6 +10,9 @@ import { sheetState } from '../../render/sheetState';
 import { ValueEditingContext } from '../../render/valueSlot';
 import type { FieldRecord } from '../../values/fieldValues';
 import { PREVIEW_VALUE_EDITING } from './editorValueSlot';
+import { scriptReads } from '../../model/scriptReads';
+import { pluginSheetHost } from '../../render/pluginSheetHost';
+import { SheetRenderHostContext } from '../../render/sheetRenderHost';
 
 /** A drawing beside the card carries no block id: the canvas's frame stays the one block of that id. */
 const SOLO_CHROME: BlockChrome = { decorate: () => ({ attributes: { 'data-block-id': undefined } }) };
@@ -32,11 +35,13 @@ export interface SoloBlockProps {
  * previews. It takes the width it is given.
  */
 export function SoloBlock({ template, id, record = NO_VALUES, app, sourcePath, className }: SoloBlockProps): React.JSX.Element | null {
-  const state = useMemo(() => sheetState({ template, record, mode: 'editing' }), [template, record]);
-  const sheet = useMemo((): SheetContextValue => ({ state, app, sourcePath }), [state, app, sourcePath]);
+  const state = useMemo(() => sheetState({ template, record, mode: 'editing', scriptReads: scriptReads(template) }), [template, record]);
+  const sheet = useMemo((): SheetContextValue => ({ state }), [state]);
+  const host = useMemo(() => pluginSheetHost(app, sourcePath), [app, sourcePath]);
   const block = findBlock(template.layout.blocks, id)?.block;
   if (!block) return null;
   return (
+    <SheetRenderHostContext.Provider value={host}>
     <SheetContext.Provider value={sheet}>
       <BlockChromeContext.Provider value={SOLO_CHROME}>
         <ValueEditingContext.Provider value={PREVIEW_VALUE_EDITING}>
@@ -46,5 +51,6 @@ export function SoloBlock({ template, id, record = NO_VALUES, app, sourcePath, c
         </ValueEditingContext.Provider>
       </BlockChromeContext.Provider>
     </SheetContext.Provider>
+    </SheetRenderHostContext.Provider>
   );
 }

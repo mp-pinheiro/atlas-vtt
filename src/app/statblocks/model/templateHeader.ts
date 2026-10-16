@@ -15,7 +15,7 @@
  * identifies the statblock ("Aranea (Cairn)"). Pure.
  */
 
-import { fieldByKey } from './fieldKeys';
+import { fieldByKey } from './fieldLookup'
 import { findBlock } from './treeQueries';
 import {
   HEADER_PART_IDS,

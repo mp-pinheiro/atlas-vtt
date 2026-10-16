@@ -3,7 +3,7 @@ import { act, render, type RenderResult } from '@testing-library/react';
 import { MarkdownRenderer, type App } from 'obsidian';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { plainText } from '../../../../src/app/creatures/creatureValues';
-import { StatblockMarkdown } from '../../../../src/app/statblocks/render/shared/StatblockMarkdown';
+import { StatblockMarkdown } from '../../../../src/app/statblocks/render/shared/PluginMarkdown'
 import { decodeStatblockLinks } from '../../../../src/app/services/statblockLinks';
 
 const WIKI = '<STATBLOCK-WIKI-LINK>Senses/Scent|scent<STATBLOCK-WIKI-LINK>';

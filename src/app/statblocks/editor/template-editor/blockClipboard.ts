@@ -5,7 +5,7 @@
  */
 
 import { patternRefs } from '../../expressions/patternRefs';
-import { fieldByKey, fieldKeysOf } from '../../model/fieldKeys';
+import { fieldByKey } from '../../model/fieldLookup'; import { fieldKeysOf } from '../../model/fieldKeys'
 import type { BlockIdSource } from '../../model/templateIds';
 import { reKeyed } from '../../model/treeOps';
 import { fieldsShownBy, findBlock, flattenReadingOrder } from '../../model/treeQueries';

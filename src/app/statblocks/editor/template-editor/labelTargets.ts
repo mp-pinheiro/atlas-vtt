@@ -7,8 +7,8 @@
  * typed in its header row (`editor/table/`).
  */
 
-import { fieldByKey } from '../../model/fieldKeys';
-import { kindName } from '../../model/templateGrid';
+import { fieldByKey } from '../../model/fieldLookup'
+import { kindName } from '../../model/tileKinds'
 import { headerPartOf, templateBlock } from '../../model/templateHeader';
 import { boundField } from '../../model/treeQueries';
 import { isUnboundBlock } from '../../render/blockDisplay';

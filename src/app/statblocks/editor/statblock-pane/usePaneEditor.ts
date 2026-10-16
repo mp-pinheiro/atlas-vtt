@@ -6,6 +6,7 @@ import type { NotePatch } from '../../notes/patchTypes';
 import type { BlockChrome } from '../../render/blockChrome';
 import { foldedIds, type FoldedBlock } from '../../render/foldRule';
 import { sheetState } from '../../render/sheetState';
+import { scriptReads } from '../../model/scriptReads';
 import type { ValueEditing } from '../../render/valueSlot';
 import { readField, type FieldRead, type FieldRecord } from '../../values/fieldValues';
 import type { PaneServices } from '../paneServices';
@@ -84,7 +85,7 @@ export function usePaneEditor(options: PaneEditorOptions): PaneEditor {
   const foldedNow = foldedIds(folded);
   if (!sameIds(foldedRef.current, foldedNow)) foldedRef.current = foldedNow;
   const foldedSet = foldedRef.current;
-  const sheet = useMemo(() => sheetState({ template, record, mode: 'editing', folded: foldedSet }), [template, record, foldedSet]);
+  const sheet = useMemo(() => sheetState({ template, record, mode: 'editing', folded: foldedSet, scriptReads: scriptReads(template) }), [template, record, foldedSet]);
   const spots = useMemo(() => editableSpots(template, sheet), [template, sheet]);
   const latest = useRef({ record, options, conflicts });
   latest.current = { record, options, conflicts };

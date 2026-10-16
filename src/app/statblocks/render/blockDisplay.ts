@@ -7,7 +7,7 @@ import { blockVisibility, evaluateCondition } from '../expressions/conditions';
 import { writtenFields } from '../expressions/patternFields';
 import { patternRefs } from '../expressions/patternRefs';
 import { blockSpec } from '../model/blockCatalogue';
-import { kindName } from '../model/templateGrid';
+import { kindName } from '../model/tileKinds'
 import { boundField, fieldsShownBy } from '../model/treeQueries';
 import { isContainerBlock, type ContainerBlock, type FieldKey, type TemplateBlock, type TemplateField } from '../model/templateTypes';
 import type { SheetState } from './sheetState';
@@ -118,7 +118,7 @@ function decide(block: TemplateBlock, sheet: SheetState): BlockDisplay | null {
   if (block.showWhen && !evaluateCondition(block.showWhen, sheet.reader)) return null;
   if (isContainerBlock(block)) return containerShows(block, sheet) ? VALUE : null;
   if (block.type === 'divider') return VALUE;
-  if (block.type === 'script') return sheet.mode === 'editing' || scriptBlocksShown(block.id, sheet).length > 0 ? VALUE : null;
+  if (block.type === 'script') return sheet.showEmptyScripts || sheet.mode === 'editing' || scriptBlocksShown(block.id, sheet).length > 0 ? VALUE : null;
   if (block.type === 'heading') return block.text.trim() || sheet.mode === 'editing' ? VALUE : null;
   if (isUnboundBlock(block)) return sheet.mode === 'editing' ? { state: 'prompt', prompt: promptFor(block, sheet) } : null;
   if (tokenHolds(block, sheet)) return VALUE;

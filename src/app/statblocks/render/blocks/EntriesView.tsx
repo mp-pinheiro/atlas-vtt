@@ -11,17 +11,17 @@ import { SheetHeading } from '../values/SheetHeading';
 import { StandIn, ValueText } from '../values/ValueText';
 import { ValueEditingContext, ValueSlot } from '../valueSlot';
 import type { BlockViewProps } from './blockViewProps';
+import type { SheetValuePath } from '../shared/diceSegments';
 
 /** An entry's labelled parts before its text: "Range 30 ft. Cost 2". */
-function EntryExtras({ entry, shape }: { entry: FieldValue; shape: EntryShape | undefined }): React.JSX.Element | null {
-  const { app, sourcePath } = useSheet();
+function EntryExtras({ entry, shape, path }: { entry: FieldValue; shape: EntryShape | undefined; path: SheetValuePath }): React.JSX.Element | null {
   const extras = entryExtras(entry, shape);
   if (!extras.length) return null;
   return (
     <span className="atlas-sb-entry-extras">
       {extras.map((extra) => (
         <span key={extra.key} className="atlas-sb-entry-extra">
-          <span className="atlas-sb-entry-extra-label">{extra.label}</span> <InlineText text={valueText(extra.value)} app={app} sourcePath={sourcePath} dice />
+          <span className="atlas-sb-entry-extra-label">{extra.label}</span> <InlineText text={valueText(extra.value)} valuePath={[...path, extra.key]} dice />
         </span>
       ))}
     </span>
@@ -30,7 +30,7 @@ function EntryExtras({ entry, shape }: { entry: FieldValue; shape: EntryShape | 
 
 /** A list of traits or actions under its heading: "***Claws.*** Melee Attack Roll: +5…". */
 export function EntriesView({ block, display }: BlockViewProps<EntriesBlock>): React.JSX.Element {
-  const { state, app, sourcePath } = useSheet();
+  const { state } = useSheet()
   const editing = useContext(ValueEditingContext);
   const shape = state.fields.get(block.field)?.entry;
   const entries = display.state === 'value' ? keyedEntryItems(state.reader(block.field)) : [];
@@ -46,7 +46,7 @@ export function EntriesView({ block, display }: BlockViewProps<EntriesBlock>): R
       {hasHeading && <SheetHeading action={add} placeholder={!named}>{heading}</SheetHeading>}
       {intro.trim() && (
         <div className="atlas-sb-entries-intro">
-          <ValueText shown={{ text: intro, problems: [] }} />
+          <ValueText shown={{ text: intro, problems: [] }} valuePath={[block.introField ?? '']} />
         </div>
       )}
       <ValueSlot block={block}>
@@ -58,11 +58,10 @@ export function EntriesView({ block, display }: BlockViewProps<EntriesBlock>): R
               itemIndex={index}
               name={entryName(item, shape)}
               text={entryText(item, shape) ?? ''}
-              app={app}
-              sourcePath={sourcePath}
+              valuePath={[block.field, index, shape?.textKey ?? 'desc']}
               nameStyle={block.nameStyle ?? 'run-in'}
             >
-              <EntryExtras entry={item} shape={shape} />
+              <EntryExtras entry={item} shape={shape} path={[block.field, index]} />
             </EntryLine>
           );
           return <React.Fragment key={key}>{editing?.entry ? editing.entry(block, { item, key, index, shown }, line) : line}</React.Fragment>;

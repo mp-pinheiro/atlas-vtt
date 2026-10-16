@@ -3,8 +3,8 @@ import type { Trait } from './statblockTypes';
 import { runCallback } from './layoutCallbacks';
 import { signed, slugify, stringify, toTitleCase, trimLabel } from './statblockUtils';
 import { SectionHeading, type BlockProps } from './StatblockBlocks';
-import { StatblockMarkdown } from '../../../statblocks/render/shared/StatblockMarkdown';
-import { EntryLine } from '../../../statblocks/render/shared/EntryLine';
+import { StatblockMarkdown } from '../../../statblocks/render/shared/PluginMarkdown'
+import { EntryLine } from '../../../statblocks/render/shared/PluginEntryLine'
 import { spellGroups } from '../../../statblocks/render/shared/spellGroups';
 import { t } from '../../../i18n';
 

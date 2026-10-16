@@ -2,7 +2,9 @@ import React, { useContext } from 'react';
 import type { CellAt } from '../../model/tableGrid';
 import { HEADER_ROW } from '../../model/tableGrid';
 import type { TableAlign } from '../../model/templateTypes';
-import { SheetContext, useSheet } from '../sheetContext';
+import { useSheet } from '../sheetContext';
+import { useSheetRollLocation } from '../sheetRenderHost';
+import type { SheetValuePath } from '../shared/diceSegments';
 import { InlineText } from '../shared/InlineText';
 import { ProblemMarker } from '../values/ProblemMarker';
 import { hasText, NO_TEXT, type ShownText } from '../values/shownText';
@@ -48,11 +50,10 @@ function alignStyle(align: TableAlign | null): React.CSSProperties | undefined {
 }
 
 /** A cell's text, Markdown drawn as a note's table draws it, or a zero-width space that keeps an empty cell one line high, as Obsidian keeps one with a line break. */
-export function CellText({ shown }: { shown: ShownText }): React.JSX.Element {
-  const sheet = useContext(SheetContext);
+export function CellText({ shown, valuePath }: { shown: ShownText; valuePath?: SheetValuePath | undefined }): React.JSX.Element {
   return (
     <>
-      {hasText(shown) ? <InlineText text={shown.text} app={sheet?.app} sourcePath={sheet?.sourcePath} dice /> : '\u200b'}
+      {hasText(shown) ? <InlineText text={shown.text} valuePath={valuePath} dice /> : '\u200b'}
       {shown.problems.length > 0 && <ProblemMarker problems={shown.problems} />}
     </>
   );
@@ -85,6 +86,7 @@ interface BandProps {
 /** One band of a Table: its columns' names over its share of every row, then of the worked-out rows. */
 function TableBand({ shown, decor, cols }: BandProps): React.JSX.Element {
   const { grid, cells, derived } = shown;
+  const { valuePath } = useSheetRollLocation();
   const labelled = derived.some((row) => row.label.trim());
   const corner = labelled ? <td className="atlas-sb-sheet-table__corner" aria-hidden="true" /> : null;
   const first = shown.header ? HEADER_ROW : 0;
@@ -123,7 +125,7 @@ function TableBand({ shown, decor, cols }: BandProps): React.JSX.Element {
               const at = { row: r, col };
               return (
                 <td key={col} {...cellProps(at, edges(index), decor, grid.columns[col]?.align ?? null, 'atlas-sb-sheet-table__cell')}>
-                  {content(at, <CellText shown={row[col] ?? NO_TEXT} />)}
+                  {content(at, <CellText shown={row[col] ?? NO_TEXT} valuePath={[...valuePath, r, col]} />)}
                   {handles(at)}
                 </td>
               );
@@ -135,7 +137,7 @@ function TableBand({ shown, decor, cols }: BandProps): React.JSX.Element {
             {labelled && <th scope="row" className="atlas-sb-sheet-table__derived-label">{row.label}</th>}
             {cols.map((col) => (
               <td key={col} className="atlas-sb-sheet-table__worked" style={alignStyle(grid.columns[col]?.align ?? null)}>
-                <CellText shown={row.cells[col] ?? NO_TEXT} />
+                <CellText shown={row.cells[col] ?? NO_TEXT} valuePath={[...valuePath, 'columns', index, col]} />
               </td>
             ))}
           </tr>

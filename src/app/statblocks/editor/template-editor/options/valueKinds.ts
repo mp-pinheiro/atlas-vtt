@@ -7,7 +7,7 @@
  * step. Pure.
  */
 
-import { fieldByKey } from '../../../model/fieldKeys';
+import { fieldByKey } from '../../../model/fieldLookup'
 import { updateField } from '../../../model/fieldOps';
 import { boundField, findBlock } from '../../../model/treeQueries';
 import { turnInto } from '../../../model/turnInto';

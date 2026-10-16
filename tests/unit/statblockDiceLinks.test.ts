@@ -7,10 +7,9 @@ vi.mock('../../src/app/atlasViewType', () => ({ ATLAS_VIEW_TYPE: 'atlas-vtt' }))
 import {
   attachDiceRolling,
   linkDiceIn,
-  splitDiceSegments,
-  toRollFormula,
 } from '../../src/app/services/statblockDiceLinks';
 import { rollStatblockDice } from '../../src/app/services/statblockRolls';
+import { splitDiceSegments, toRollFormula } from '../../src/app/statblocks/render/shared/diceSegments';
 
 interface Roll {
   formula: string;

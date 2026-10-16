@@ -1,20 +1,22 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import type { EntriesBlock, ImageBlock, TemplateBlock } from '../../model/templateTypes';
 import { useSheet } from '../../render/sheetContext';
 import { AddEntryRow } from '../../render/shared/AddEntryRow';
-import { statblockImageSrc } from '../../render/shared/statblockImage';
+import { SheetRenderHostContext } from '../../render/sheetRenderHost';
 import type { ValueEditing } from '../../render/valueSlot';
 import { valueText } from '../../values/valueText';
 import { TokenSocketFace } from '../token-socket/TokenSocketFace';
 import { renderTemplateTable } from './TemplateTable';
 import '../token-socket/token-socket.scss';
+import { provisionalSheet } from '../../render/provisionalSheet';
 
 /** The Image block as the note view draws it beside a note, without its panel: the template editor links no token. */
 function ImageSocket({ block, art }: { block: ImageBlock; art: React.ReactNode }): React.JSX.Element {
-  const { state, app, sourcePath } = useSheet();
+  const { state } = useSheet();
+  const host = useContext(SheetRenderHostContext);
   const named = valueText(state.reader(block.field));
-  const src = app && named ? statblockImageSrc(app, named, sourcePath) : '';
+  const src = named ? host?.image(named) : null;
   const shown = block.shape === 'token' && src ? <TokenPortrait className="atlas-sb-token-image" src={src} alt="" showRing /> : art;
   return <TokenSocketFace shape={block.shape} art={src ? shown : null} prompt={named ? 'Art not found' : 'Add token art'} tabIndex={-1} />;
 }
@@ -34,7 +36,7 @@ function addEntry(_block: EntriesBlock, label: string, iconOnly: boolean): React
  * Table its starting table, typed and shaped in place (`TemplateTable`). A
  * tile just placed is drawn as it will be once named.
  */
-export const EDITOR_VALUE_EDITING: ValueEditing = { slot, addEntry, table: renderTemplateTable, drawsUnnamed: true };
+export const EDITOR_VALUE_EDITING: ValueEditing = { slot, addEntry, table: renderTemplateTable, drawsUnnamed: true, provisional: provisionalSheet };
 
 /** A tile drawn beside the card (a drag's copy, the insert menu's preview): as on the card, its table drawn and never typed. */
-export const PREVIEW_VALUE_EDITING: ValueEditing = { slot, addEntry, drawsUnnamed: true };
+export const PREVIEW_VALUE_EDITING: ValueEditing = { slot, addEntry, drawsUnnamed: true, provisional: provisionalSheet };

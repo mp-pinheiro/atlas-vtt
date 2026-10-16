@@ -12,7 +12,7 @@
  */
 
 import { updateField, type FieldChanges } from './fieldOps';
-import { fieldByKey } from './fieldKeys';
+import { fieldByKey } from './fieldLookup'
 import { sameGrid, templateGrid, trimmedRow, type TableGrid } from './tableGrid';
 import { findBlock } from './treeQueries';
 import type { ScoresBlock, StatblockTemplate, TemplateField } from './templateTypes';

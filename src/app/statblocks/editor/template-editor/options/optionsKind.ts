@@ -1,6 +1,6 @@
 /** Which Options a selected block has: a Value's, an Abilities list's, a Table's, or the header line's values; none for the rest. Pure. */
 
-import { tileKind } from '../../../model/templateGrid';
+import { tileKind } from '../../../model/tileKinds'
 import { findBlock } from '../../../model/treeQueries';
 import type { StatblockTemplate } from '../../../model/templateTypes';
 
