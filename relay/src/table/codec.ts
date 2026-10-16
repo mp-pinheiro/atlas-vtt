@@ -1,3 +1,5 @@
+import { sha256 } from '../../../src/app/utils/hashing.ts';
+
 /**
  * Text forms of random bytes and hashes: the table code, the host secret and the SHA-256 digests
  * the relay keeps instead of any of them. Pure functions over the Workers runtime's Web Crypto.
@@ -56,10 +58,9 @@ export function randomBase64Url(count: number): string {
   return base64url(randomBytes(count));
 }
 
-/** The SHA-256 of a text's UTF-8 bytes, as 64 lowercase hex characters. */
-export async function sha256Hex(text: string): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(text)));
-  return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+/** The SHA-256 of a text's UTF-8 bytes, as 64 lowercase hex characters: the plugin's own digest (`sha256`) over the text's bytes. */
+export function sha256Hex(text: string): Promise<string> {
+  return sha256(encoder.encode(text));
 }
 
 /**
