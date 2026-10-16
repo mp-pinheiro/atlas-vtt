@@ -36,11 +36,14 @@ export class DrawingLayer {
   /** Stroke each node was last drawn from; a new reference means it moved or was restored by undo. */
   private readonly rendered = new Map<string, DrawingStroke>();
   private readonly iconTextures = new Map<string, Texture>();
+  private destroyed = false;
+  private readonly pendingIcons = new Map<string, Promise<Texture>>();
 
   constructor(private readonly container: Container) {}
 
   /** Shows exactly `drawings`: new ones are drawn, changed ones redrawn, the rest removed. */
   sync(drawings: Readonly<Record<string, DrawingStroke>>): void {
+    if (this.destroyed) return;
     for (const [id, node] of this.nodes) {
       if (!drawings[id]) {
         node.destroy();
@@ -81,6 +84,7 @@ export class DrawingLayer {
 
   /** Forgets every node and frees the icon textures; the container is its owner's to destroy. */
   destroy(): void {
+    this.destroyed = true;
     this.nodes.clear();
     this.rendered.clear();
     for (const texture of this.iconTextures.values()) texture.destroy(true);
@@ -110,14 +114,24 @@ export class DrawingLayer {
       return;
     }
 
-    createLucideIconTexture(markup, stroke.color, 96)
-      .then((texture) => {
-        this.iconTextures.set(cacheKey, texture);
-        if (sprite.destroyed) return;
-        sprite.texture = texture;
-        sprite.width = stroke.width;
-        sprite.height = stroke.width;
-      })
-      .catch((err) => console.error('[DrawingLayer] Failed to rasterise icon:', err));
+    let pending = this.pendingIcons.get(cacheKey);
+    if (!pending) {
+      pending = createLucideIconTexture(markup, stroke.color, 96).then((texture) => {
+        this.pendingIcons.delete(cacheKey);
+        if (this.destroyed) texture.destroy(true);
+        else this.iconTextures.set(cacheKey, texture);
+        return texture;
+      }, (error: unknown) => {
+        this.pendingIcons.delete(cacheKey);
+        throw error;
+      });
+      this.pendingIcons.set(cacheKey, pending);
+    }
+    void pending.then((texture) => {
+      if (this.destroyed || sprite.destroyed) return;
+      sprite.texture = texture;
+      sprite.width = stroke.width;
+      sprite.height = stroke.width;
+    }).catch((err: unknown) => console.error('[DrawingLayer] Failed to rasterise icon:', err));
   }
 }

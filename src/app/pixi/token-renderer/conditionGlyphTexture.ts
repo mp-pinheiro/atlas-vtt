@@ -20,7 +20,7 @@ export function getConditionGlyphTexture(glyph: ConditionGlyph): Texture | null 
   const cached = glyphTextures.get(key);
   if (cached) return cached;
 
-  const canvas = createEl('canvas');
+  const canvas = document.createElement('canvas');
   canvas.width = GLYPH_TEXTURE_SIZE;
   canvas.height = GLYPH_TEXTURE_SIZE;
   const ctx = canvas.getContext('2d');

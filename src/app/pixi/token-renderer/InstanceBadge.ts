@@ -1,6 +1,5 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { getTokenRingCenterRadius } from './tokenRingMetrics';
-import type { TokenGroupContainer } from './types';
 import { destroyTree } from '../utils/destroyTree';
 import { BADGE_DISC_LABEL, BADGE_TEXT_LABEL, INSTANCE_BADGE_LABEL } from './instanceBadgeParts';
 
@@ -10,7 +9,7 @@ import { BADGE_DISC_LABEL, BADGE_TEXT_LABEL, INSTANCE_BADGE_LABEL } from './inst
  * If it doesn't exist, creates it.
  */
 export function updateInstanceBadge(
-  tokenGroup: TokenGroupContainer,
+  tokenGroup: Container & { tokenSize: number; strokeWidth: number },
   instanceNumber: number,
   tokenSize: number,
   visible: boolean,

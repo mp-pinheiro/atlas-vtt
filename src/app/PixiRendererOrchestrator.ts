@@ -703,9 +703,27 @@ export class PixiRendererOrchestrator { // Renamed class
 
   /** Shows `overlay` above the map in screen space and never in the player view. Returns the function that removes it again. */
   public addDmScreenOverlay(overlay: Container): () => void {
-    this.app.stage.addChild(overlay);
+    return this.attachDmOverlay(overlay, false);
+  }
+
+  public addDmWorldOverlay(overlay: Container): () => void {
+    return this.attachDmOverlay(overlay, true);
+  }
+
+  private attachDmOverlay(overlay: Container, world: boolean): () => void {
+    const parent = world ? this.viewport : this.app.stage;
+    if (!parent) throw new Error('The map viewport is unavailable');
+    parent.addChild(overlay);
     this.dmScreenOverlays.add(overlay);
+    const sync = (): void => {
+      if (!overlay.destroyed) overlay.visible = this.store.getState().isGMView && !this.lighting?.playersViewActive;
+    };
+    if (world) {
+      sync();
+      this.app.ticker.add(sync);
+    }
     return () => {
+      if (world) this.app.ticker?.remove(sync);
       this.dmScreenOverlays.delete(overlay);
       overlay.parent?.removeChild(overlay);
     };
@@ -764,7 +782,6 @@ export class PixiRendererOrchestrator { // Renamed class
     layers.push(...(this.lighting?.playerLayers() ?? []));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
-    for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });
     return layers;
   }
 
@@ -789,6 +806,7 @@ export class PixiRendererOrchestrator { // Renamed class
     const layers: LayerVisibility[] = [];
     if (this.pinRenderer) layers.push({ layer: this.pinRenderer.getPinContainer(), visible: false });
     if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
+    for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });
     return layers;
   }
 

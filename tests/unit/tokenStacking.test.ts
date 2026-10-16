@@ -9,6 +9,8 @@ import { getHistoryStore } from '../../src/app/stores/history';
 import { placeTokens, raiseTokens } from '../../src/app/stores/tokenStacking';
 import type { TokenEntity } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+vi.mock('../../src/app/pixi/token-renderer/tokenRingTexture', () => ({ loadedTokenRingTexture: () => Texture.EMPTY }));
+vi.mock('../../src/app/pixi/token-renderer/tokenGlassTexture', () => ({ tokenGlassTexture: () => Texture.EMPTY }));
 
 const SQUARE = { x: 105, y: 105 };
 const ELSEWHERE = { x: 455, y: 105 };
@@ -208,9 +210,6 @@ describe('dragging a token onto another', () => {
 describe('SpriteFactory', () => {
   it('gives a new token group the place its token has in the stack', async () => {
     const factory = new SpriteFactory({ getOptions: () => ({ size: 70, type: 'square' }) } as never, false);
-    // The glass and the ring are painted on a canvas, which jsdom lacks.
-    vi.spyOn(factory as never, 'createGlassOverlay').mockImplementation(() => undefined as never);
-    vi.spyOn(factory, 'createTokenRing').mockReturnValue(null);
     const group = await factory.createTokenSprite(token('a', SQUARE, 12), Texture.EMPTY);
     expect(group.zIndex).toBe(12);
   });

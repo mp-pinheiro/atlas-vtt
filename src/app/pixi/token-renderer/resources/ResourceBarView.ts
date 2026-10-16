@@ -5,6 +5,7 @@ import type { VisibleResource } from '../../../resources/resourceTypes';
 import { ResourceBarLabel } from '../../ResourceBarLabel';
 import { destroyTree } from '../../utils/destroyTree';
 import { AnimatedBarFill } from '../AnimatedBarFill';
+import type { SharedBar } from '../../../online/protocol/tokenUI';
 
 /** The look every resource shares, bar or wheel: a thin grey border, a dark track, a fill set in from the border, faint ticks. */
 export const BAR_LOOK = {
@@ -42,23 +43,35 @@ export class ResourceBarView {
 
   /** Shows `resource` with the bar's top edge at `top`; returns the height it takes. */
   update({ definition, value }: VisibleResource, top: number, animate: boolean): number {
+    return this.updateVisual({
+      colour: definition.color,
+      direction: definition.direction,
+      defeats: definition.defeatedWhenSpent ?? false,
+      current: value.current,
+      max: value.max,
+    }, top, animate);
+  }
+
+  updateVisual(bar: SharedBar, top: number, animate: boolean): number {
     const { width, height } = barDimensions.token;
-    this.color = colorNumber(resourceColor(definition, value));
+    this.color = colorNumber(resourceColor({
+      color: bar.colour, direction: bar.direction, defeatedWhenSpent: bar.defeats,
+    }, bar));
     const inner = { x: -width / 2 + BORDER / 2, y: top + BORDER / 2, width: width - BORDER, height: height - BORDER };
     if (this.drawnTop !== top) {
       this.drawnTop = top;
       this.drawTrack(top, inner);
     }
     // A static value fills its bar: there is no share of it to show
-    const fixed = definition.direction === 'static';
-    this.fill.set(fixed ? 1 : value.max > 0 ? value.current / value.max : 0, {
+    const fixed = bar.direction === 'static';
+    this.fill.set(fixed ? 1 : bar.max > 0 ? bar.current / bar.max : 0, {
       x: inner.x + FILL_INSET,
       y: inner.y + FILL_INSET,
       width: inner.width - FILL_INSET * 2,
       height: inner.height - FILL_INSET * 2,
     }, animate);
-    if (fixed) this.label.setFixed(value.max);
-    else this.label.setValue(value);
+    if (fixed) this.label.setFixed(bar.max);
+    else this.label.setValue(bar);
     this.label.position.set(0, top + height / 2);
     return height;
   }

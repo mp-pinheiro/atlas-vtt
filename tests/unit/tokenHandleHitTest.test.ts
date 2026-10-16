@@ -9,6 +9,8 @@ import { TokenRotationUI } from '../../src/app/pixi/TokenRotationUI';
 import { SpriteFactory } from '../../src/app/pixi/token-renderer/SpriteFactory';
 import type { ViewAtlasState } from '../../src/app/storeFactory';
 import type { TokenEntity } from '../../src/app/types';
+vi.mock('../../src/app/pixi/token-renderer/tokenRingTexture', () => ({ loadedTokenRingTexture: () => Texture.EMPTY }));
+vi.mock('../../src/app/pixi/token-renderer/tokenGlassTexture', () => ({ tokenGlassTexture: () => Texture.EMPTY }));
 
 const token = { id: 't1', x: 0, y: 0, size: 1, rotation: 0, imagePath: 'art.png' } as TokenEntity;
 
@@ -24,10 +26,6 @@ const store = {
 /** Builds a token group with the real factory, then applies the renderer's per-token event setup like syncTokens does. */
 async function createTokenGroup(): Promise<Container> {
   const factory = new SpriteFactory({ getOptions: () => ({ size: 70, type: 'square' }) } as unknown as GridSystem);
-  // Ring and glass textures are painted on a 2D canvas, which jsdom lacks; both sprites are eventMode 'none' anyway.
-  const textures = factory as unknown as { getTokenRingTexture: () => Texture; getGlassTexture: () => Texture };
-  vi.spyOn(textures, 'getTokenRingTexture').mockReturnValue(Texture.EMPTY);
-  vi.spyOn(textures, 'getGlassTexture').mockReturnValue(Texture.EMPTY);
   const group = await factory.createTokenSprite(token, Texture.EMPTY);
   const harness = { store, interactionController: {}, spriteFactory: {} };
   (TokenRenderer.prototype as unknown as { reestablishTokenInteractivity: (g: Container) => void })

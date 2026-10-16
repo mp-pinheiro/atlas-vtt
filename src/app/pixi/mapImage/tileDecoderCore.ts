@@ -2,7 +2,8 @@ import { OpenError } from './decodedLevels';
 import { MapEntries, NeedBytes, type HeldBitmap, type MapEntry } from './mapEntries';
 import type { TileRef } from './pyramid';
 import type { TileGraphics } from './tileGraphics';
-import type { FileIdentity, OpenedPyramid, OpenFailure, TileEvent } from './tileProtocol';
+import type { OpenedPyramid } from './mapTileTypes';
+import type { FileIdentity, OpenFailure, TileEvent } from './tileProtocol';
 import { TileServer } from './tileServer';
 import type { TileStore } from './tileStore';
 

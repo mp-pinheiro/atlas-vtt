@@ -7,7 +7,7 @@ const WARN_COLOR = '#eab308';
 const CRITICAL_COLOR = '#ef4444';
 
 /** The share of a resource that is left: what remains of a draining one, what is not yet used of a filling one. */
-export function remainingShare(definition: ResourceDefinition, value: ResourceValue): number {
+export function remainingShare(definition: Pick<ResourceDefinition, 'direction'>, value: ResourceValue): number {
   if (!(value.max > 0)) return 0;
   const share = Math.max(0, Math.min(1, value.current / value.max));
   return definition.direction === 'drains' ? share : 1 - share;
@@ -18,7 +18,7 @@ export function remainingShare(definition: ResourceDefinition, value: ResourceVa
  * spent warns as it runs low: its own colour, yellow below 70%, red below 30%. Every
  * other resource keeps its colour.
  */
-export function resourceColor(definition: ResourceDefinition, value: ResourceValue): string {
+export function resourceColor(definition: Pick<ResourceDefinition, 'color' | 'direction' | 'defeatedWhenSpent'>, value: ResourceValue): string {
   if (!definition.defeatedWhenSpent) return definition.color;
   const left = remainingShare(definition, value);
   if (left >= WARN_BELOW) return definition.color;

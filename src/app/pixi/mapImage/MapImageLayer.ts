@@ -14,7 +14,6 @@ import { TileRequests, type TileSource } from './tileRequests';
 import { TileSprites } from './tileSprites';
 import { tileTextureKey, type TileTextureCache } from './tileTextureCache';
 
-export type { TileSource } from './tileRequests';
 
 /** Tiles loaded around each view beyond what it shows, so a pan finds them ready. */
 const PREFETCH_RING = 1;

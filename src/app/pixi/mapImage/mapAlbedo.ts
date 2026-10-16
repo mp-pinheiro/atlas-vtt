@@ -1,5 +1,5 @@
 import { ImageSource, Texture } from 'pixi.js';
-import type { MapTiles } from './mapImageTiles';
+import type { MapTiles } from './mapTileTypes';
 import { OVERVIEW_MAX_SIDE } from './pyramid';
 import { isMapClosed } from './tileErrors';
 

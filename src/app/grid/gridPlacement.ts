@@ -1,8 +1,9 @@
-import type { GridType } from './GridSystem';
+import type { GridState } from '../types/gridTypes';
 import { createHexLayout, hexCellExtent, hexCircumradius, hexOrientationForGridType, isHexGridType } from './hexGeometry';
 import type { Point } from './hexGeometry';
 import type { GridOffset } from './gridOffset';
 import { tokenDiameterInCells } from '../pixi/token-renderer/tokenSizing';
+type GridType = NonNullable<GridState['type']>;
 
 // Offsets without token sizes live in `gridOffset.ts`, which grid detection's worker can import.
 export { normaliseGridOffset } from './gridOffset';

@@ -1,11 +1,10 @@
-import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { WIDGET_ICON_PATHS, type WidgetIcon } from '../types/widgetIcons';
 
 /** What a condition badge shows: its icon, or the condition's initial while it has none. */
 export type ConditionGlyph = { kind: 'icon'; icon: WidgetIcon } | { kind: 'text'; text: string };
 
-export function conditionGlyph(condition: Pick<ConditionDefinition, 'name' | 'icon'>): ConditionGlyph {
-  if (condition.icon && condition.icon in WIDGET_ICON_PATHS) return { kind: 'icon', icon: condition.icon };
+export function conditionGlyph(condition: { name: string; icon?: string }): ConditionGlyph {
+  if (condition.icon && Object.hasOwn(WIDGET_ICON_PATHS, condition.icon)) return { kind: 'icon', icon: condition.icon as WidgetIcon };
   const initial = Array.from(condition.name.trim())[0];
   return { kind: 'text', text: initial ? initial.toLocaleUpperCase() : '?' };
 }

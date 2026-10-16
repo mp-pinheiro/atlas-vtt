@@ -172,6 +172,8 @@ export class LightingController {
     this.session.sync();
   }
 
+  get playersViewActive(): boolean { return this.session.active; }
+
   gmOverlays(): GmOverlays {
     return {
       wallEditor: this.editor.layer, ...this.modes.views, doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view,

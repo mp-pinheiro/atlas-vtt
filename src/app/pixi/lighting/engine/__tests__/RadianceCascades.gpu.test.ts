@@ -10,7 +10,7 @@ import { createTestRenderer, readFloats } from './gpuTestUtils';
 import type { WallSegment } from '../../../../types/wallTypes';
 import type { MapBounds } from '../../../../vision/visibility';
 import { MapAlbedo } from '../../../mapImage/mapAlbedo';
-import type { MapTiles } from '../../../mapImage/mapImageTiles';
+import type { MapTiles } from '../../../mapImage/mapTileTypes';
 
 const wall = (id: string, x1: number, y1: number, x2: number, y2: number): WallSegment => ({ id, kind: 'wall', type: 'solid', p1: { x: x1, y: y1 }, p2: { x: x2, y: y2 } });
 

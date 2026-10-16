@@ -19,7 +19,7 @@ const OUTLINE_COLOR = '#120c0a';
  * eye sockets. Drawn with Path2D, so no image has to load.
  */
 export function createDownedEmblemTexture(size: number = DOWNED_EMBLEM_TEXTURE_SIZE): Texture {
-  const canvas = createEl('canvas');
+  const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');

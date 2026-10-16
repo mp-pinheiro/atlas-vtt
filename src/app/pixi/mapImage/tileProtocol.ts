@@ -1,4 +1,5 @@
-import type { Pyramid, TileRef } from './pyramid';
+import type { TileRef } from './pyramid';
+import type { OpenedPyramid } from './mapTileTypes';
 
 /**
  * Messages between `TileDecoderClient` (main thread) and the tile worker
@@ -19,11 +20,6 @@ export type OpenFailure =
   | { kind: 'too-large'; width: number; height: number; maxSide: number; maxPixels: number }
   | { kind: 'failed'; message: string };
 
-export interface OpenedPyramid {
-  handle: number;
-  hash: string;
-  pyramid: Pyramid;
-}
 
 export type TileRequest =
   /** First message to a worker: which vault's cache to open; null keeps the cache in memory. */

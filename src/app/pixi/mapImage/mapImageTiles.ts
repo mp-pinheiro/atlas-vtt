@@ -1,29 +1,11 @@
 import { drawMissingAssetImage, MISSING_ASSET_SIZE } from '../../services/AssetValidationService';
 import { fitWithin } from '../../imageProcessing/imageLayout';
 import { pyramidOf, type TileRef } from './pyramid';
-import type { OpenedMap } from './TileDecoderClient';
-import type { TileSource } from './tileRequests';
+import type { OpenedPyramid, MapTiles, TileReader } from './mapTileTypes';
 
-/** What a `MapImage` shows: its tiles, the whole picture on demand, and how to let go of it. */
-export interface MapTiles {
-  readonly source: TileSource;
-  /** Whether its tile textures may outlive it in the cache: true for pyramids keyed by their source's hash. */
-  readonly cacheable: boolean;
-  /** The whole image fit within `maxSide` pixels. */
-  overview(maxSide: number): Promise<ImageBitmap>;
-  /** Ends the open; requests still under way are cancelled. */
-  close(): void;
-}
-
-/** The part of `MapImageService` a map's tiles are read through. */
-export interface TileReader {
-  tile(handle: number, ref: TileRef, signal?: AbortSignal): Promise<ImageBitmap>;
-  overview(handle: number, maxSide: number, signal?: AbortSignal): Promise<ImageBitmap>;
-  close(handle: number): void;
-}
 
 /** The tiles of a map image opened in the tile worker. */
-export function decoderTiles(reader: TileReader, opened: OpenedMap): MapTiles {
+export function decoderTiles(reader: TileReader, opened: OpenedPyramid): MapTiles {
   const { handle, hash, pyramid } = opened;
   return {
     source: { key: hash, pyramid, requestTile: (ref, signal) => reader.tile(handle, ref, signal) },

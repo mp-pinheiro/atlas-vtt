@@ -1,5 +1,5 @@
 import { Container, Text } from 'pixi.js';
-import type { ResourceValue } from './tokenValueEditor';
+import type { ResourceValue } from '../resources/resourceTypes';
 
 /** Horizontal distance from the bar centre to the near edge of each number, in bar pixels. */
 export const RESOURCE_NUMBER_GAP = 1.5;

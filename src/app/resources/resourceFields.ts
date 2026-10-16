@@ -1,4 +1,4 @@
-import { IGNORED_FIELDS } from '../creatures/creatureFieldDiscovery';
+import { IGNORED_FIELDS } from '../creatures/ignoredFields';
 import { NO_MEANINGS, type FieldMeanings } from '../statblocks/resolve/fieldMeanings';
 import { clampValue } from './resourceValues';
 import type { ResourceValue } from './resourceTypes';

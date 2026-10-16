@@ -9,20 +9,13 @@ import type { Container, Graphics, Sprite, Texture, Application, TickerCallback 
 import type { TokenEntity } from '../../types';
 import type { GridSystem } from '../../grid/GridSystem';
 import type { TokenUIRenderer } from '../TokenUIRenderer';
+import type { TokenSpriteGroup } from './SpriteFactory';
 
 /**
  * A token's root container. `SpriteFactory` attaches the metadata when it
  * builds the container, so every token container in the renderer carries it.
  */
-export interface TokenGroupContainer extends Container {
-  tokenId: string;
-  tokenData: TokenEntity;
-  /** Rendered diameter in world pixels. */
-  tokenSize: number;
-  /** Image path whose texture this group holds in the `TextureCache`. */
-  artPath: string;
-  strokeWidth: number;
-  /** Ticker callback of the movement animation in flight, if any. */
+export interface TokenGroupContainer extends TokenSpriteGroup {
   currentAnimation?: TickerCallback<unknown> | null;
 }
 
@@ -34,47 +27,6 @@ export interface TokenHandleContainer extends Container {
   direction?: string;
 }
 
-/**
- * Token sprite creation and management
- */
-export interface ITokenSpriteFactory {
-  /**
-   * Creates a complete token container with all visual elements
-   * @param token The token entity data
-   * @param texture The loaded texture for the token
-   * @returns Promise resolving to the created container with token visuals
-   */
-  createTokenSprite(token: TokenEntity, texture: Texture): Promise<TokenGroupContainer>;
-  
-  /**
-   * Updates the size of a token sprite based on grid changes
-   * @param tokenId The token identifier
-   * @param container The token container to update
-   * @param size The new size multiplier
-   */
-  updateTokenSize(tokenId: string, container: TokenGroupContainer, size: number): void;
-  
-  /**
-   * Updates the position of a token sprite
-   * @param container The token container to update
-   * @param x The new x coordinate
-   * @param y The new y coordinate
-   */
-  updateTokenPosition(container: Container, x: number, y: number): void;
-  
-  /**
-   * Updates the rotation of a token sprite
-   * @param container The token container to update
-   * @param rotation The rotation in degrees
-   */
-  updateTokenRotation(container: Container, rotation: number): void;
-  
-  /**
-   * Destroys a token group with all of its children, including their geometry
-   * @param container The token container to destroy
-   */
-  destroyTokenSprite(container: Container): void;
-}
 
 /**
  * Token art, decoded once per image and shared by every token that shows it.

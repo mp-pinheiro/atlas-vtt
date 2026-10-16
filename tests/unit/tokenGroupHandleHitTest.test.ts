@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import 'pixi.js/events';
 import { Circle, Container, EventBoundary, Texture } from 'pixi.js';
 import { SpriteFactory } from '../../src/app/pixi/token-renderer/SpriteFactory';
+vi.mock('../../src/app/pixi/token-renderer/tokenRingTexture', () => ({ loadedTokenRingTexture: () => Texture.EMPTY }));
+vi.mock('../../src/app/pixi/token-renderer/tokenGlassTexture', () => ({ tokenGlassTexture: () => Texture.EMPTY }));
 
 /**
  * Resize/rotation handles are added as children of the token group. PIXI prunes
@@ -12,8 +14,6 @@ describe('token group handle hit-testing', () => {
   it('lets a static child handle receive the hit', async () => {
     const gridSystem = { getOptions: () => ({ size: 70, type: 'square' }) } as any;
     const factory = new SpriteFactory(gridSystem, false);
-    vi.spyOn(factory as any, 'getTokenRingTexture').mockReturnValue(Texture.EMPTY);
-    vi.spyOn(factory as any, 'createGlassOverlay').mockImplementation(() => undefined);
 
     const token = { id: 't1', type: 'token', x: 0, y: 0, size: 1 } as any;
     const group = await factory.createTokenSprite(token, Texture.WHITE);

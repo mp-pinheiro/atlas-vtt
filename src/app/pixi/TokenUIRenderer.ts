@@ -16,11 +16,12 @@ import type { ResourceDefsProvider, ResourceViewer, VisibleResource } from '../r
 import { isDefeated, isSpent } from '../resources/resourceValues';
 import { shapeOf, visibleResources } from '../resources/visibleResources';
 import { destroyTree } from './utils/destroyTree';
-import { computeTokenStrokeWidth, NAMEPLATE_HEIGHT, restingTokenUIScale, selectedTokenUIScale } from './token-renderer/tokenSizing';
+import { computeTokenStrokeWidth, restingTokenUIScale, selectedTokenUIScale } from './token-renderer/tokenSizing';
 import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
 import { ValueTransition } from './utils/ValueTransition';
 import { MOTION_SLOW_MS, prefersReducedMotion } from '../utils/motion';
 import { t } from '../i18n';
+import { TokenVisual } from './token-renderer/TokenVisual';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
@@ -391,41 +392,7 @@ export class TokenUIRenderer {
 
     // Only show nameplate if enabled AND we have a name to display
     if (showNameplate && displayName) {
-      // Get theme colors
-      const isDarkMode = document.body.classList.contains('theme-dark');
-      const bgColor = isDarkMode ? 0x2a2a2a : 0xe3e3e3;
-      const strokeColor = isDarkMode ? 0xffffff : 0x000000;
-      
-      this.nameText.text = displayName;
-      // In PIXI v8, text updates automatically when setting the text property
-      const textBounds = this.nameText.getLocalBounds();
-      
-      this.nameText.alpha = 0.85;
-      
-      // Badge dimensions - use fixed sizes  
-      const scaledTextScale = 0.333; // Fixed text scale
-      const scaledWidth = textBounds.width * scaledTextScale;
-      const padding = 6; // Fixed padding
-      const badgeWidth = Math.max(scaledWidth + padding * 2, 40); // Fixed min width
-      const badgeHeight = NAMEPLATE_HEIGHT;
-      const badgeRadius = badgeHeight / 2;
-      
-      // Position the name badge so its bottom edge aligns with the token's bottom edge
-      const nameY = -badgeHeight / 2;
-      
-      // Draw rounded rectangle background
-      this.nameBadge.clear();
-      this.nameBadge.roundRect(-badgeWidth/2, nameY - badgeHeight/2, badgeWidth, badgeHeight, badgeRadius)
-        .fill({ color: bgColor, alpha: 1 }); // Fully opaque background
-      
-      // Add border — softened so it doesn't overpower the nameplate
-      this.nameBadge.roundRect(-badgeWidth/2, nameY - badgeHeight/2, badgeWidth, badgeHeight, badgeRadius)
-        .stroke({ width: 0.5, color: strokeColor, alpha: isDarkMode ? 0.4 : 0.3 });
-      
-      // Position text in center of badge
-      this.nameText.anchor.set(0.5, 0.5);
-      this.nameText.position.set(0, nameY);
-      this.nameText.scale.set(0.333); // Fixed text scale
+      TokenVisual.nameplate(this.nameBadge, this.nameText, displayName, document.body.classList.contains('theme-dark'));
     }
     
     // Hide unused elements (but respect resize and rotation hidden state)

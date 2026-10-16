@@ -1,7 +1,6 @@
 import type { Ticker } from 'pixi.js';
 import type { TFile } from 'obsidian';
-import type { TileReader } from './mapImageTiles';
-import type { OpenedMap } from './TileDecoderClient';
+import type { TileReader, OpenedPyramid } from './mapTileTypes';
 import type { TileUploader } from './tileTextureCache';
 
 /** What a scene shows under its tokens: a vault image, the missing-image placeholder, or nothing of a given size. */
@@ -12,7 +11,7 @@ export type MapImageSource =
 
 /** The part of `MapImageService` a map image opens and reads its file through. */
 export interface MapImageOpener extends TileReader {
-  open(file: TFile): Promise<OpenedMap>;
+  open(file: TFile): Promise<OpenedPyramid>;
   reportUnshown(file: TFile, error: unknown): void;
   /** Called when the tile worker stopped and took the open maps along; returns the unsubscribe. */
   onRestart(listener: () => void): () => void;

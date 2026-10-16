@@ -2,7 +2,8 @@ import { type App, type TFile } from 'obsidian';
 import { t } from '../../i18n';
 import { describeError } from '../../utils/errors';
 import { decodeImage, imageMimeType } from '../decodedImage';
-import { TileDecoderClient, TileOpenError, type OpenedMap } from './TileDecoderClient';
+import { TileDecoderClient, TileOpenError } from './TileDecoderClient';
+import type { OpenedPyramid } from './mapTileTypes';
 import type { TileRef } from './pyramid';
 import { showNotice } from '../../ui/notice';
 
@@ -38,7 +39,7 @@ export class MapImageService {
    * them, the size such a map has always had; the worker builds its pyramid from that bitmap.
    * Rejects with `TileOpenError` (or a decode error) when the image cannot be shown.
    */
-  async open(file: TFile): Promise<OpenedMap> {
+  async open(file: TFile): Promise<OpenedPyramid> {
     const identity = { path: file.path, size: file.stat.size, mtime: file.stat.mtime };
     const read = (): Promise<ArrayBuffer> => this.app.vault.readBinary(file);
     const decode = (bytes: ArrayBuffer): Promise<ImageBitmap> => decodeOnMainThread(bytes, file.extension);

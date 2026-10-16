@@ -4,15 +4,9 @@ import { TilePortKeeper, type TileWorkerCrash } from './tilePortKeeper';
 import { workerPort, type PortFactory } from './tilePorts';
 import { MapClosedError } from './tileErrors';
 import { openWithRetry, type BytesSource, type MainThreadDecode, type OpenExchange } from './tileOpenRequest';
-import {
-  isTileEvent,
-  type FileIdentity,
-  type OpenedPyramid,
-  type TileEvent,
-  type TileReply,
-  type TileRequest,
-} from './tileProtocol';
+import { isTileEvent, type FileIdentity, type TileEvent, type TileReply, type TileRequest } from './tileProtocol';
 import TileWorker from './tileWorker?worker&inline';
+import type { OpenedPyramid } from './mapTileTypes';
 
 /**
  * The main thread's side of the map tile worker: one worker per app, shared
@@ -26,7 +20,6 @@ import TileWorker from './tileWorker?worker&inline';
 export { isMapClosed, MapClosedError, TileOpenError } from './tileErrors';
 export type { BytesSource, MainThreadDecode } from './tileOpenRequest';
 
-export type OpenedMap = OpenedPyramid;
 
 export interface TileDecoderClientOptions {
   /** Names the vault's tile cache; null keeps it in memory. */
@@ -93,7 +86,7 @@ export class TileDecoderClient {
    * decodes the bytes on this thread for images a worker cannot decode (SVG); it runs only when
    * the bytes are read, and its bitmap is transferred along with them.
    */
-  async open(source: BytesSource, identity: FileIdentity | null, decode?: MainThreadDecode): Promise<OpenedMap> {
+  async open(source: BytesSource, identity: FileIdentity | null, decode?: MainThreadDecode): Promise<OpenedPyramid> {
     const reply = await this.openLike('open', source, identity, decode);
     if (reply.type !== 'opened') throw new Error(`Unexpected reply to open: ${reply.type}`);
     const handle = this.nextHandle++;
