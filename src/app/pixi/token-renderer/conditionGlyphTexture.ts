@@ -1,4 +1,5 @@
 import { CanvasSource, Texture } from 'pixi.js';
+import { getDomHost } from '../../host/dom';
 import { WIDGET_ICON_PATHS } from '../../types/widgetIcons';
 import type { ConditionGlyph } from '../../utils/conditionGlyph';
 
@@ -20,7 +21,7 @@ export function getConditionGlyphTexture(glyph: ConditionGlyph): Texture | null 
   const cached = glyphTextures.get(key);
   if (cached) return cached;
 
-  const canvas = createEl('canvas');
+  const canvas = getDomHost().createCanvas();
   canvas.width = GLYPH_TEXTURE_SIZE;
   canvas.height = GLYPH_TEXTURE_SIZE;
   const ctx = canvas.getContext('2d');

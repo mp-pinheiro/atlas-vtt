@@ -9,6 +9,7 @@ import { Container, Graphics, Sprite, Circle, Texture, CanvasSource } from 'pixi
 import type { ITokenSpriteFactory, TokenGroupContainer } from './spriteTypes';
 import type { TokenEntity } from '../../types';
 import type { GridSystem } from '../../grid/GridSystem';
+import { getDomHost } from '../../host/dom';
 import { destroyTree } from '../utils/destroyTree';
 import { getTokenRingOuterDiameter } from './tokenRingMetrics';
 import { loadedTokenRingTexture, loadTokenRingTexture } from './tokenRingTexture';
@@ -260,7 +261,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
     }
 
     const size = 512;
-    const canvas = createEl('canvas');
+    const canvas = getDomHost().createCanvas();
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;

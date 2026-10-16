@@ -1,4 +1,5 @@
 import { Texture } from 'pixi.js';
+import { getDomHost } from '../../host/dom';
 import { WIDGET_ICON_PATHS } from '../../types/widgetIcons';
 
 /** Edge length of the rasterised emblem, large enough for big tokens on high-density screens. */
@@ -19,7 +20,7 @@ const OUTLINE_COLOR = '#120c0a';
  * eye sockets. Drawn with Path2D, so no image has to load.
  */
 export function createDownedEmblemTexture(size: number = DOWNED_EMBLEM_TEXTURE_SIZE): Texture {
-  const canvas = createEl('canvas');
+  const canvas = getDomHost().createCanvas();
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
