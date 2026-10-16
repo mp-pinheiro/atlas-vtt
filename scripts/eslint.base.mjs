@@ -6,6 +6,7 @@
 // Run from the repository root (`npm run lint:player`, `npm run lint:relay`): with `-c`, ESLint
 // reads the patterns below relative to the working directory.
 import path from 'node:path';
+import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 import { NO_NATIVE_TITLE } from './lintRules.mjs';
@@ -55,7 +56,9 @@ export function createBaseConfig(folder) {
     globalIgnores(['**/node_modules/', '**/dist/', '**/.wrangler/']),
     {
       files: CODE,
-      extends: [tseslint.configs.recommendedTypeChecked],
+      // ESLint's own recommended rules (`no-debugger`, `no-fallthrough`, `no-self-assign`, ...) come first, as typescript-eslint's
+      // typed-linting guide lists them: its presets only switch off the core rules that TypeScript already covers.
+      extends: [js.configs.recommended, tseslint.configs.recommendedTypeChecked],
       languageOptions: {
         parserOptions: {
           projectService: true,
