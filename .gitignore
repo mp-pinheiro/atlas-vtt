@@ -79,3 +79,8 @@ party/
 # GPU test failure artifacts
 **/__screenshots__/
 .vitest-attachments/
+
+# The relay's local Wrangler state, and the secrets Wrangler reads for local runs.
+relay/.wrangler/
+.dev.vars
+.dev.vars.*
