@@ -43,7 +43,7 @@ export function checkBoundaries(root, manifest) {
   root = path.resolve(root);
   const violations = [];
   const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
-  const code = [...new Set(files)].filter(file => CODE.test(file) && !TEST.test(file) && (file.startsWith('src/') || file === 'main.ts'));
+  const code = [...new Set(files)].filter(file => CODE.test(file) && !TEST.test(file) && (file.startsWith('src/') || file === 'main.ts' || file.startsWith('player/src/') || file.startsWith('relay/src/')));
   const memberships = new Map();
   const counts = { plugin: 0 };
   for (const [name, rule] of Object.entries(manifest.BOUNDARIES)) {
@@ -72,6 +72,7 @@ export function checkBoundaries(root, manifest) {
       if (clean.startsWith('src/') || clean.startsWith('@/')) { fail('alias import; use a relative path'); continue; }
       const local = clean.startsWith('.');
       if (!local) {
+        if (owner === 'relay' && clean === 'cloudflare:workers') continue;
         const name = packageName(clean);
         const allowed = rule.packages.some(entry => entry === name || (entry.endsWith('/*') && name.startsWith(entry.slice(0, -1))));
         if (clean.startsWith('node:') || builtins.has(clean) || !allowed) { fail('package not allowed'); continue; }
@@ -89,6 +90,10 @@ export function checkBoundaries(root, manifest) {
       if (!local && resolved.isExternalLibraryImport) continue;
       const target = normalized(path.relative(root, resolved.resolvedFileName));
       const targetClass = memberships.get(target) ?? 'plugin';
+      if (owner === 'relay' && local && targetClass !== 'relay' && !target.startsWith('src/app/online/protocol/')) {
+        fail(`relay local import outside relay/protocol: ${target}`);
+        continue;
+      }
       if (!rule.mayImport.includes(targetClass)) fail(`class ${targetClass}: ${target}`);
     }
   }

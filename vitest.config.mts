@@ -1,34 +1,31 @@
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
+import { atlasAcceptance } from './player/tests/acceptanceCommands.ts';
 
-const alias = {
+const pluginAlias = {
   '@': '/src',
   src: '/src',
   obsidian: '/tests/mocks/obsidian.ts',
 };
 
 export default defineConfig({
-  // Dev tooling (e.g. disk-backed template loading) is enabled under test so
-  // the maintainer-facing code paths are exercised. Mirrors the Vite `define`.
-  define: {
-  },
-  resolve: { alias },
+  define: {},
   test: {
     projects: [
       {
         extends: true,
+        resolve: { alias: pluginAlias },
         test: {
           name: 'unit',
           environment: 'jsdom',
           globals: true,
           setupFiles: ['./tests/setup/obsidianDom.ts', './tests/setup/domHost.ts'],
-          exclude: ['**/node_modules/**', '**/*.gpu.test.ts'],
+          exclude: ['**/node_modules/**', '**/*.gpu.test.ts', 'player/**', 'relay/**'],
         },
       },
       {
         extends: true,
-        // Found only while a test runs, a dependency reloads that test: the Obsidian mock imports
-        // `yaml`, the app manager's test `pixi-viewport`, the dice morph test React's DOM.
+        resolve: { alias: pluginAlias },
         optimizeDeps: { include: ['yaml', 'pixi-viewport', 'eventemitter3', 'react-dom', 'react-dom/client', 'react/jsx-dev-runtime'] },
         test: {
           name: 'gpu',
@@ -36,6 +33,27 @@ export default defineConfig({
           include: ['src/**/*.gpu.test.ts', 'tests/**/*.gpu.test.ts'],
           testTimeout: 600_000,
           browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({ launchOptions: { channel: 'chromium', ignoreDefaultArgs: ['--hide-scrollbars'] } }),
+            instances: [{ browser: 'chromium' }],
+          },
+        },
+      },
+      {
+        test: {
+          name: 'player',
+          include: ['player/tests/**/*.test.ts', 'player/tests/**/*.test.tsx'],
+          exclude: ['player/tests/**/*.browser.test.*'],
+          environment: 'node',
+        },
+      },
+      {
+        test: {
+          name: 'player-browser',
+          include: ['player/tests/**/*.browser.test.ts', 'player/tests/**/*.browser.test.tsx'],
+          browser: {
+            commands: { atlasAcceptance },
             enabled: true,
             headless: true,
             provider: playwright({ launchOptions: { channel: 'chromium', ignoreDefaultArgs: ['--hide-scrollbars'] } }),

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atlas local GM acceptance</title></head>
+<body>
+<header><h1>Atlas GM acceptance table</h1><output id="status">Connecting</output><a id="join" target="_blank" rel="noopener noreferrer">Open player</a></header>
+<section id="waiting" aria-label="Waiting players"></section>
+<section id="claims" aria-label="Character requests"></section>
+<section id="people" aria-label="Player ownership"></section>
+<section id="permissions" aria-label="Scene permissions"></section>
+<button id="undo">Undo</button><button id="redo">Redo</button><button id="restart">Restart GM connection</button>
+<div style="display:flex;gap:16px;padding:16px"><div id="map" style="width:700px;height:700px"></div><div id="queue"></div></div>
+<pre id="errors" role="alert"></pre>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { Application, Graphics } from 'pixi.js';
+import { PendingPathQueue } from '/src/app/online/gm/paths/PendingPathQueue.tsx';
+import { PendingPathOverlay } from '/src/app/online/gm/paths/PendingPathOverlay.ts';
+import { resolveMeasurementSettings } from '/src/app/grid/measurementFormat.ts';
+import { installDomHost } from '/src/app/host/dom.ts';
+import { destroyTree } from '/src/app/pixi/utils/destroyTree.ts';
+import { RenderScheduler, requestRender } from '/src/app/pixi/RenderScheduler.ts';
+import '/player/src/theme.scss';
+installDomHost({ createCanvas(doc = document,size) { const canvas=doc.createElement('canvas'); if(size){canvas.width=size.width;canvas.height=size.height;} return canvas; }, createDiv(parent,cls){ const div=parent.ownerDocument.createElement('div');div.className=cls;parent.append(div);return div; }, ownerWindow(node){return node.ownerDocument?.defaultView??window;},activeDocument(){return document;} });
+const errors=document.querySelector('#errors');
+const command=async(data)=>{ const response=await fetch('/__smoke/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(!response.ok)throw new Error(await response.text());return response.json();};
+const commandSync=(data)=>{const request=new XMLHttpRequest();request.open('POST','/__smoke/command',false);request.setRequestHeader('Content-Type','application/json');request.send(JSON.stringify(data));if(request.status!==200)throw new Error(request.responseText);return JSON.parse(request.responseText);};
+let state=null;let paths=[];const listeners=new Set();
+const facade={subscribe(listener){listeners.add(listener);return()=>listeners.delete(listener);},getSnapshot(){return paths;},get editingRequest(){return state?.editingRequest??null;},approve(request){void command({type:'path-approve',request});},cancel(request){void command({type:'path-cancel',request});},approveAll(){void command({type:'path-approve-all'});},cancelAll(){void command({type:'path-cancel-all'});},beginEdit(request){void command({type:'path-edit',request});},endEdit(commit){void command({type:'path-done',commit});},editPoint(request,index,point){return commandSync({type:'path-point',request,index,...point});},insertPoint(request,index,point){return commandSync({type:'path-insert',request,index,...point});},deletePoint(request,index){return commandSync({type:'path-delete',request,index});}};
+const app=new Application();await app.init({width:700,height:700,background:'#222222',preference:'webgl'});document.querySelector('#map').append(app.canvas);app.stage.scale.set(0.5);
+const scheduler=new RenderScheduler(app);
+const floor=new Graphics();floor.rect(0,0,700,1400).fill('#bea582').rect(700,0,700,1400).fill('#82aabe');app.stage.addChild(floor);
+const walls=new Graphics();app.stage.addChild(walls);
+const overlay=new PendingPathOverlay(facade,{window,worldPoint(event){const rect=app.canvas.getBoundingClientRect();return{x:(event.clientX-rect.left)*2,y:(event.clientY-rect.top)*2};},zoom(){return 0.5;},colour(){return 0xa788ff;},gesture(active){app.canvas.dataset.gesture=String(active);},requestRender(){requestRender(app);}});app.stage.addChild(overlay.layer);
+const root=createRoot(document.querySelector('#queue'));
+const permissionKeys=['approval','perPlayerVision','playerConditions','playerDoors'];
+for(const key of permissionKeys){const label=document.createElement('label');const input=document.createElement('input');input.type='checkbox';input.dataset.permission=key;input.onchange=()=>void command({type:'permission',key,value:input.checked});label.append(input,document.createTextNode(key));document.querySelector('#permissions').append(label);}
+for(const type of ['undo','redo','restart'])document.querySelector(`#${type}`).onclick=()=>void command({type});
+const stream=new EventSource('/__smoke/state');
+stream.onmessage=(event)=>{try{state=JSON.parse(event.data);paths=state.paths;document.querySelector('#status').textContent=state.status;
+const waiting=document.querySelector('#waiting');waiting.replaceChildren();for(const person of state.gate.waiting){const row=document.createElement('div');row.textContent=person.name;for(const type of ['admit','decline']){const button=document.createElement('button');button.textContent=type==='admit'?'Admit '+person.name:'Decline '+person.name;button.onclick=()=>void command({type,id:person.id});row.append(button);}waiting.append(row);}
+const claims=document.querySelector('#claims');claims.replaceChildren();for(const claim of state.claims){const row=document.createElement('div');row.textContent=`${claim.playerName} requests ${claim.tokenName}`;for(const action of ['accept','decline']){const button=document.createElement('button');button.textContent=`${action==='accept'?'Accept':'Decline'} ${claim.tokenName}`;button.onclick=()=>void command({type:`claim-${action}`,from:claim.from,request:claim.request});row.append(button);}claims.append(row);}
+const people=document.querySelector('#people');people.replaceChildren();for(const [id,person]of Object.entries(state.ownership.players)){const row=document.createElement('div');row.textContent=person.name;for(const token of ['alice','bob','unclaimed']){const button=document.createElement('button');button.textContent=`Give ${token} to ${person.name}`;button.onclick=()=>void command({type:'give',token,player:id});row.append(button);}people.append(row);}
+for(const key of permissionKeys)document.querySelector(`[data-permission="${key}"]`).checked=state.ownership.permissions?.['atlas-vtt/collections/Smoke/scenes/Two rooms.atlasmap']?.[key]===true;
+walls.clear();for(const wall of Object.values(state.state.objects.walls)){walls.moveTo(wall.p1.x,wall.p1.y).lineTo(wall.p2.x,wall.p2.y).stroke({width:8,color:wall.type==='door'?0xf0ba50:wall.type==='secret-door'?0x8b5fc0:0x111111});}
+for(const listener of listeners)listener();root.render(React.createElement(PendingPathQueue,{paths:facade,grid:state.state.grid,measurement:resolveMeasurementSettings(undefined,state.state.grid),labels:{heading:'Pending paths',approve:'Approve',approveAll:'Approve all',cancelAll:'Cancel all'},describe(path){return `${path.token.name??path.tokenId} — ${state.ownership.players[path.from]?.name??path.from}`;}}));requestRender(app);}catch(error){errors.textContent=String(error);}};
+stream.onerror=()=>{errors.textContent='GM fixture state stream disconnected';};
+const connection=await fetch('/__smoke/table').then(response=>response.json());document.querySelector('#join').href=`/player/index.html#${connection.table}`;
+window.addEventListener('pagehide',()=>{stream.close();root.unmount();overlay.destroy();scheduler.destroy();destroyTree(app.stage);app.destroy(true);},{once:true});
+</script>
+</body>
+</html>

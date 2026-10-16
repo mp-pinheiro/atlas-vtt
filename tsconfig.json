@@ -38,5 +38,6 @@
     "scripts/**/*.js",
     "scripts/**/*.mjs",
     "scripts/**/*.d.ts"
-  ]
+  ],
+  "exclude": ["player/**", "relay/**"]
 }
