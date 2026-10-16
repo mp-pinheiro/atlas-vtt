@@ -1,18 +1,19 @@
 import type { App } from 'obsidian';
+import { MoveRate } from '../../limits/moveRate.ts';
+import { FIND_LIMIT } from '../../limits/playerLimits.ts';
 import { isRecord, parsePlayerMessage, type GmMessage, type PlayerPinFound } from '../../protocol/index.ts';
 import { AssetAnswers } from '../assetAnswers.ts';
 import type { ScaleImage } from '../assetVariants.ts';
 import { bookPicture } from '../book/bookAssets.ts';
 import { viewOf } from '../log/logEntries.ts';
 import type { TableLog } from '../log/TableLog.ts';
-import { MoveRate } from '../moveCheck.ts';
 import type { MapLayerShare } from '../MapLayerShare.ts';
 import type { VaultImage } from '../TokenShare.ts';
 import { FoundTexts } from './FoundTexts.ts';
 
 /** Pins a player may open: a burst of `FIND_BURST`, then one a second. */
-export const FIND_BURST = 5;
-export const FINDS_PER_SECOND = 1;
+export const FIND_BURST = FIND_LIMIT.burst;
+export const FINDS_PER_SECOND = FIND_LIMIT.perSecond;
 
 export interface FoundSharePorts {
   readonly app: App;

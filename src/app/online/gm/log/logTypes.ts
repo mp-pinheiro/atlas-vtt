@@ -1,3 +1,4 @@
+import { CHAT_LIMIT, REACT_LIMIT } from '../../limits/playerLimits.ts';
 import type { GmMessage, RollMode, RollRequestRef, SharedRoll } from '../../protocol/index.ts';
 import type { ChatDraft, SpokenAs } from './logChat.ts';
 import type { GmLogEntry, RollFace } from './logEntries.ts';
@@ -5,11 +6,11 @@ import type { GmLogEntry, RollFace } from './logEntries.ts';
 export type { ChatDraft, SpokenAs };
 
 /** Messages and edits a player may send: a burst of `CHAT_BURST`, then one every two seconds. */
-export const CHAT_BURST = 5;
-export const CHATS_PER_SECOND = 0.5;
+export const CHAT_BURST = CHAT_LIMIT.burst;
+export const CHATS_PER_SECOND = CHAT_LIMIT.perSecond;
 /** Reactions and deletions a player may send: a burst of `REACT_BURST`, then `REACTS_PER_SECOND`. */
-export const REACT_BURST = 10;
-export const REACTS_PER_SECOND = 2;
+export const REACT_BURST = REACT_LIMIT.burst;
+export const REACTS_PER_SECOND = REACT_LIMIT.perSecond;
 /** Refusals a player is told: a burst of `REFUSAL_BURST`, then one a second. A player far over their rate is not answered every time. */
 export const REFUSAL_BURST = 2;
 export const REFUSALS_PER_SECOND = 1;

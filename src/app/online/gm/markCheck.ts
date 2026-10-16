@@ -1,6 +1,8 @@
+import { MoveRate } from '../limits/moveRate.ts';
+import { MARKS_PER_SECOND } from '../limits/playerLimits.ts';
 import { MAX_COORDINATE, type CursorState, type LaserState, type MarkPoint, type MeasureState, type PlayerCursor, type PlayerLaser, type PlayerMeasure, type SharedMeasure } from '../protocol/index.ts';
 import { LASER_COLOR_SWATCHES, resolveLaserPointerSettings } from '../../tools/laserPointerSettings';
-import { MoveRate, type MapSize } from './moveCheck.ts';
+import type { MapSize } from './moveCheck.ts';
 
 /** What a player's marks are checked against. */
 export interface MarkContext {
@@ -10,8 +12,8 @@ export interface MarkContext {
   readonly map: MapSize | null;
 }
 
-/** Laser and measure messages a player may send a second, each: the client sends one every `MARKS_INTERVAL_MS`, about 30. */
-export const MARKS_PER_SECOND = 40;
+/** Laser and measure messages a player may send a second, each: the client sends one every `MARKS_INTERVAL_MS`, about 30. The limit is shared with the client (`limits/`). */
+export { MARKS_PER_SECOND };
 
 /** A rate per player for one kind of mark: anything above `MARKS_PER_SECOND` is dropped. */
 export const markRate = (): MoveRate => new MoveRate(MARKS_PER_SECOND, MARKS_PER_SECOND);

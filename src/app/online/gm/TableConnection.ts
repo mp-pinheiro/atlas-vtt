@@ -1,6 +1,7 @@
 import {
   ALL_PLAYERS, FINAL_CLOSE_CODES, KEEPALIVE_PONG, PROTOCOL_VERSION, parseRelayFrame, type ConnectionStats, type GmMessage, type PlayerInfo,
 } from '../protocol/index.ts';
+import { backoff, socketUrl } from '../limits/reconnect.ts';
 import { randomHex } from '../../utils/randomHex';
 import { messageParts } from './assetServe.ts';
 import { companionTimers, type Timers } from './companionTimers.ts';
@@ -34,29 +35,17 @@ export interface GateEvents {
   paused(until: number): void;
 }
 
-const MAX_BACKOFF_MS = 30_000;
 /** The close code of a connection that failed without a close frame. */
 const CLOSE_ABNORMAL = 1006;
 
-/** A reconnect delay: doubling from half a second up to 30 seconds, with jitter from the cryptographic source. */
-export function backoff(attempt: number, random: () => number = cryptoFraction): number {
-  return Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt) * (0.5 + random() / 2);
-}
-
-function cryptoFraction(): number {
-  return (crypto.getRandomValues(new Uint32Array(1))[0] ?? 0) / 2 ** 32;
-}
+/** The reconnect delay and the socket address are the client's too (`limits/reconnect.ts`); tests and callers still take them from here. */
+export { backoff, socketUrl };
 
 /** A `send` frame of a message as a batch carries it (`{"to":…,"body":…}`), so it is written out once. */
 const sendFrame = (entry: string): string => `{"v":${PROTOCOL_VERSION},"t":"send",${entry.slice(1)}`;
 
 /** A random id for the parts of one large message. */
 const partId = (): string => randomHex(12);
-
-/** The socket address of a table on a server origin (`https://…` becomes `wss://…`). */
-export function socketUrl(origin: string, code: string): string {
-  return `${origin.replace(/^http/, 'ws')}/api/tables/${code}/socket`;
-}
 
 /**
  * The GM's socket to the table: hello with the host secret, reconnect with backoff, paced sends.

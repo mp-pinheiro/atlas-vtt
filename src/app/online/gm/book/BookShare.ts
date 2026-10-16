@@ -1,3 +1,5 @@
+import { MoveRate } from '../../limits/moveRate.ts';
+import { BOOK_LIMIT } from '../../limits/playerLimits.ts';
 import { isPlayerBookType, isRecord, parsePlayerBookMessage, parsePlayerMessage, type BookQuest, type BookResourceMessage, type GmMessage, type PlayerBook } from '../../protocol/index.ts';
 import type { LootRecipient, LootRecipientSource } from '../../../loot/lootRecipients';
 import type { LootDraw } from '../../../loot/lootRoller';
@@ -5,7 +7,6 @@ import { ArtRefs } from '../artRefs.ts';
 import { AssetAnswers } from '../assetAnswers.ts';
 import type { ScaleImage } from '../assetVariants.ts';
 import { every, type Timers } from '../companionTimers.ts';
-import { MoveRate } from '../moveCheck.ts';
 import { AskedAnswer } from './askedAnswer.ts';
 import { bookAssetOf, bookPicture } from './bookAssets.ts';
 import type { KnownPlayer, OwnedToken } from '../ownership.ts';
@@ -53,8 +54,8 @@ export interface BookSharePorts extends Timers {
 /** How often the scene is read again: a sheet follows its token within this time, however often the store changes. */
 export const BOOK_POLL_MS = 400;
 /** What a player may write into their book: a burst of `BOOK_BURST` edits, then `BOOK_WRITES_PER_SECOND`. */
-export const BOOK_BURST = 30;
-export const BOOK_WRITES_PER_SECOND = 2;
+export const BOOK_BURST = BOOK_LIMIT.burst;
+export const BOOK_WRITES_PER_SECOND = BOOK_LIMIT.perSecond;
 /**
  * The shortest time between two whole books sent to one player in answer to what was refused of
  * them: the first refusal is answered at once, a flood of them with one book per this time.

@@ -1,3 +1,5 @@
+import { MoveRate } from '../limits/moveRate.ts';
+import { ROLL_LIMIT } from '../limits/playerLimits.ts';
 import type { GmMessage, PlayerRoll, RollMode, RollRefusal, RollRequestAnswer, SharedRoll } from '../protocol/index.ts';
 import { parseFormula } from '../../tools/parseFormula';
 import type { TokenEntity } from '../../types';
@@ -6,7 +8,6 @@ import type { DiceSource } from './atlasDice.ts';
 import { tokenLabel } from './atlasView.ts';
 import type { LoggedRoll, RollRequest } from './log/TableLog.ts';
 import { rollFaceOf } from './log/logEntries.ts';
-import { MoveRate } from './moveCheck.ts';
 import type { RollNotes } from './RollShare.ts';
 
 /**
@@ -27,8 +28,8 @@ export function buttonMode(request: RollRequest): RollMode {
 }
 
 /** Rolls a player may make: a burst of `ROLL_BURST`, then `ROLLS_PER_SECOND`. */
-export const ROLL_BURST = 3;
-export const ROLLS_PER_SECOND = 1;
+export const ROLL_BURST = ROLL_LIMIT.burst;
+export const ROLLS_PER_SECOND = ROLL_LIMIT.perSecond;
 
 /** What a player's roll is checked against. */
 export interface RollContext {

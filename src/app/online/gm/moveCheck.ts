@@ -1,3 +1,5 @@
+import { MoveRate } from '../limits/moveRate.ts';
+import { MOVE_LIMIT } from '../limits/playerLimits.ts';
 import { movementWalls, stopAtWalls, type MoveWalls, type Point } from '../movement/index.ts';
 import { MAX_COORDINATE, type PlayerMove } from '../protocol/index.ts';
 import type { TokenEntity } from '../../types';
@@ -65,28 +67,8 @@ export function landing(context: Pick<MoveContext, 'walls'>, from: Point, to: Po
 }
 
 /** Moves a player may make: a burst of `MOVE_BURST`, then `MOVES_PER_SECOND` (a held movement key steps 5 times a second). */
-export const MOVE_BURST = 8;
-export const MOVES_PER_SECOND = 6;
+export const MOVE_BURST = MOVE_LIMIT.burst;
+export const MOVES_PER_SECOND = MOVE_LIMIT.perSecond;
 
-/** A token bucket per player for their moves (or, with other limits, their drag messages). */
-export class MoveRate {
-  private readonly buckets = new Map<string, { tokens: number; at: number }>();
-  private readonly burst: number;
-  private readonly perSecond: number;
-
-  constructor(burst = MOVE_BURST, perSecond = MOVES_PER_SECOND) {
-    this.burst = burst;
-    this.perSecond = perSecond;
-  }
-
-  /** Takes one move of the player's; false when they are over their rate. */
-  take(player: string, now: number): boolean {
-    const bucket = this.buckets.get(player) ?? { tokens: this.burst, at: now };
-    bucket.tokens = Math.min(this.burst, bucket.tokens + ((now - bucket.at) / 1000) * this.perSecond);
-    bucket.at = now;
-    this.buckets.set(player, bucket);
-    if (bucket.tokens < 1) return false;
-    bucket.tokens -= 1;
-    return true;
-  }
-}
+/** `MoveRate` lives with the shared limits; the GM modules and their tests still take it from here. */
+export { MoveRate };

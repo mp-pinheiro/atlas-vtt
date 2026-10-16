@@ -1,4 +1,5 @@
 import { headerOf } from '../../imageProcessing/imageDimensions';
+import { MAX_SERVES_PER_ASSET, REPEAT_REQUEST_MS } from '../limits/playerLimits.ts';
 import { ASSET_CHUNK_BYTES, IMAGE_MIME_TYPES, MAX_PARTS, type GmMessage } from '../protocol/index.ts';
 
 /** Bytes in base64, in slices small enough for `String.fromCharCode`. */
@@ -60,15 +61,8 @@ export function imageMimeOfBytes(bytes: Uint8Array): string | null {
   return mime !== null && IMAGE_MIME_TYPES.includes(mime) ? mime : null;
 }
 
-/** How long a player's request for the asset it is being sent is ignored. */
-export const REPEAT_REQUEST_MS = 10_000;
-/**
- * How often one player is sent one asset within `REPEAT_REQUEST_MS`, whatever chunk or longest side
- * they ask for: the first request, a download continued, and one to spare. The chunk and the side
- * are the player's to choose, so without this every other value would be a new request, each one
- * the whole asset sent again or a new scaled copy made.
- */
-export const MAX_SERVES_PER_ASSET = 3;
+/** How long a repeated request is ignored and how often one asset is served in that time: limits the client paces itself by too (`limits/playerLimits.ts`). */
+export { MAX_SERVES_PER_ASSET, REPEAT_REQUEST_MS };
 
 /**
  * Which player was last sent which asset from which chunk, and when: the same request again within

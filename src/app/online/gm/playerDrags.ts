@@ -1,15 +1,17 @@
+import { MoveRate } from '../limits/moveRate.ts';
+import { DRAG_LIMIT } from '../limits/playerLimits.ts';
 import type { PlayerDrag, PlayerDragCancel, PlayerMove } from '../protocol/index.ts';
 import { holdTokens } from '../../lighting/sightOnDrop';
 import { abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
 import { placeTokens } from '../../stores/tokenStacking';
 import type { HeldTokens } from '../../types/viewUIState';
 import type { Point } from '../movement/index.ts';
-import { checkMove, landing, MoveRate, type MoveContext } from './moveCheck.ts';
+import { checkMove, landing, type MoveContext } from './moveCheck.ts';
 import type { MoveState, MoveStore } from './playerMoves.ts';
 
 /** Drag messages a player may send: a burst of 40, then 40 a second (the browser sends about 30). */
-export const DRAG_BURST = 40;
-export const DRAGS_PER_SECOND = 40;
+export const DRAG_BURST = DRAG_LIMIT.burst;
+export const DRAGS_PER_SECOND = DRAG_LIMIT.perSecond;
 /** How long a drag lasts without word from its player before the GM drops the token where it is. */
 export const DRAG_IDLE_MS = 3_000;
 
