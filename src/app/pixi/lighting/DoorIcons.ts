@@ -37,10 +37,13 @@ function isDoor(wall: WallSegment): boolean {
 
 const NO_DOORS: ReadonlySet<string> = new Set();
 
-/** What the badges read of their view's state: the doors, the cell size they are sized by, what moves the players' sight, and the door switch. */
+/**
+ * What the badges read of their view's state: the doors, the cell size they are sized by, what moves the players' sight, and the door switch.
+ * A view that cannot switch a door (the player client, where doors are the GM's to open) has no `toggleDoor`, and its badges do nothing when pressed.
+ */
 export type DoorIconsState = Pick<ViewState, 'grid' | 'lighting' | 'mapPath'> & {
   objects: Pick<ViewState['objects'], 'walls' | 'fog'>;
-  toggleDoor(id: string): void;
+  toggleDoor?(id: string): void;
 };
 
 export type DoorIconsStore = Pick<StoreApi<DoorIconsState>, 'getState' | 'subscribe'>;
@@ -136,9 +139,10 @@ export class DoorIcons {
     return null;
   }
 
-  /** Opens or closes the door; a locked one stays shut and its badge says no. */
+  /** Opens or closes the door; a locked one stays shut and its badge says no. Where the view cannot switch a door, a press does nothing. */
   toggle(wallId: string): void {
     const state = this.store.getState();
+    if (state.toggleDoor === undefined) return;
     if (!readWall(state.objects.walls[wallId])?.locked) {
       state.toggleDoor(wallId);
       return;
