@@ -4,12 +4,22 @@ import type { TokenSeen } from '../../vision/measureOrigin';
 import type { TokenPerception } from '../../vision/tokenPerception';
 import { hiddenTokenLayers, type HideableLayer, type LayerVisibility } from '../playerSafeFrame';
 import { SensedOutlines, type SensedToken } from './SensedOutlines';
-import type { TokenGroupContainer } from './types';
+
+/**
+ * What the players' sight reads of a token's sprite: whether it shows, where it stands and how large it is.
+ * The plugin's `TokenGroupContainer` is one; the players' browser client draws tokens of its own that are too.
+ */
+export interface SightedSprite extends HideableLayer {
+  x: number;
+  y: number;
+  /** Diameter in world pixels; 70 where unknown. */
+  tokenSize?: number;
+}
 
 /** What the sight of the players' tokens needs to know of the token renderer. */
 export interface PlayerSightHost {
   tokens: () => Record<string, TokenEntity>;
-  sprites: () => Record<string, TokenGroupContainer | null>;
+  sprites: () => Record<string, SightedSprite | null>;
   /** The tokens the pointer holds or drags. */
   held: () => ReadonlySet<string>;
 }
