@@ -1,34 +1,16 @@
 import type { EventEmitter } from 'events';
-import React, { useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useCallback, useMemo } from 'react';
 import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useDiceDisplay } from '../../hooks/useDiceDisplay';
-import { diceFontClass, useDiceLook } from '../../hooks/useDiceLook';
-import { cn } from '../../../../utils/cn';
-import { throwStyle } from '../../../dice3d/diceDisplay';
-import { diceSceneToShow } from '../../../dice3d/rollPresentation';
-import { warmDiceSounds } from '../../../dice3d/audio/diceSamples';
-import { playDiceReveal } from '../../../audio/diceRevealSound';
-import { canShowDice, warmStages } from '../../../dice3d/stagePool';
+import { useDiceLook } from '../../hooks/useDiceLook';
 import type { DiceRollResult } from '../../../types/diceTypes';
 import type { DiceRollOrigin } from '../../../types/diceRollOrigin';
 import type { PreparedDiceRoll } from './diceSourcePresentation';
-import { DiceRollStack } from '../dice3d/DiceRollStack';
-import { closeAllRolls, closeRoll, dismissRoll, pushRoll, type StackedRoll } from '../dice3d/rollStackState';
 import { canRunMapHotkeys } from '../../../keyboard/mapHotkeys';
-import { DiceToast } from './DiceToast';
-import { DICE_TOAST_KNOT_PATHS, DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
-import { useDiceToasts } from './useDiceToasts';
+import { DiceRolls, type DiceRollSubscription, type DiceRollsEscape } from './DiceRolls';
 import { useDiceAvatar } from './useDiceAvatar';
 
-/** What comes with a roll to show: `muted` where another display plays its sounds, `origin` the token and scene it was made for. */
-export interface RollOptions {
-  muted: boolean;
-  origin?: DiceRollOrigin | undefined;
-}
-
-/** Hands each roll to show to `onRoll`; returns what stops it. */
-export type DiceRollSubscription = (onRoll: (result: DiceRollResult, options: RollOptions) => void) => () => void;
+export type { DiceRollSubscription, RollOptions } from './DiceRolls';
 
 /** The rolls of one map view's dice tool, as its event bus announces them; none without a bus. */
 function busRolls(bus: EventEmitter | undefined): DiceRollSubscription {
@@ -61,84 +43,39 @@ interface DiceRollDisplayProps {
   cardSounds?: boolean;
 }
 
-const CARD_VOLUME = 0.7;
-
 /**
  * Every dice roll, at the top centre of the map: thrown as 3D dice, or as a
  * result card when 3D dice are off or the roll holds dice no real body shows.
+ * Binds `DiceRolls` to the plugin: its settings, its view's event bus, the vault's portraits and
+ * the map's hotkey rules.
  */
 export function DiceRollDisplay({ container, prepare, muted = false, eventBus: suppliedBus, subscribe, cardSounds = false }: DiceRollDisplayProps): React.ReactElement | null {
   const { app, view } = useAtlasUI();
   const eventBus = suppliedBus ?? view?.serviceManager?.getEventBus();
   const display = useDiceDisplay(app ?? undefined);
   const look = useDiceLook(app ?? undefined);
-  const { toasts, addToast, dismissToast, dismissAllToasts } = useDiceToasts();
-  const [rolls, setRolls] = useState<readonly StackedRoll[]>([]);
-  /** Where the dice stages live: a canvas and its context belong to one document. */
+  const rolls = useMemo(() => subscribe ?? busRolls(eventBus), [subscribe, eventBus]);
   const stageDoc = container?.ownerDocument ?? view?.containerEl.doc ?? document;
-
-  useEffect(() => {
-    const show = (raw: DiceRollResult, options: RollOptions): void => {
-      const prepared: PreparedDiceRoll = prepare ? prepare(raw, options.origin) : { result: raw };
-      const scene = diceSceneToShow(prepared.result, display);
-      // Without WebGL a stage stays blank (white on some systems), so the roll shows as a card
-      if (!scene || !canShowDice(stageDoc)) {
-        addToast(prepared);
-        if (cardSounds && !muted && !options.muted) void playDiceReveal(prepared.result.crit ?? null, CARD_VOLUME).catch(() => undefined);
-        return;
-      }
-      if (!muted && !options.muted) warmDiceSounds();
-      setRolls((prev) => pushRoll(prev, { ...prepared, scene, style: throwStyle(display), ...(options.muted && { muted: true as const }) }));
-    };
-    return (subscribe ?? busRolls(eventBus))(show);
-  }, [subscribe, eventBus, addToast, prepare, display, muted, cardSounds, stageDoc]);
-
-  // Dice stages are built while nothing rolls, so that the first roll does not wait for one.
-  useEffect(() => {
-    if (display !== 'card') warmStages(stageDoc);
-  }, [display, stageDoc]);
 
   // Escape dismisses every roll on screen, unless something in front of the map
   // takes it (a modal, the palette, the dashboard) or someone is typing. The
   // player window takes no keyboard input, so only the map view listens.
-  const showing = rolls.some((roll) => !roll.leaving) || toasts.some((toast) => toast.phase !== 'exiting');
-  useEffect(() => {
-    if (container || !showing) return;
-    const win = view?.containerEl.win ?? window;
-    const handler = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape' || !canRunMapHotkeys(e, view?.viewId)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setRolls(closeAllRolls);
-      dismissAllToasts();
-    };
-    win.addEventListener('keydown', handler, true);
-    return (): void => win.removeEventListener('keydown', handler, true);
-  }, [container, showing, view, dismissAllToasts]);
+  const win = view?.containerEl.win ?? window;
+  const handles = useCallback((e: KeyboardEvent): boolean => canRunMapHotkeys(e, view?.viewId), [view]);
+  const escape = useMemo<DiceRollsEscape | undefined>(() => (container ? undefined : { win, handles }), [container, win, handles]);
 
-  const close = useCallback((id: string): void => setRolls((prev) => closeRoll(prev, id)), []);
-  const dismiss = useCallback((id: string): void => setRolls((prev) => dismissRoll(prev, id)), []);
-
-  if (toasts.length === 0 && rolls.length === 0) return null;
-
-  const content = (
-    // Carries the plugin class itself: in the player window no ancestor does.
-    <div className={cn('atlas-dice-rolls atlas-vtt-plugin', diceFontClass(look))}>
-      {toasts.length > 0 && (
-        // Knotwork defined once; every toast corner draws it with <use>.
-        <svg className="atlas-dice-rolls__defs" aria-hidden="true">
-          <defs>
-            <g id={DICE_TOAST_KNOT_SYMBOL_ID} fill="none" stroke="currentColor" strokeWidth="10">
-              {DICE_TOAST_KNOT_PATHS.map((d, i) => <path key={i} d={d} />)}
-            </g>
-          </defs>
-        </svg>
-      )}
-      <DiceRollStack rolls={rolls} muted={muted} onClose={close} onDone={dismiss} useAvatar={useDiceAvatar} />
-      {toasts.map((toast) => (
-        <DiceToast key={toast.id} result={toast.result} presentation={toast.sourcePresentation} phase={toast.phase} onDismiss={() => dismissToast(toast.id)} useAvatar={useDiceAvatar} />
-      ))}
-    </div>
+  return (
+    <DiceRolls
+      display={display}
+      look={look}
+      subscribe={rolls}
+      stageDoc={stageDoc}
+      container={container}
+      prepare={prepare}
+      muted={muted}
+      cardSounds={cardSounds}
+      useAvatar={useDiceAvatar}
+      escape={escape}
+    />
   );
-  return container ? createPortal(content, container) : content;
 }
