@@ -19,6 +19,8 @@
     "build:player": "vite build --config vite.player.config.mts",
     "typecheck:player": "tsc -p player/tsconfig.json && tsc -p player/tests/tsconfig.json",
     "typecheck:relay": "tsc -p relay/tsconfig.json && tsc -p relay/conformance/tsconfig.json",
+    "lint:player": "eslint -c scripts/eslint.player.config.mjs --max-warnings 0 player",
+    "lint:relay": "eslint -c scripts/eslint.relay.config.mjs --max-warnings 0 relay",
     "test:player": "vitest run --project player",
     "test:player:browser": "vitest run --project player-browser",
     "test:relay": "npm --prefix relay test",
@@ -29,7 +31,7 @@
     "release:validate": "node scripts/prepare-release-assets.js --validate-only",
     "version": "node scripts/sync-version.js && git add manifest.json versions.json CHANGELOG.md src/app/changelog/releases.json",
     "version:check": "node scripts/release-channel.js",
-    "lint": "eslint . --max-warnings 0 --suppressions-location eslint.suppressions.json",
+    "lint": "eslint . --max-warnings 0 --suppressions-location eslint.suppressions.json && npm run lint:player",
     "lint:scan": "node scripts/lint-scan.js",
     "preflight": "node scripts/preflight.js",
     "check:boundaries": "node scripts/check-boundaries.mjs && tsc -p tsconfig.shared.json && tsc -p player/tsconfig.json"
