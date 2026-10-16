@@ -1,0 +1,21 @@
+{
+  "name": "atlas-player",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": false,
+  "routes": [{ "pattern": "atlas.fairfruit.tv", "custom_domain": true }],
+  "assets": {
+    "directory": "../player/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/__atlas-online-seat"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "TABLES", "class_name": "Table" },
+      { "name": "HOSTS", "class_name": "HostRegistry" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Table", "HostRegistry"] }],
+  "observability": { "enabled": false }
+}

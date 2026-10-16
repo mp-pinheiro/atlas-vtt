@@ -111,7 +111,14 @@ export interface FoundEntry extends EntryBase, FoundNote {
   readonly reactions?: readonly LogReaction[];
 }
 
-export type LogEntry = ChatEntry | RollEntry | SecretEntry | PresenceEntry | ImageEntry | LootEntry | FoundEntry;
+export interface ActionEntry extends EntryBase {
+  readonly kind: 'action';
+  readonly action: 'claim-request'|'claim-accepted'|'claim-declined'|'turn-ended'|'approval-reminder';
+  readonly player: string|null;
+  readonly combatant: string|null;
+  readonly count: number|null;
+}
+export type LogEntry = ChatEntry | RollEntry | SecretEntry | PresenceEntry | ImageEntry | LootEntry | FoundEntry | ActionEntry;
 
 /**
  * Why the GM did not take a player's chat message, edit, deletion or reaction: too fast, no text,

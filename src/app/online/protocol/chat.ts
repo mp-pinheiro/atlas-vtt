@@ -34,11 +34,11 @@ export interface LogSpeaker {
   readonly ring: string | null;
 }
 
-/** Someone at the table, as players are told: for whispers; `away` once they left, so a whisper they had still names them. */
 export interface TablePerson {
   readonly id: string;
   readonly name: string;
   readonly away?: true;
+  readonly colour?: number;
 }
 
 export const isAuthor = (value: unknown): value is string => value === GM_AUTHOR || (typeof value === 'string' && PLAYER_ID_PATTERN.test(value));
@@ -77,7 +77,8 @@ export function parsePeople(value: unknown): readonly TablePerson[] | null {
     if (!isRecord(item) || typeof item.id !== 'string' || !PLAYER_ID_PATTERN.test(item.id)) return null;
     const name = playerName(item.name);
     if (name === null || (item.away !== undefined && item.away !== true)) return null;
-    people.push({ id: item.id, name, ...(item.away === true && { away: true as const }) });
+    if (item.colour !== undefined && (!Number.isInteger(item.colour) || typeof item.colour !== 'number' || item.colour < 0 || item.colour > 7)) return null;
+    people.push({ id: item.id, name, ...(item.away === true && { away: true as const }), ...(item.colour !== undefined ? {colour:item.colour as number} : {}) });
   }
   return people;
 }

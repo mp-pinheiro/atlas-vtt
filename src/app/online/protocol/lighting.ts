@@ -22,7 +22,7 @@ export type JsonRecord = Readonly<Record<string, unknown>>;
 
 /** A wall as light and sight read it. A closed secret door is a plain wall; nothing says a door is locked. */
 export interface SharedWall {
-  /** The ends: `[x1, y1, x2, y2]` in world pixels. */
+  readonly id?: string;
   readonly p: readonly [number, number, number, number];
   readonly door?: 'open' | 'closed';
   readonly direction?: 'left' | 'right';
@@ -54,17 +54,16 @@ export interface SharedVision {
   readonly pending?: true;
 }
 
-/** A token as sight and light read it: one the players see, or one that sees or shines unseen (position only). */
 export interface SightToken {
   readonly id: string;
   readonly x: number;
   readonly y: number;
-  /** In grid cells, as the token's own `size`. */
   readonly size: number;
   readonly rotation?: number;
   readonly vision?: SharedVision;
   readonly light?: JsonRecord;
   readonly effects?: readonly SharedEffect[];
+  readonly alwaysSeen?: true;
 }
 
 /** The parts of a lit scene that change seldom: walls, zones, scale and senses. */
@@ -110,14 +109,14 @@ function listOf<T>(value: unknown, max: number, read: (entry: unknown) => T | nu
 }
 
 function parseWall(value: unknown): SharedWall | null {
-  if (!isRecord(value) || !Array.isArray(value.p) || value.p.length !== 4 || !value.p.every(isCoordinate)) return null;
+  if (!isRecord(value) || !Array.isArray(value.p) || value.p.length !== 4 || !value.p.every(isCoordinate) || (value.id !== undefined && !isId(value.id))) return null;
   const [x1, y1, x2, y2] = value.p as [number, number, number, number];
   const { door, direction, blocks, limited } = value;
   if (door !== undefined && door !== 'open' && door !== 'closed') return null;
   if (direction !== undefined && direction !== 'left' && direction !== 'right') return null;
   if (blocks !== undefined && blocks !== 'sight' && blocks !== 'light') return null;
   if (limited !== undefined && limited !== true) return null;
-  return { p: [x1, y1, x2, y2], ...(door && { door }), ...(direction && { direction }), ...(blocks && { blocks }), ...(limited && { limited }) };
+  return { ...(typeof value.id==='string'?{id:value.id}:{}), p: [x1, y1, x2, y2], ...(door && { door }), ...(direction && { direction }), ...(blocks && { blocks }), ...(limited && { limited }) };
 }
 
 function parseZone(value: unknown): SharedZone | null {
@@ -163,11 +162,12 @@ function parseSightToken(value: unknown): SightToken | null {
   const vision = value.vision === undefined ? undefined : parseVision(value.vision);
   if (vision === null || (value.light !== undefined && !isRecord(value.light))) return null;
   const effects = value.effects === undefined ? undefined : listOf(value.effects, CONDITION_EFFECTS.length, (entry) => (isEffect(entry) ? entry : null));
-  if (effects === null) return null;
+  if (effects === null || (value.alwaysSeen !== undefined && value.alwaysSeen !== true)) return null;
   return {
     id: value.id, x: value.x, y: value.y, size: value.size,
     ...(value.rotation !== undefined && { rotation: value.rotation }), ...(vision && { vision }),
     ...(isRecord(value.light) && { light: value.light }), ...(effects && { effects }),
+    ...(value.alwaysSeen === true ? {alwaysSeen:true as const} : {}),
   };
 }
 

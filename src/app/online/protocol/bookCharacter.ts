@@ -2,6 +2,7 @@ import { parseAsset, type AssetRef } from './asset.ts';
 import { bookLine, MAX_BOOK_TITLE } from './bookText.ts';
 import { isRecord } from './shape.ts';
 import { MAX_TOKEN_VALUE } from './tokenUI.ts';
+import { parseSharedSheet, type SharedSheet } from './sheet.ts';
 
 /** What a sheet holds at most: as many resources as a token shows. */
 export const MAX_SHEET_RESOURCES = 6;
@@ -25,14 +26,12 @@ export interface SheetResource {
   readonly editable: boolean;
 }
 
-/** The character a player plays: the token the GM linked to them, as little as a sheet needs. */
 export interface BookCharacter {
   readonly name: string;
-  /** The token's artwork, asked for by hash like the map. */
   readonly art: AssetRef | null;
-  /** The colour of the token's ring; null for artwork shown unframed. */
   readonly ring: string | null;
   readonly resources: readonly SheetResource[];
+  readonly statblock?: SharedSheet | null;
 }
 
 /** A player sets the current value of one of their character's resources; the GM's Atlas clamps it to the resource's range. */
@@ -76,8 +75,9 @@ export function parseBookCharacter(value: unknown): BookCharacter | null | undef
   const art = value.art === null ? null : parseAsset(value.art);
   const resources = parseResources(value.resources);
   const ringOk = value.ring === null || (typeof value.ring === 'string' && HEX_COLOUR.test(value.ring));
-  if (name === null || resources === null || !ringOk || (art === null && value.art !== null)) return undefined;
-  return { name, art, ring: value.ring as string | null, resources };
+  const statblock = value.statblock === undefined ? undefined : value.statblock === null ? null : parseSharedSheet(value.statblock);
+  if (name === null || resources === null || !ringOk || (art === null && value.art !== null) || (value.statblock !== undefined && statblock === null && value.statblock !== null)) return undefined;
+  return { name, art, ring: value.ring as string | null, resources, ...(statblock !== undefined ? {statblock} : {}) };
 }
 
 /** A player's edit of a resource as the GM reads it, or null when it is malformed. */

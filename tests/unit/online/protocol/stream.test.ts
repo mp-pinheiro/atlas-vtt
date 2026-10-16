@@ -57,12 +57,27 @@ describe('the stream\'s lines', () => {
     expect(readAll(frameLine(large))).toEqual([{ kind: 'frame', text: large }]);
     const reader = new StreamReader();
     expect(reader.read(`data: ${'x'.repeat(MAX_STREAM_LINE)}`)).toBeNull();
+    expect(readAll(`data: ${'x'.repeat(MAX_STREAM_LINE)}\n\n`)).toBeNull();
+    expect(readAll(frameLine('é'.repeat(MAX_STREAM_LINE / 2)))).toBeNull();
   });
 
-  it('pass over what they do not know, and take nothing malformed for a session or a close', () => {
+  it('bounds accumulated data lines before an event ends', () => {
+    const reader = new StreamReader();
+    const data = 'data: x\n';
+    expect(reader.read(data.repeat(Math.floor(MAX_STREAM_LINE / data.length)))).toEqual([]);
+    expect(reader.read(data)).toBeNull();
+  });
+
+  it('counts a surrogate pair split between chunks as its UTF-8 bytes', () => {
+    const reader = new StreamReader();
+    expect(reader.read('data: a\uD83D')).toEqual([]);
+    expect(reader.read('\uDE00b\n\n')).toEqual([{ kind: 'frame', text: 'a\u{1f600}b' }]);
+  });
+
+  it('passes over unknown event names without treating malformed session or close events as valid', () => {
     expect(readAll('event: later\ndata: {"more":true}\n\nid: 7\nretry: 100\n\nevent: pong\n\n')).toEqual([]);
-    for (const text of ['event: session\ndata: short\n\n', 'event: session\ndata: has spaces in the secret here\n\n', 'event: session\n\n']) expect(readAll(text), text).toEqual([]);
-    for (const data of ['', 'x', '{}', '{"code":"4008"}', '{"code":4008.5}', '{"code":12}', '{"code":70000}', 'null', '[4008]']) expect(readAll(`event: close\ndata: ${data}\n\n`), data).toEqual([]);
+    for (const text of ['event: session\ndata: short\n\n', 'event: session\ndata: has spaces in the secret here\n\n', 'event: session\n\n']) expect(readAll(text), text).toBeNull();
+    for (const data of ['', 'x', '{}', '{"code":"4008"}', '{"code":4008.5}', '{"code":12}', '{"code":70000}', 'null', '[4008]']) expect(readAll(`event: close\ndata: ${data}\n\n`), data).toBeNull();
     expect(readAll('event: close\ndata: {"code":4003}\n\n')).toEqual([{ kind: 'close', code: 4003, reason: '' }]);
     expect(readAll(closeLine(4003, 'r'.repeat(500)))?.[0]).toMatchObject({ reason: 'r'.repeat(200) });
   });

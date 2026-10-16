@@ -4,6 +4,8 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "cross-env COPY_ON_CHANGE=true vite build --watch",
+    "dev:player": "vite --config player/vite.config.mts",
+    "dev:relay": "wrangler dev --config relay/wrangler.jsonc --local --port 8787 --var HOST_KEY:atlas-vtt-local-test-host-key",
     "obsidian": "node scripts/obsidian-cli.js",
     "obsidian:help": "node scripts/obsidian-cli.js help",
     "obsidian:print-bin": "node scripts/obsidian-cli.js --print-bin",
@@ -12,9 +14,16 @@
     "obsidian:console": "node scripts/obsidian-cli.js dev:console",
     "build": "cross-env COPY_ON_CHANGE=false vite build",
     "build:ci": "cross-env COPY_ON_CHANGE=false vite build",
+    "build:player": "vite build --config player/vite.config.mts",
     "postbuild": "node scripts/copy-plugin.js",
     "test": "vitest --project unit",
     "test:gpu": "vitest run --project gpu",
+    "test:player": "vitest run --project player",
+    "test:player:browser": "vitest run --project player-browser",
+    "player:smoke": "node player/scripts/smoke.mjs",
+    "test:relay": "vitest run --config relay/vitest.config.mts",
+    "typecheck:player": "tsc -p player/tsconfig.json --noEmit",
+    "typecheck:relay": "tsc -p relay/tsconfig.json --noEmit",
     "changelog:generate": "node scripts/changelog.js",
     "changelog:check": "node scripts/changelog.js --check",
     "release:prepare": "node scripts/prepare-release-assets.js",
@@ -35,7 +44,6 @@
   ],
   "author": "Fabian Urbanek",
   "license": "AGPL-3.0-only",
-  "description": "Virtual tabletop for tabletop RPGs inside Obsidian.",
   "dependencies": {
     "@dnd-kit/core": "6.3.1",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -50,6 +58,7 @@
     "immer": "11.1.18",
     "jszip": "^3.10.1",
     "lucide-react": "^0.503.0",
+    "markdown-it": "15.0.3",
     "pixi-filters": "^6.1.2",
     "pixi-viewport": "^6.0.3",
     "pixi.js": "^8.21.0",
@@ -64,6 +73,8 @@
     "zustand": "5.0.3"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.4",
+    "@cloudflare/workers-types": "5.20261006.1",
     "@codemirror/state": "6.5.0",
     "@codemirror/view": "6.38.6",
     "@testing-library/react": "16.3.0",
@@ -90,7 +101,8 @@
     "typescript": "5.8.3",
     "typescript-eslint": "^8.70.0",
     "vite": "6.4.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "wrangler": "4.151.1"
   },
   "repository": {
     "type": "git",

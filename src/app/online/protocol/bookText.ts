@@ -1,5 +1,6 @@
 import type { PlayerBookMessage } from './book.ts';
 import { MAX_PLAYER_FRAME, PROTOCOL_VERSION, SHOWN, UNSEEN, UNSHOWN } from './relay.ts';
+import { utf8Length } from './shape.ts';
 
 /** The longest line of a book in characters: a title, a name, a label. */
 export const MAX_BOOK_TITLE = 80;
@@ -23,16 +24,6 @@ export function bookText(value: unknown, max: number): string | null {
   const lines = value.split(LINE_BREAK).map((line) => line.replace(UNSHOWN, ' ').replace(UNSEEN, '').trimEnd());
   const text = lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
   return [...text].length <= max ? text : null;
-}
-
-/** The bytes a text takes as UTF-8, a lone surrogate counted as the mark that replaces it. */
-function utf8Length(text: string): number {
-  let bytes = 0;
-  for (const character of text) {
-    const code = character.codePointAt(0) ?? 0;
-    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
-  }
-  return bytes;
 }
 
 /** Whether the relay takes a player's message: a long note in a script of many bytes a character may not fit one frame. */

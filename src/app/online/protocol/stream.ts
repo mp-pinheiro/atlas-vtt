@@ -1,5 +1,5 @@
 import { MAX_GM_FRAME, PROTOCOL_VERSION, SECRET_PATTERN } from './relay.ts';
-import { isRecord } from './shape.ts';
+import { isRecord, utf8Length } from './shape.ts';
 
 /**
  * The stream lane: a player's connection to the table for a browser or network in which no WebSocket
@@ -65,30 +65,39 @@ export class StreamReader {
   private rest = '';
   private name = '';
   private data: string[] | null = null;
+  private restBytes = 0;
+  private eventBytes = 0;
+  private failed = false;
 
-  /** The lines `text` completes, or null for a stream that is none: a line longer than any the relay writes. */
   read(text: string): StreamLine[] | null {
+    if (this.failed) return null;
     const lines: StreamLine[] = [];
-    // Nothing kept from before holds a line's end: the search starts where the new text does.
-    const start = this.rest.length;
-    this.rest += text;
-    let from = 0;
-    for (let end = this.rest.indexOf('\n', start); end !== -1; end = this.rest.indexOf('\n', from)) {
-      const read = this.field(this.rest.slice(from, end).replace(/\r$/, ''));
+    for (let from = 0; from < text.length;) {
+      const end = text.indexOf('\n', from);
+      if (!this.append(text.slice(from, end === -1 ? text.length : end))) return this.fail();
+      if (end === -1) break;
+      this.eventBytes += this.restBytes + 1;
+      if (this.eventBytes > MAX_STREAM_LINE) return this.fail();
+      const line = this.rest.endsWith('\r') ? this.rest.slice(0, -1) : this.rest;
+      this.rest = '';
+      this.restBytes = 0;
+      const read = this.field(line);
+      if (read === false) return this.fail();
       if (read !== null) lines.push(read);
       from = end + 1;
     }
-    this.rest = this.rest.slice(from);
-    return this.rest.length > MAX_STREAM_LINE ? null : lines;
+    return lines;
   }
 
   /** One line of the stream: a field of the event being read, a comment, or the empty line that ends an event. */
-  private field(line: string): StreamLine | null {
+  private field(line: string): StreamLine | false | null {
     if (line === '') {
       const { name, data } = this;
       this.name = '';
       this.data = null;
-      return data === null ? null : lineOf(name, data.join('\n'));
+      this.eventBytes = 0;
+      const read = data === null ? null : lineOf(name, data.join('\n'));
+      return read === null && (name === 'session' || name === 'close') ? false : read;
     }
     if (line.startsWith(':')) return { kind: 'beat' };
     const colon = line.indexOf(':');
@@ -96,6 +105,27 @@ export class StreamReader {
     const value = colon === -1 ? '' : line.slice(colon + 1).replace(/^ /, '');
     if (key === 'event') this.name = value;
     else if (key === 'data') (this.data ??= []).push(value);
+    return null;
+  }
+
+  private append(text: string): boolean {
+    const previous = this.rest.charCodeAt(this.rest.length - 1);
+    const first = text.charCodeAt(0);
+    const joined = previous >= 0xd800 && previous <= 0xdbff && first >= 0xdc00 && first <= 0xdfff;
+    const bytes = this.restBytes + utf8Length(text) - (joined ? 2 : 0);
+    if (this.eventBytes + bytes > MAX_STREAM_LINE) return false;
+    this.restBytes = bytes;
+    this.rest += text;
+    return true;
+  }
+
+  private fail(): null {
+    this.failed = true;
+    this.rest = '';
+    this.name = '';
+    this.data = null;
+    this.restBytes = 0;
+    this.eventBytes = 0;
     return null;
   }
 }

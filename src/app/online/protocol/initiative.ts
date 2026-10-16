@@ -7,20 +7,17 @@ export const MAX_COMBATANTS = 200;
 export const INITIATIVE_SIDES = ['players', 'opponents'] as const;
 export type SharedSide = (typeof INITIATIVE_SIDES)[number];
 
-/** A combatant on the players' initiative list: never one whose token is hidden. */
 export interface SharedCombatant {
+  readonly id?: string;
+  readonly own?: boolean;
+  readonly rolled?: boolean;
   readonly initiative: number;
-  /** Shown only while the player view shows names. */
   readonly name: string | null;
-  /** The combatant has the turn (in turn order, while a fight runs). */
   readonly turn: boolean;
   readonly sitsOut: boolean;
-  /** The portrait's artwork, asked for by hash like the map. */
   readonly art: AssetRef | null;
-  /** The ring around the portrait (`#rrggbb`, or null untinted); absent for an unframed token. */
   readonly ring: { readonly colour: string | null } | null;
   readonly side: SharedSide;
-  /** Hit points, where the collection shows them to players. */
   readonly hp: { readonly current: number; readonly max: number } | null;
 }
 
@@ -31,6 +28,7 @@ export interface SharedInitiative {
   readonly bySides: boolean;
   readonly firstSide: SharedSide;
   readonly activeSide: SharedSide | null;
+  readonly turnKey?: string | null;
   readonly combatants: readonly SharedCombatant[];
 }
 
@@ -45,7 +43,11 @@ function parseCombatant(value: unknown): SharedCombatant | null {
   if (value.art !== null && art === null) return null;
   if (ring !== null && (!isRecord(ring) || (ring.colour !== null && (typeof ring.colour !== 'string' || !COLOUR_PATTERN.test(ring.colour))))) return null;
   if (hp !== null && (!isRecord(hp) || !isNumber(hp.current, 1e9) || !isNumber(hp.max, 1e9))) return null;
+  if (value.id !== undefined && (typeof value.id!=='string'||! /^[0-9a-f]{24}$/.test(value.id))) return null;
+  if (value.own !== undefined && typeof value.own!=='boolean') return null;
+  if (value.rolled !== undefined && typeof value.rolled!=='boolean') return null;
   return {
+    ...(typeof value.id==='string'?{id:value.id}:{}), ...(typeof value.own==='boolean'?{own:value.own}:{}), ...(typeof value.rolled==='boolean'?{rolled:value.rolled}:{}),
     initiative: value.initiative, name, turn: value.turn, sitsOut: value.sitsOut, art, side: value.side,
     ring: ring === null ? null : { colour: ring.colour as string | null },
     hp: hp === null ? null : { current: hp.current as number, max: hp.max as number },
@@ -56,6 +58,7 @@ function parseCombatant(value: unknown): SharedCombatant | null {
 export function parseInitiative(value: unknown): SharedInitiative | null | undefined {
   if (value === null) return null;
   if (!isRecord(value) || typeof value.isActive !== 'boolean' || typeof value.bySides !== 'boolean' || !isNumber(value.round, 1e9) || !isSide(value.firstSide)) return undefined;
+  if(value.turnKey!==undefined&&value.turnKey!==null&&(typeof value.turnKey!=='string'||! /^[0-9a-f]{24}$/.test(value.turnKey)))return undefined;
   if (value.activeSide !== null && !isSide(value.activeSide)) return undefined;
   if (!Array.isArray(value.combatants) || value.combatants.length > MAX_COMBATANTS) return undefined;
   const combatants: SharedCombatant[] = [];
@@ -64,5 +67,5 @@ export function parseInitiative(value: unknown): SharedInitiative | null | undef
     if (combatant === null) return undefined;
     combatants.push(combatant);
   }
-  return { isActive: value.isActive, round: value.round, bySides: value.bySides, firstSide: value.firstSide, activeSide: value.activeSide, combatants };
+  return { isActive: value.isActive, round: value.round, bySides: value.bySides, firstSide: value.firstSide, activeSide: value.activeSide, ...(value.turnKey!==undefined?{turnKey:value.turnKey as string|null}:{}), combatants };
 }

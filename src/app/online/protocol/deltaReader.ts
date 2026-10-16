@@ -12,6 +12,11 @@ type Sequenced = Extract<GmMessage, { t: DeltaOf }>;
  */
 export class DeltaReader {
   private readonly held = new Map<DeltaOf, Sequenced>();
+  fork(): DeltaReader {
+    const copy = new DeltaReader();
+    for (const [key, value] of this.held) copy.held.set(key, value);
+    return copy;
+  }
 
   /**
    * The message a received one stands for: itself for anything but a delta, the whole message a

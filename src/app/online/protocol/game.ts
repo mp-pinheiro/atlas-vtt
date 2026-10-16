@@ -16,6 +16,9 @@ import { MAX_SCENE_ID, parseDragCancel, parseMoveRefused, parsePlayerMove, parse
 import { parseRules, type RulesMessage } from './rules.ts';
 import { MAX_TOKEN_SIZE, MAX_TOKENS, parseTokens, TOKEN_ID_PATTERN, type SharedToken } from './tokens.ts';
 import { parseWidgetBar, type SharedWidgetBar } from './widgets.ts';
+import { parsePlayerAgency, parseAgencyResponse, type PlayerAgencyMessage, type AgencyResponse } from './agency.ts';
+import { parsePlayerSheet, parseSharedSheet, type PlayerSheetMessage } from './sheet.ts';
+import { parsePicture, parsePictureResync, type PicturePacket, type PictureResync } from './picture.ts';
 
 /** What the players see of the shared scene; null while nothing is shared. */
 export interface SharedScene {
@@ -28,6 +31,8 @@ export interface SharedScene {
    * and `sight` messages, and nothing until it can be (never the map unlit).
    */
   readonly lit: boolean;
+  readonly personal?: true;
+  readonly memoryId?: string;
 }
 
 /** Parts of one message a client puts together: at most this many, each as large as an asset chunk. */
@@ -73,6 +78,9 @@ export type GmMessage =
   | ({ readonly t: 'annotations'; readonly scene: string } & SharedAnnotations)
   /** The players' initiative list; null while it is not shown. */
   | { readonly t: 'initiative'; readonly scene: string; readonly list: SharedInitiative | null }
+  | PicturePacket
+  | PictureResync
+  | AgencyResponse
   /** The widgets players see, as Atlas's player window shows them; null while it shows none. */
   | { readonly t: 'widgets'; readonly scene: string; readonly bar: SharedWidgetBar | null }
   | MoveRefused
@@ -105,7 +113,7 @@ export interface PlayerAssetRequest {
   readonly maxSide?: number;
 }
 
-export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerCursor | PlayerLogMessage | PlayerBookMessage | PlayerBookParts | PlayerPinFound;
+export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerCursor | PlayerLogMessage | PlayerBookMessage | PlayerBookParts | PlayerPinFound | PlayerAgencyMessage | PlayerSheetMessage | PictureResync;
 
 const MAX_CHUNKS = Math.ceil(MAX_ASSET_BYTES / ASSET_CHUNK_BYTES);
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -116,9 +124,12 @@ const isBase64Chunk = (value: unknown): value is string => typeof value === 'str
 function parseScene(value: unknown): SharedScene | null | undefined {
   if (value === null) return null;
   if (!isRecord(value) || !isSceneId(value.id) || typeof value.lit !== 'boolean') return undefined;
-  if (value.map === null) return { id: value.id, map: null, lit: value.lit };
+  if(value.personal!==undefined&&value.personal!==true)return undefined;
+  if(value.memoryId!==undefined&&(typeof value.memoryId!=='string'||! /^[0-9a-f]{24}$/.test(value.memoryId)))return undefined;
+  const options={...(value.personal===true?{personal:true as const}:{}),...(typeof value.memoryId==='string'?{memoryId:value.memoryId}:{})};
+  if (value.map === null) return { id: value.id, map: null, lit: value.lit,...options };
   const map = parseAsset(value.map);
-  return map === null ? undefined : { id: value.id, map, lit: value.lit };
+  return map === null ? undefined : { id: value.id, map, lit: value.lit,...options };
 }
 
 /** A message about the scene's fog or lighting, or null for anything malformed. */
@@ -230,6 +241,16 @@ export function parseGmMessage(value: unknown): GmMessage | null {
       return parseLogMessage(value);
     case 'shown-image':
       return parseImageMessage(value);
+    case 'picture':
+      return parsePicture(value);
+    case 'picture-resync':
+      return parsePictureResync(value);
+    case 'agency':
+    case 'claim-result':
+    case 'path-result':
+    case 'door-result':
+    case 'initiative-refused':
+      return parseAgencyResponse(value);
     default:
       if (isBookType(value.t)) return parseBookMessage(value);
       return isSceneId(value.scene) ? parseSceneInput(value, value.scene) : null;
@@ -243,11 +264,14 @@ export function parsePlayerMessage(value: unknown): PlayerMessage | null {
   if (value.t === 'drag-cancel') return parseDragCancel(value);
   if (value.t === 'pin-found') return parsePinFound(value, isSceneId);
   if (value.t === 'roll') return parsePlayerRoll(value);
+  if (value.t === 'sheet-roll') return parsePlayerSheet(value);
+  if (value.t === 'player-ready' || value.t === 'claim-request' || value.t === 'colour' || value.t === 'initiative-roll' || value.t === 'end-turn' || value.t === 'condition' || value.t === 'path' || value.t === 'path-cancel' || value.t === 'door') return parsePlayerAgency(value);
   if (value.t === 'laser' || value.t === 'measure' || value.t === 'cursor') return parsePlayerMark(value);
   if (isPlayerLogType(value.t)) return parsePlayerLog(value);
   if (isPlayerBookType(value.t)) return parsePlayerBookMessage(value);
   if (value.t === 'book-parts') return { t: 'book-parts' };
   if (value.t === 'resync') return isSceneId(value.scene) && isDeltaOf(value.of) ? { t: 'resync', scene: value.scene, of: value.of } : null;
+  if(value.t==='picture-resync')return parsePictureResync(value);
   return value.t === 'asset-request' ? parseAssetRequest(value) : null;
 }
 
