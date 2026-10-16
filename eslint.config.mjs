@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import obsidianmd from "eslint-plugin-obsidianmd";
 import { builtinModules } from "node:module";
 import { BOUNDARIES, PLUGIN_ONLY_SPECIFIER } from "./scripts/boundaries.mjs";
+import { NATIVE_NOTICE, NO_NATIVE_TITLE, PARSE_YAML_USES, VISION_FIELD_READS, VISION_ON_USES } from "./scripts/lintRules.mjs";
 
 // Keep the directory rules and add the restrictions for shared helpers.
 const restrictedGlobals = new Map();
@@ -26,47 +27,8 @@ const nodeNames = builtinModules.map(name => name.replace(/^node:/, "").replace(
 // Obsidian's whole-repository scan runs into.
 const SCRIPT_FILES = ["**/*.{ts,cts,mts,tsx,js,cjs,mjs,jsx}"];
 
-// A `title` attribute shows the browser's tooltip. Atlas shows its own
-// (`LabelTooltip`) where one is wanted and names controls with `aria-label`.
-const TITLE_MESSAGE = "`title` shows the browser tooltip. Use `aria-label`, or `LabelTooltip` for a visible tooltip.";
-const NO_NATIVE_TITLE = [
-  { selector: "JSXOpeningElement[name.name=/^[a-z]/] > JSXAttribute[name.name='title']", message: TITLE_MESSAGE },
-  { selector: "CallExpression[callee.property.name=/^(setAttribute|setAttr)$/][arguments.0.value='title']", message: TITLE_MESSAGE },
-  { selector: "Property[key.name='attr'] > ObjectExpression > Property[key.name='title']", message: TITLE_MESSAGE },
-  { selector: "AssignmentExpression > MemberExpression.left[property.name='title'][object.type!='ThisExpression']:not([object.name=/^(doc|document)$/])", message: TITLE_MESSAGE },
-];
-
-// Sight rules read a token's vision switch only through the sight policies.
-const VISION_FIELD_MESSAGE = "Which tokens give sight or are always seen is decided in vision/tokenSightPolicy.ts.";
-const VISION_FIELD_READS = [
-  { selector: "MemberExpression[property.name='enabled'][object.property.name='vision']", message: VISION_FIELD_MESSAGE },
-  { selector: "MemberExpression[property.name='enabled'][object.name='vision']", message: VISION_FIELD_MESSAGE },
-];
-// The import is flagged rather than the call, so an alias cannot pass; the member selector
-// catches a namespace import, the export selector a re-export.
-const VISION_ON_MESSAGE = "Only sightSources and selectSight ask visionOn; elsewhere ask the picture's SightPolicy (vision/tokenSightPolicy.ts).";
-const VISION_ON_USES = [
-  { selector: "ImportSpecifier[imported.name='visionOn']", message: VISION_ON_MESSAGE },
-  { selector: "ExportSpecifier[local.name='visionOn']", message: VISION_ON_MESSAGE },
-  { selector: "MemberExpression[property.name='visionOn']", message: VISION_ON_MESSAGE },
-];
-// A note's text reaches the YAML parser only through the helper that checks it first. The import
-// is flagged rather than the call, so an alias cannot pass; the member selector catches a
-// namespace import, the export selector a re-export, the pattern selector a destructuring.
-const PARSE_YAML_MESSAGE = "Parse the YAML of notes, bases and bundles with parseNoteYaml (services/noteYaml.ts), which checks the text first.";
-const PARSE_YAML_USES = [
-  { selector: "ImportSpecifier[imported.name='parseYaml']", message: PARSE_YAML_MESSAGE },
-  { selector: "ExportSpecifier[local.name='parseYaml']", message: PARSE_YAML_MESSAGE },
-  { selector: "MemberExpression[property.name='parseYaml']", message: PARSE_YAML_MESSAGE },
-  { selector: "ObjectPattern > Property[key.name='parseYaml']", message: PARSE_YAML_MESSAGE },
-  { selector: "ImportDeclaration[source.value='yaml']", message: PARSE_YAML_MESSAGE },
-  { selector: "CallExpression[callee.name='require'][arguments.0.value='yaml']", message: PARSE_YAML_MESSAGE },
-];
+// The files the selectors of scripts/lintRules.mjs make an exception for.
 const NOTE_YAML_PARSER = "src/app/services/noteYaml.ts";
-// Atlas' messages are Obsidian's notices in Atlas' look, which only the helper gives them.
-const NATIVE_NOTICE = [
-  { selector: "NewExpression[callee.name='Notice']", message: "Show a message with showNotice (src/app/ui/notice.ts), which gives it Atlas' look." },
-];
 const ATLAS_NOTICE = "src/app/ui/notice.ts";
 
 // The two files that may ask `visionOn`: no source without vision on, whatever a policy says,
