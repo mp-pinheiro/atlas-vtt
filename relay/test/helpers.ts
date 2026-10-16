@@ -54,6 +54,39 @@ export function fetchWith(environment: Cloudflare.Env, path: string, init?: Requ
   return callWorker(new Request(`https://relay.example${path}`, init), environment);
 }
 
+/** The test relay's bindings with a `TABLES` namespace whose stubs fail some of the calls to `supersede`, and the count of those calls. */
+export interface FlakySupersede {
+  readonly environment: Cloudflare.Env;
+  supersedeCalls(): number;
+}
+
+/**
+ * The calls fail on the Worker's side of the stub, the way a Durable Object call fails for the
+ * Worker (an error thrown inside the object would also be reported to Vitest as an unhandled
+ * rejection). The first `failures` calls to `supersede`, of any table, throw `error`; the rest reach the object.
+ */
+export function envWithFlakySupersede(failures: number, error: Error): FlakySupersede {
+  let calls = 0;
+  const flaky = (stub: DurableObjectStub<TableObject>): DurableObjectStub<TableObject> =>
+    new Proxy(stub, {
+      get(target, property): unknown {
+        if (property === 'supersede') {
+          calls += 1;
+          return calls <= failures ? () => Promise.reject(error) : () => target.supersede();
+        }
+        return Reflect.get(target, property);
+      },
+    });
+  const tables = new Proxy(env.TABLES, {
+    get(target, property): unknown {
+      if (property === 'get') return (id: DurableObjectId): DurableObjectStub<TableObject> => flaky(target.get(id));
+      const member: unknown = Reflect.get(target, property);
+      return typeof member === 'function' ? member.bind(target) : member;
+    },
+  });
+  return { environment: { ...envWithHostKey(TEST_HOST_KEY), TABLES: tables }, supersedeCalls: () => calls };
+}
+
 /** How many objects a namespace has made so far. They outlive `reset()`, so tests compare counts before and after. */
 export async function objectCount<T extends Rpc.DurableObjectBranded | undefined>(namespace: DurableObjectNamespace<T>): Promise<number> {
   return (await listDurableObjectIds(namespace)).length;

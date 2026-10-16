@@ -5,7 +5,7 @@ import { CLOSE } from '../../src/app/online/protocol/relay.ts';
 import { sha256Hex } from '../src/table/codec.ts';
 import { GM_AWAY_MS } from '../src/table/limits.ts';
 import { OTHER_HOST_KEY, TEST_HOST_KEY } from './fixtures/hostKey.ts';
-import { acceptSockets, createTable, tableNames, tableStub } from './helpers.ts';
+import { acceptSockets, authHeaders, createTable, envWithFlakySupersede, fetchWith, tableNames, tableStub } from './helpers.ts';
 
 afterEach(async () => {
   await reset();
@@ -62,6 +62,49 @@ describe('a new table with the same host key', () => {
     const first = await createTable();
     const rows = await registryHolds(TEST_HOST_KEY);
     for (const plain of [first.code, first.secret, TEST_HOST_KEY]) expect(rows.join()).not.toContain(plain);
+  });
+});
+
+describe('a call that ends the old table fails', () => {
+  /** A new table made at a relay whose calls to `supersede` fail as `flaky` says. */
+  function createWith(flaky: ReturnType<typeof envWithFlakySupersede>): Promise<Response> {
+    return fetchWith(flaky.environment, '/api/tables', { method: 'POST', headers: authHeaders() });
+  }
+
+  it('asks again once, and the old table ends', async () => {
+    const first = await createTable();
+    const flaky = envWithFlakySupersede(1, new Error('A Durable Object call failed.'));
+    const response = await createWith(flaky);
+    expect(response.status).toBe(201);
+    expect(flaky.supersedeCalls()).toBe(2);
+    expect(await tableStub(first.code).isInitialised()).toBe(false);
+    const second = await response.json<{ code: string }>();
+    expect(await tableStub(second.code).isInitialised()).toBe(true);
+    expect(await registryHolds(TEST_HOST_KEY)).toEqual([`current=${idOf(second.code)}`]);
+  });
+
+  it('asks no more than twice, and still answers with the new table, which stands', async () => {
+    await createTable();
+    const flaky = envWithFlakySupersede(5, new Error('A Durable Object call failed.'));
+    const response = await createWith(flaky);
+    expect(response.status).toBe(201);
+    expect(flaky.supersedeCalls()).toBe(2);
+    const second = await response.json<{ code: string }>();
+    expect(await tableStub(second.code).isInitialised()).toBe(true);
+    expect(await registryHolds(TEST_HOST_KEY)).toEqual([`current=${idOf(second.code)}`]);
+  });
+
+  it('does not ask an overloaded object again', async () => {
+    await createTable();
+    const flaky = envWithFlakySupersede(5, Object.assign(new Error('Durable Object overloaded.'), { overloaded: true }));
+    expect((await createWith(flaky)).status).toBe(201);
+    expect(flaky.supersedeCalls()).toBe(1);
+  });
+
+  it('asks nobody when the host key had no table before', async () => {
+    const flaky = envWithFlakySupersede(5, new Error('A Durable Object call failed.'));
+    expect((await createWith(flaky)).status).toBe(201);
+    expect(flaky.supersedeCalls()).toBe(0);
   });
 });
 

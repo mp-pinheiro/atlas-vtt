@@ -25,11 +25,32 @@ export async function createTable(request: Request, env: Cloudflare.Env): Promis
   }
 }
 
-/** Ends the table a new one replaces. The old one may be gone already (ended, cleaned up), which is as good. */
+/** How often the old table is asked to end, and how long the Worker waits between the asks. */
+const SUPERSEDE_ATTEMPTS = 2;
+const SUPERSEDE_RETRY_MS = 100;
+
+/** Durable Object infrastructure marks an object it found overloaded; asking it again only makes that worse. */
+function isOverloaded(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'overloaded' in error && error.overloaded === true;
+}
+
+/**
+ * Ends the table a new one replaces. The registry has moved on to the new table already, so nothing
+ * would ever ask the old one again: a failed call is repeated once, on a new stub since an exception
+ * can leave the first one broken, and not at all when the object is overloaded (Cloudflare's advice
+ * for errors of Durable Objects). An old table that is gone needs no ending: `supersede` leaves it
+ * alone and does not throw. If every attempt fails the new table stands and is answered all the
+ * same: it is complete, and a second request would find the registry pointing at it, not at the
+ * table that is still open. The old one then goes when its GM ends it or 24 hours after its GM left.
+ */
 async function endPrevious(env: Cloudflare.Env, tableId: string): Promise<void> {
-  try {
-    await env.TABLES.get(env.TABLES.idFromString(tableId)).supersede();
-  } catch {
-    // Nothing to end: the new table stands either way.
+  for (let attempt = 1; attempt <= SUPERSEDE_ATTEMPTS; attempt += 1) {
+    try {
+      await env.TABLES.get(env.TABLES.idFromString(tableId)).supersede();
+      return;
+    } catch (error) {
+      if (attempt === SUPERSEDE_ATTEMPTS || isOverloaded(error)) return;
+      await scheduler.wait(SUPERSEDE_RETRY_MS);
+    }
   }
 }
