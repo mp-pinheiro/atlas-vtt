@@ -86,6 +86,28 @@ import { wall } from './wall';
 import { sceneLight } from './sceneLight';
 import { vision } from './vision';
 
+// @player:join
+
+// @player:app
+
+// @player:map
+
+// @player:lit
+
+// @player:sight
+
+// @player:interaction
+
+// @player:layers
+
+// @player:log
+
+// @player:dice
+
+// @player:book
+
+// @player:world
+
 /** English, the source language: every key exists here, and other languages translate a subset of it. */
 export const en = {
   ...align,
@@ -177,4 +199,26 @@ export const en = {
   ...wall,
   ...sceneLight,
   ...vision,
+
+  // @player:join
+
+  // @player:app
+
+  // @player:map
+
+  // @player:lit
+
+  // @player:sight
+
+  // @player:interaction
+
+  // @player:layers
+
+  // @player:log
+
+  // @player:dice
+
+  // @player:book
+
+  // @player:world
 } as const;
