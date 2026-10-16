@@ -28,10 +28,13 @@ declare module 'obsidian' {
     setting?: SettingsDialog;
   }
 
-  /** The settings dialog: opens, then shows the tab of a plugin, whose id is the plugin's manifest id. */
+  /**
+   * The settings dialog: opens, then shows the tab of a plugin, whose id is the plugin's manifest id.
+   * Each call is undocumented and may be dropped on its own, so each is optional.
+   */
   interface SettingsDialog {
-    open(): void;
-    openTabById(id: string): void;
+    open?: () => void;
+    openTabById?: (id: string) => void;
   }
 
   /** What Obsidian hands an embed creator: where to render and which link asked for it. */
