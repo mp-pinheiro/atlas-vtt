@@ -16,6 +16,7 @@ export interface RollOptions {
   set?: DiceSet | undefined;
   /** Rolls with advantage or disadvantage, as the set's rule for that side says. */
   advantage?: AdvantageSide | undefined;
+  random?: (() => number) | undefined;
 }
 
 export interface DiceToolState {
@@ -83,7 +84,7 @@ export class DiceTool {
   /** Rolls the formula; one without dice (`+3`) is added to the dice of the set. */
   private parseAndRoll(formula: string, options: RollOptions | undefined): DiceRollResult | null {
     const { rules, shown } = rollingWith(this.getDiceRules(), options?.set);
-    return rollDiceFormula(formula, rules, this.inputs, shown, options?.advantage);
+    return rollDiceFormula(formula, rules, options?.random ? { ...this.inputs, random: options.random } : this.inputs, shown, options?.advantage);
   }
 
   /** The dice a roll of `set` (else the collection's) is made with, and their rules: what advantage can do. */

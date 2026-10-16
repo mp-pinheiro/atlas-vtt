@@ -101,3 +101,44 @@ describe('a modifier the GM set on an entry', () => {
     expect(get().initiative.entries[0]!.initiative).toBe(16);
   });
 });
+
+describe('settled initiative and turn identity', () => {
+  it('returns the exact zero and negative roll once and uses only a per-call random override', () => {
+    const { actions, random, get } = setup([entry('a', -1)]);
+    const override = vi.fn(() => 0);
+    const zero = actions.rollEntryInitiative('a', 'd6', null, { random: override });
+    expect(zero).toMatchObject({ total: 0, modifiers: -1, rolls: [{ value: 1 }] });
+    expect(get().initiative.entries[0]).toMatchObject({ initiative: 0, hasInitiative: true });
+    expect(override).toHaveBeenCalledOnce();
+    expect(random).not.toHaveBeenCalled();
+    actions.updateInitiativeEntry('a', { initiativeModifier: -3 });
+    const negative = actions.rollEntryInitiative('a', 'd6', null, { random: override });
+    expect(negative?.total).toBe(-2);
+    actions.rollEntryInitiative('a', 'd6');
+    expect(random).toHaveBeenCalledOnce();
+  });
+
+  it('marks only new and explicitly assigned entries without migrating legacy zero scores', () => {
+    const { actions, get } = setup([entry('legacy')]);
+    expect(get().initiative.entries[0]!.hasInitiative).toBeUndefined();
+    const id = actions.addToInitiative(entry('new'));
+    expect(get().initiative.entries.find(value => value.id === id)?.hasInitiative).toBe(false);
+    actions.updateInitiativeEntry(id, { initiative: 0 });
+    expect(get().initiative.entries.find(value => value.id === id)?.hasInitiative).toBe(true);
+  });
+
+  it('keeps the active identity indexed through sorting, indirect reorders and removal', () => {
+    const { actions, get } = setup([entry('a'), entry('b'), entry('c')]);
+    actions.startCombat();
+    actions.updateInitiativeEntry('c', { initiative: 30 });
+    expect(get().initiative.entries[get().initiative.currentIndex]?.id).toBe('a');
+    actions.reorderInitiative(2, 0);
+    expect(get().initiative.entries[get().initiative.currentIndex]?.id).toBe('a');
+    actions.moveToBack('c');
+    expect(get().initiative.entries[get().initiative.currentIndex]?.id).toBe('a');
+    actions.removeFromInitiative('c');
+    expect(get().initiative.entries[get().initiative.currentIndex]?.id).toBe('a');
+    actions.removeFromInitiative('a');
+    expect(get().initiative.entries[get().initiative.currentIndex]?.isActive).toBe(true);
+  });
+});

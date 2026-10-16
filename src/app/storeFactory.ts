@@ -17,6 +17,7 @@ import type { AnyWidget, WidgetSettings } from './types/widgetTypes';
 import type { InitiativeEntry, InitiativeConfig } from './types/initiativeTypes';
 import { createDefaultInitiativeState } from './types/initiativeTypes';
 import type { InitiativeRules } from './types/initiativeRulesTypes';
+import type { InitiativeRollOptions, InitiativeRollResult } from './initiative/initiativeRoll';
 import { createAtlasStorage, ATLAS_SCHEMA, ATLAS_VERSION } from './services/MapPersistence';
 import type { CameraState, GridState } from './types/gridTypes';
 import type { AtlasPersistStorage } from './services/MapPersistence';
@@ -208,7 +209,7 @@ export interface ViewAtlasState extends ViewState {
   removeFromInitiative: (id: string) => void;
   updateInitiativeEntry: (id: string, updates: Partial<InitiativeEntry>) => void;
   rollAllInitiative: (roll?: string, fromStatblocks?: ReadonlyMap<string, number>) => void;
-  rollEntryInitiative: (id: string, roll?: string, fromStatblock?: number | null) => void;
+  rollEntryInitiative: (id: string, roll?: string, fromStatblock?: number | null, options?: InitiativeRollOptions) => InitiativeRollResult | null;
   nextTurn: () => void;
   previousTurn: () => void;
   reorderInitiative: (fromIndex: number, toIndex: number) => void;

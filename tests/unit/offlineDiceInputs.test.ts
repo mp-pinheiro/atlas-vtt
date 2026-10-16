@@ -20,6 +20,20 @@ describe('offline dice inputs', () => {
     expect(tool.rollDice('d6')).toMatchObject({ id: `roll_123_${(0.25).toString(36).slice(2, 11)}`, total: 4, timestamp: 123, player: t('dice.player') });
     expect(random).toHaveBeenCalledTimes(2);
   });
+  it('overrides randomness only for one call without changing offline providers', () => {
+    const stored = vi.fn(() => 0);
+    const secure = vi.fn(() => 0.99);
+    const errors = vi.fn();
+    const tool = new DiceTool(new EventEmitter(), () => DEFAULT_DICE_RULES, {
+      random: stored, rollId: () => 'roll', roller: () => 'Player', onFormulaError: errors,
+    });
+    expect(tool.rollDice('d6', undefined, undefined, { random: secure })?.total).toBe(6);
+    expect(secure).toHaveBeenCalledOnce();
+    expect(stored).not.toHaveBeenCalled();
+    expect(tool.rollDice('d6')?.total).toBe(1);
+    expect(stored).toHaveBeenCalledOnce();
+    expect(errors).not.toHaveBeenCalled();
+  });
   it.each(['syntax', 'length', 'terms', 'dice', 'faces'] as const)('shows a readable notice for %s', (code) => {
     offlineDiceInputs().onFormulaError({ ok: false, code });
     expect(Notice).toHaveBeenCalledWith(t(`dice.formulaError.${code}`));

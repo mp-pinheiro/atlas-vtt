@@ -48,3 +48,13 @@ export function runUntracked<T>(store: HistoryHost, fn: () => T): T {
 export function isHistoryTravelling(store: HistoryHost): boolean {
   return getHistoryStore(store)?.getState().isTravelling() ?? false;
 }
+
+export function isHistoryBusy(store: HistoryHost): boolean {
+  return getHistoryStore(store)?.getState().isBusy() ?? false;
+}
+
+export function onHistorySettled(store: HistoryHost, listener: () => void): () => void {
+  const history = getHistoryStore(store);
+  if (history) return history.getState().onSettled(listener);
+  return (): void => {};
+}

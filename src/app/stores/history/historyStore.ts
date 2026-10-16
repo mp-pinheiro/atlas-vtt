@@ -44,6 +44,8 @@ export interface HistoryState {
    * listeners hear of that write, so a listener can tell what undo put back from an edit.
    */
   isTravelling: () => boolean;
+  isBusy: () => boolean;
+  onSettled: (listener: () => void) => () => void;
 }
 
 /** The store a history belongs to, as the history sees it. */
@@ -79,6 +81,14 @@ export function createHistory(tracked: TrackedStore): History {
   let mark: HistorySnapshot | null = null;
   let openWrites = 0;
   let travelling = false;
+  const settledListeners = new Set<() => void>();
+  let busy = false;
+  const isBusy = (): boolean => depth > 0 || openWrites > 0 || travelling;
+  const notifySettled = (): void => {
+    if (!busy || isBusy()) return;
+    busy = false;
+    for (const listener of [...settledListeners]) listener();
+  };
   const store = createStore<HistoryState>()(() => ({
     pastStates: [],
     futureStates: [],
@@ -102,6 +112,11 @@ export function createHistory(tracked: TrackedStore): History {
     },
     untracked: (fn) => attribution.asSystem(fn),
     isTravelling: () => travelling,
+    isBusy,
+    onSettled: (listener) => {
+      settledListeners.add(listener);
+      return (): void => { settledListeners.delete(listener); };
+    },
   }));
   const get = (): HistoryState => store.getState();
 
@@ -143,8 +158,9 @@ export function createHistory(tracked: TrackedStore): History {
     const ownWork = attribution.current().kind === 'gm' && get().isTracking;
     if (ownWork) {
       mark ??= before;
-      openWrites += 1;
     }
+    openWrites += 1;
+    busy = true;
     let written = false;
     try {
       write();
@@ -152,10 +168,9 @@ export function createHistory(tracked: TrackedStore): History {
     } finally {
       // The write's listeners have run: what they wrote belongs to this write.
       if (written) decide(before);
-      if (ownWork) {
-        openWrites -= 1;
-        settle();
-      }
+      openWrites -= 1;
+      settle();
+      notifySettled();
     }
   }
 
@@ -180,19 +195,20 @@ export function createHistory(tracked: TrackedStore): History {
     const current = tracked.read();
     const stacks = folded(current);
     const step = stacks[source][stacks[source].length - 1]!;
-    store.setState({ ...stacks, [source]: stacks[source].slice(0, -1) });
     const slice = direction === 'undo' ? restore(current, step.after, step.before) : restore(current, step.before, step.after);
     const wasTravelling = travelling;
     travelling = true;
+    busy = true;
     try {
+      store.setState({ ...stacks, [source]: stacks[source].slice(0, -1) });
       tracked.write(slice);
+      const travelled: HistoryStep = direction === 'undo' ? { before: slice, after: current } : { before: current, after: slice };
+      store.setState({ [target]: [...get()[target], travelled] });
     } finally {
       travelling = wasTravelling;
+      if (mark) mark = slice;
+      notifySettled();
     }
-    const travelled: HistoryStep = direction === 'undo' ? { before: slice, after: current } : { before: current, after: slice };
-    // After the write: a step its listeners recorded has cleared the redo stack first.
-    store.setState({ [target]: [...get()[target], travelled] });
-    if (mark) mark = slice;
   }
 
   function beginTransaction(): void {
@@ -201,6 +217,7 @@ export function createHistory(tracked: TrackedStore): History {
       mark ??= start;
     }
     depth += 1;
+    busy = true;
   }
 
   function endTransaction(): void {
@@ -218,6 +235,7 @@ export function createHistory(tracked: TrackedStore): History {
   function closeTransaction(): void {
     foldNow();
     settle();
+    notifySettled();
   }
 
   function discardTransaction(): void {
@@ -242,6 +260,7 @@ export function createHistory(tracked: TrackedStore): History {
     start = null;
     mark = openWrites > 0 ? tracked.read() : null;
     store.setState({ pastStates: [], futureStates: [] });
+    notifySettled();
   }
 
   return { store, record };

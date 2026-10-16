@@ -28,6 +28,7 @@ export interface InitiativeEntry {
 
   /** Rolled initiative value (after modifiers) */
   initiative: number;
+  hasInitiative?: boolean;
 
   /**
    * The GM's own modifier, added to every roll (`ownModifier`). Every version writes it, 0 where

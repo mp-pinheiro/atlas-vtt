@@ -9,7 +9,8 @@ import { createDefaultInitiativeState } from '../types/initiativeTypes';
 import type { InitiativeRules } from '../types/initiativeRulesTypes';
 import { DEFAULT_INITIATIVE_RULES } from '../gameSystems/initiativeRules';
 import { combatantModifier, ownModifier } from '../initiative/initiativeModifier';
-import { clearSittingOut, nextSideTurn, previousSideTurn, rollInitiativeDice } from '../initiative/turns';
+import { clearSittingOut, nextSideTurn, previousSideTurn } from '../initiative/turns';
+import { rollInitiative, type InitiativeRollOptions, type InitiativeRollResult } from '../initiative/initiativeRoll';
 
 /**
  * Initiative slice state interface
@@ -31,7 +32,7 @@ export interface InitiativeSlice {
    * A statblock's modifier counts for the roll only and is never written onto the entry.
    */
   rollAllInitiative: (roll?: string, fromStatblocks?: ReadonlyMap<string, number>) => void;
-  rollEntryInitiative: (id: string, roll?: string, fromStatblock?: number | null) => void;
+  rollEntryInitiative: (id: string, roll?: string, fromStatblock?: number | null, options?: InitiativeRollOptions) => InitiativeRollResult | null;
   nextTurn: () => void;
   previousTurn: () => void;
   reorderInitiative: (fromIndex: number, toIndex: number) => void;
@@ -86,10 +87,13 @@ const DEFAULT_ROLL = DEFAULT_INITIATIVE_RULES.roll;
 /**
  * Update order indices for all entries after a modification
  */
-function updateEntryOrders(entries: InitiativeEntry[]): void {
-  entries.forEach((entry, index) => {
+function updateEntryOrders(state: InitiativeState): void {
+  state.entries.forEach((entry, index) => {
     entry.order = index;
   });
+  const active = state.entries.findIndex(entry => entry.isActive);
+  state.currentIndex = active < 0 ? (state.entries.length === 0 ? -1 : 0) : active;
+  if (active < 0 && !state.sides && state.entries[0]) state.entries[0].isActive = true;
 }
 
 /**
@@ -116,10 +120,12 @@ export function createInitiativeActions(
         const newEntry: InitiativeEntry = {
           ...entry,
           id,
+          hasInitiative: false,
           order,
           isActive: draft.initiative.entries.length === 0,
         };
         draft.initiative.entries.push(newEntry);
+        updateEntryOrders(draft.initiative);
       });
       return id;
     },
@@ -131,7 +137,6 @@ export function createInitiativeActions(
       const wasActive = draft.initiative.entries[index]!.isActive;
       draft.initiative.entries.splice(index, 1);
 
-      updateEntryOrders(draft.initiative.entries);
 
       // If removed entry was active, activate the next or previous entry
       if (wasActive && draft.initiative.entries.length > 0) {
@@ -139,6 +144,8 @@ export function createInitiativeActions(
         draft.initiative.entries[newActiveIndex]!.isActive = true;
         draft.initiative.currentIndex = newActiveIndex;
       }
+      if (draft.initiative.entries.length === 0) draft.initiative.currentIndex = -1;
+      else updateEntryOrders(draft.initiative);
 
     }),
 
@@ -147,39 +154,48 @@ export function createInitiativeActions(
       if (entry) {
         const initiativeChanged = updates.initiative !== undefined && updates.initiative !== entry.initiative;
         Object.assign(entry, updates);
+        if (updates.initiative !== undefined) entry.hasInitiative = true;
 
         // Re-sort if initiative value changed and autoSort is enabled
         if (initiativeChanged && draft.initiative.config.autoSort) {
           draft.initiative.entries.sort((a, b) => b.initiative - a.initiative);
-          updateEntryOrders(draft.initiative.entries);
+          updateEntryOrders(draft.initiative);
         }
       }
     }),
 
     rollAllInitiative: (roll = DEFAULT_ROLL, fromStatblocks) => {
       const totals = new Map(get().initiative.entries.map(entry => [
-        entry.id, rollInitiativeDice(roll, random) + combatantModifier(ownModifier(entry), fromStatblocks?.get(entry.id)),
+        entry.id, rollInitiative(roll, combatantModifier(ownModifier(entry), fromStatblocks?.get(entry.id)), random),
       ]));
       set((draft) => {
         for (const entry of draft.initiative.entries) {
           const total = totals.get(entry.id);
-          if (total !== undefined) entry.initiative = total;
+          if (total !== undefined && total !== null) {
+            entry.initiative = total.total;
+            entry.hasInitiative = true;
+          }
         }
         if (draft.initiative.config.autoSort) {
           draft.initiative.entries.sort((a, b) => b.initiative - a.initiative);
-          updateEntryOrders(draft.initiative.entries);
+          updateEntryOrders(draft.initiative);
         }
       });
     },
 
-    rollEntryInitiative: (id, roll = DEFAULT_ROLL, fromStatblock) => {
+    rollEntryInitiative: (id, roll = DEFAULT_ROLL, fromStatblock, options) => {
       const entry = get().initiative.entries.find(e => e.id === id);
-      if (!entry) return;
-      const total = rollInitiativeDice(roll, random) + combatantModifier(ownModifier(entry), fromStatblock);
+      if (!entry) return null;
+      const result = rollInitiative(roll, combatantModifier(ownModifier(entry), fromStatblock), options?.random ?? random);
+      if (result === null) return null;
       set((draft) => {
         const current = draft.initiative.entries.find(e => e.id === id);
-        if (current) current.initiative = total;
+        if (!current) return;
+        current.initiative = result.total;
+        current.hasInitiative = true;
+        updateEntryOrders(draft.initiative);
       });
+      return result;
     },
 
     nextTurn: () => set((draft) => {
@@ -243,12 +259,7 @@ export function createInitiativeActions(
       if (!movedEntry) return;
 
       entries.splice(toIndex, 0, movedEntry);
-      updateEntryOrders(entries);
-
-      // Update currentIndex if the moved entry was active
-      if (movedEntry.isActive) {
-        draft.initiative.currentIndex = toIndex;
-      }
+      updateEntryOrders(draft.initiative);
     }),
 
     moveToFront: (id) => set((draft) => {
@@ -259,11 +270,7 @@ export function createInitiativeActions(
       if (!entry) return;
 
       draft.initiative.entries.unshift(entry);
-      updateEntryOrders(draft.initiative.entries);
-
-      if (entry.isActive) {
-        draft.initiative.currentIndex = 0;
-      }
+      updateEntryOrders(draft.initiative);
     }),
 
     moveToBack: (id) => set((draft) => {
@@ -275,11 +282,7 @@ export function createInitiativeActions(
       if (!entry) return;
 
       entries.push(entry);
-      updateEntryOrders(entries);
-
-      if (entry.isActive) {
-        draft.initiative.currentIndex = entries.length - 1;
-      }
+      updateEntryOrders(draft.initiative);
     }),
 
     startCombat: (rules) => set((draft) => {
@@ -296,7 +299,7 @@ export function createInitiativeActions(
       }
 
       delete draft.initiative.sides;
-      draft.initiative.currentIndex = 0;
+      draft.initiative.currentIndex = draft.initiative.entries.length === 0 ? -1 : 0;
       if (draft.initiative.entries.length > 0) {
         draft.initiative.entries[0]!.isActive = true;
       }
