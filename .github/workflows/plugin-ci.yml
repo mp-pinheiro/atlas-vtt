@@ -17,8 +17,9 @@ concurrency:
 jobs:
   build-plugin:
     runs-on: ubuntu-latest
-    # Lint, the directory scan and the unit suite alone take 15 to 20 minutes on a hosted runner.
-    timeout-minutes: 40
+    # Lint, the directory scan and the unit suite alone take 15 to 20 minutes on a hosted runner;
+    # the player client's tests and build and the relay's tests add about 8.
+    timeout-minutes: 55
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,17 +31,32 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            relay/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      # The relay is its own npm project (a Cloudflare Worker), so it has its own lockfile.
+      - name: Install relay dependencies
+        run: npm --prefix relay ci
+
       - name: Typecheck
         run: npx tsc --noEmit
+
+      # The player client and the relay are not part of the plugin's TypeScript project.
+      - name: Typecheck player and relay
+        run: npm run typecheck:player && npm run typecheck:relay
 
       # The rule set Obsidian's community directory scores the plugin with.
       # Zero tolerance; accepted exceptions live in eslint.suppressions.json.
       - name: Lint
         run: npm run lint
+
+      # The relay has the lint rules of the player client, minus the browser's limits and with no console.
+      - name: Lint relay
+        run: npm run lint:relay
 
       # Obsidian's directory review lints the whole repository with its own
       # config; a file it cannot parse is a fatal review error.
@@ -59,11 +75,22 @@ jobs:
       - name: Test
         run: npx vitest run --project unit
 
+      # Unit and fake-table tests of the player client. Its browser tests need a GPU and run locally.
+      - name: Test player client
+        run: npx vitest run --project player
+
+      # Runs in workerd, Cloudflare's Workers runtime; no Cloudflare account is involved.
+      - name: Test relay
+        run: npm run test:relay
+
       - name: Check code dependencies
         run: npm run check:boundaries
 
       - name: Build plugin
         run: npm run build:ci
+
+      - name: Build player client
+        run: npm run build:player
 
       - name: Smoke test postbuild hook (used by npm run build)
         run: npm run postbuild
