@@ -60,9 +60,18 @@ if (exists('README.md') && /\[Add .* information\]/i.test(read('README.md'))) er
 // --- Files the scanner would treat as plugin source -------------------------
 // The scanner ignores these patterns and nothing else; project ESLint ignores are not honoured.
 const ignored = /(^|\/)(node_modules|dist|build|pkg|test-vault|\.obsidian|automation|tests?|__tests__|testUtils|e2e-tests|mocks|__mocks__|vite|scripts|docs|i18n|i18next|locales?|translations|l10n)\/|\.(test|tests|spec|specs)\.|\.(cjs|mjs|cts|mts)$/;
+// The player client and the relay are programs of their own beside the plugin: nothing of them is
+// in dist/main.js, and their lint and type checks have configs of their own (npm run lint:player,
+// npm run lint:relay). A warning per file would bury the ones that matter, so they are counted.
+const NOT_PLUGIN_SOURCE = ['player/', 'relay/'];
+let outsideBundle = 0;
 const tracked = execSync('git ls-files', { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
 for (const file of tracked) {
   if (!/\.(ts|tsx|js|jsx)$/.test(file) || ignored.test(file)) continue;
+  if (NOT_PLUGIN_SOURCE.some((folder) => file.startsWith(folder))) {
+    outsideBundle++;
+    continue;
+  }
   if (file !== 'main.ts' && !file.startsWith('src/')) warnings.push(`${file} will be scanned as plugin source; move it under scripts/ or use .mjs/.cjs/.mts`);
 }
 
@@ -110,6 +119,7 @@ if (exists('dist/styles.css')) {
 }
 
 // --- Report ------------------------------------------------------------------
+if (outsideBundle) console.log(`${NOT_PLUGIN_SOURCE.join(' and ')}: ${outsideBundle} files outside the plugin bundle`);
 warnings.forEach((message) => console.warn(`warning  ${message}`));
 errors.forEach((message) => console.error(`error    ${message}`));
 console.log(`\n${errors.length} error(s), ${warnings.length} warning(s)`);
