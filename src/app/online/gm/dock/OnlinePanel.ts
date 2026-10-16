@@ -1,10 +1,9 @@
-import { renderClosingRow, type ClosingRowActions } from './closingRow.ts';
 import { inviteRow, surfaceHeader, textButton } from './controls.ts';
 import type { MenuEntry } from './dockMenu.ts';
 import { renderFeedback, type FeedbackActions, type FeedbackView } from './feedbackForm.ts';
 import { gateEntries, gateRowsOf, renderCodeRow, renderPausedRow, type GateRowActions, type GateRows } from './gateRows.ts';
 import { renderImageRow, type ImageRowActions } from './imageRow.ts';
-import { closingOf, groupsOf, seatsNoteOf, selectionBarOf, statusOf, type OnlinePlayer, type OnlineSnapshot, type PlayerGroup, type SceneFacts, type SelectionBar, type Tone } from './panelModel.ts';
+import { groupsOf, seatsNoteOf, selectionBarOf, statusOf, type OnlinePlayer, type OnlineSnapshot, type PlayerGroup, type SceneFacts, type SelectionBar, type Tone } from './panelModel.ts';
 import { renderPlayerList, type ListActions } from './playerList.ts';
 import { renderSelectionBar, type SelectionActions } from './selectionBar.ts';
 
@@ -23,26 +22,26 @@ export interface PanelView {
   readonly gate: GateRows | null;
   /** Players are shown an image over the map. */
   readonly imageShown: boolean;
-  /** The table closes because its account may no longer host: the line that says when; null otherwise. */
-  readonly closing: string | null;
   readonly groups: readonly PlayerGroup[];
   readonly players: readonly OnlinePlayer[];
-  readonly bar: SelectionBar | null;
   readonly feedback: FeedbackView;
+  readonly bar: SelectionBar | null;
+  readonly feedbackEnabled: boolean;
 }
 
 /** What the panel shows of a snapshot, the map views, the feedback form and whether the QR card is open. */
-export function panelView(snapshot: OnlineSnapshot, scene: SceneFacts, feedback: FeedbackView, qr = false): PanelView {
+export function panelView(snapshot: OnlineSnapshot, scene: SceneFacts, feedback: FeedbackView, qr = false, feedbackEnabled = false): PanelView {
   const groups = groupsOf(snapshot, scene);
   const players = groups.flatMap((group) => (group.player === null ? [] : [group.player]));
-  return { status: statusOf(snapshot), seatsNote: seatsNoteOf(snapshot), link: snapshot.link, qr, gate: gateRowsOf(snapshot.gate), imageShown: snapshot.imageShown === true, closing: closingOf(snapshot), groups, players, bar: selectionBarOf(snapshot, scene), feedback };
+  return { status: statusOf(snapshot), seatsNote: seatsNoteOf(snapshot), link: snapshot.link, qr, gate: gateRowsOf(snapshot.gate), imageShown: snapshot.imageShown === true, groups, players, bar: selectionBarOf(snapshot, scene), feedback: feedbackEnabled ? feedback : { ...feedback, open: false }, feedbackEnabled };
 }
 
-export interface PanelActions extends ListActions, SelectionActions, FeedbackActions, GateRowActions, ImageRowActions, ClosingRowActions {
+export interface PanelActions extends ListActions, SelectionActions, FeedbackActions, GateRowActions, ImageRowActions {
   close(): void;
   stop(): void;
   copy(): Promise<boolean>;
   toggleQr(): void;
+  renderAgency?(parent: HTMLElement): void;
 }
 
 /** Panels whose Stop waits for its confirmation; kept apart from the DOM, which every redraw replaces. */
@@ -102,7 +101,7 @@ export function renderPanel(layer: HTMLElement, view: PanelView, actions: PanelA
   layer.empty();
   layer.addClass('atlas-online-panel');
   const entries: MenuEntry[] = [
-    { title: view.feedback.open ? 'Close feedback' : 'Send feedback', icon: 'message-square', run: () => actions.toggleFeedback() },
+    ...(view.feedbackEnabled ? [{ title: view.feedback.open ? 'Close feedback' : 'Send feedback', icon: 'message-square', run: () => actions.toggleFeedback() }] : []),
     ...gateEntries(view.gate, actions),
     { title: 'Stop table', icon: 'power', warning: true, apart: true, run: () => {
       confirmingStop.add(layer);
@@ -111,11 +110,12 @@ export function renderPanel(layer: HTMLElement, view: PanelView, actions: PanelA
     } },
   ];
   surfaceHeader(layer, 'Online table', view.status, statusInWords(view), entries, () => actions.close());
-  renderClosingRow(layer, view.closing, actions);
   renderPausedRow(layer, view.gate, actions);
+
   renderImageRow(layer, view.imageShown, actions);
   if (view.link !== null) inviteRow(layer, () => actions.copy(), { open: view.qr, toggle: () => actions.toggleQr() });
   renderCodeRow(layer, view.gate, actions);
+  actions.renderAgency?.(layer);
   renderPlayerList(layer, view.groups, view.players, actions);
   if (view.bar !== null) renderSelectionBar(layer, view.bar, view.players, actions, !hadBar);
   if (view.feedback.open) renderFeedback(layer, view.feedback, actions);

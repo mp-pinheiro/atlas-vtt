@@ -1,5 +1,5 @@
 import type { WorkspaceLeaf } from 'obsidian';
-import type { AccountApi } from '../account/AccountControl.ts';
+import type { HostControl } from '../host/HostControl.ts';
 import type { CompanionFeedback } from '../companionReports.ts';
 import type { OnlineApi } from './panelModel.ts';
 
@@ -7,7 +7,7 @@ import type { OnlineApi } from './panelModel.ts';
 export interface DockDeps {
   readonly api: OnlineApi;
   /** The GM's account: sign-in, what the relay says it may host, and the way to its page. */
-  readonly account: AccountApi;
+  readonly host: HostControl;
   /** The URL the vault serves an image at. */
   imageSrc(path: string): string;
   /** Where the panel's feedback goes, and the switch for error reports. */

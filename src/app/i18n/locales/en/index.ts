@@ -84,6 +84,7 @@ import { migration } from './migration';
 import { wall } from './wall';
 import { sceneLight } from './sceneLight';
 import { vision } from './vision';
+import { onlinePlayer } from './onlinePlayer';
 
 /** English, the source language: every key exists here, and other languages translate a subset of it. */
 export const en = {
@@ -175,4 +176,5 @@ export const en = {
   ...wall,
   ...sceneLight,
   ...vision,
+  ...onlinePlayer,
 } as const;

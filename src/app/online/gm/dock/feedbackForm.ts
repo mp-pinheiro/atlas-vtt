@@ -1,5 +1,5 @@
-import { MAX_FEEDBACK_TEXT, feedbackNote, type FeedbackResult } from '../../protocol/index.ts';
-import { COMPANION_REPORTS_NOTE, type CompanionFeedback } from '../companionReports.ts';
+import { MAX_FEEDBACK_TEXT, type FeedbackResult } from '../../protocol/index.ts';
+import type { CompanionFeedback } from '../companionReports.ts';
 import { textButton } from './controls.ts';
 
 export type FeedbackState = 'idle' | 'sending' | FeedbackResult;
@@ -26,9 +26,9 @@ export interface FeedbackActions {
 const STATE_TEXT: Readonly<Record<FeedbackState, string>> = {
   idle: '',
   sending: 'Sending…',
-  sent: 'Thank you. Your feedback was sent.',
-  busy: 'Too much feedback right now. Try again in a minute.',
-  failed: 'It could not be sent. Check the server in the settings.',
+  sent: 'The relay discarded this submission; no issue was filed.',
+  busy: 'The relay could not accept this submission.',
+  failed: 'It could not be sent. Check the configured relay.',
 };
 
 /**
@@ -52,14 +52,14 @@ export function renderFeedback(parent: HTMLElement, view: FeedbackView, actions:
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) send();
   });
   checkbox(form, 'Include diagnostics', 'feedback-diagnostics', view.diagnostics, (on) => actions.setFeedbackDiagnostics(on));
-  form.createDiv({ cls: 'atlas-online-help atlas-online-feedback__note', text: feedbackNote(view.diagnostics) });
+  form.createDiv({ cls: 'atlas-online-help atlas-online-feedback__note', text: 'Your message and optional diagnostics go to the configured relay, which discards submissions.' });
   const row = form.createDiv({ cls: 'atlas-online-feedback__actions' });
   row.createSpan({ cls: 'atlas-online-help atlas-online-feedback__status', text: STATE_TEXT[view.state], attr: { role: 'status' } });
   const button = textButton(row, 'Send', send, 'cta');
   button.dataset.focusKey = 'feedback-send';
   button.disabled = view.state === 'sending';
   checkbox(form, 'Send error reports automatically', 'error-reports', view.errorReports, (on) => actions.setErrorReports(on));
-  form.createDiv({ cls: 'atlas-online-help atlas-online-feedback__note', text: COMPANION_REPORTS_NOTE });
+  form.createDiv({ cls: 'atlas-online-help atlas-online-feedback__note', text: 'Automatic error reports are off by default and discarded by the relay.' });
 }
 
 /** A labelled checkbox, focus kept across redraws by its key. */

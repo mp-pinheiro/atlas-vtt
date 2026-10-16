@@ -75,7 +75,7 @@ describe('the tokens players see', () => {
     expect(table.sent.filter(({ body }) => body.t === 'live').length).toBeGreaterThan(lists.length);
   });
 
-  it('send nothing while the scene loads or the tab has no renderer, and catch up after', async () => {
+  it('withholds tokens without a renderer and withdraws the scene while loading', async () => {
     const table = shareHarness(withTokens(token('a')), ART);
     table.rendered = false;
     table.share.start();
@@ -88,7 +88,9 @@ describe('the tokens players see', () => {
     const count = table.sent.length;
     await table.set({ ...withTokens(token('a', { x: 500 })), isMapLoading: true });
     await table.advance(TOKEN_POLL_MS * 2);
-    expect(table.sent.length).toBe(count);
+    const loading = table.sent.slice(count);
+    expect(loading.some(({ body }) => body.t === 'scene' && body.scene === null)).toBe(true);
+    expect(loading.some(({ body }) => body.t === 'tokens')).toBe(false);
   });
 
   it('go again to a player who joins, after the scene', async () => {

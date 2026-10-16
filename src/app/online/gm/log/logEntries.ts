@@ -33,7 +33,8 @@ export interface FoundPin {
  * `imageFile`: the vault path of an image the GM showed, which players may be sent while it is logged.
  * `pin`: the readable pin a found note was found at.
  */
-export type GmLogEntry = LogEntry & { readonly hidden?: true; readonly face?: RollFace; readonly speakerArt?: string; readonly imageFile?: string; readonly pin?: FoundPin };
+export type ActionAudience = '*' | 'gm' | readonly string[];
+export type GmLogEntry = LogEntry & { readonly hidden?: true; readonly face?: RollFace; readonly speakerArt?: string; readonly imageFile?: string; readonly pin?: FoundPin; readonly audience?: ActionAudience; readonly origins?: Readonly<Record<string, string>> };
 
 /** The token the GM's log names for an entry, when it holds one. */
 export function faceOf(entry: LogEntry): RollFace | undefined {
@@ -42,17 +43,21 @@ export function faceOf(entry: LogEntry): RollFace | undefined {
 
 /** An entry as players are sent it: without what only the GM's log has. */
 export function sharedEntry(entry: GmLogEntry): LogEntry {
-  const { hidden: _hidden, face: _face, speakerArt: _art, imageFile: _file, pin: _pin, ...shared } = entry;
+  const { hidden: _hidden, face: _face, speakerArt: _art, imageFile: _file, pin: _pin, audience: _audience, origins: _origins, ...shared } = entry;
   return shared;
 }
 
 /** Whether an entry goes to everyone alike: no whisper, no private roll, nothing only the GM has. */
 export function isOpen(entry: GmLogEntry): boolean {
-  return entry.hidden !== true && !('to' in entry && entry.to !== undefined);
+  return entry.hidden !== true && entry.origins === undefined && !('to' in entry && entry.to !== undefined) && (entry.kind !== 'action' || entry.audience === '*');
 }
 
 /** Who sees an entry whole: its author and its audience; everyone where it has none. */
 export function seesWhole(entry: LogEntry, viewer: string): boolean {
+  if (entry.kind === 'action') {
+    const audience = (entry as GmLogEntry).audience;
+    return viewer === GM_AUTHOR || audience === '*' || (Array.isArray(audience) && audience.includes(viewer));
+  }
   if (entry.kind !== 'chat' && entry.kind !== 'roll') return true;
   if (entry.to === undefined) return true;
   // A blind roll's author learns only that they rolled.
@@ -66,7 +71,14 @@ export function seesWhole(entry: LogEntry, viewer: string): boolean {
  */
 export function viewOf(entry: GmLogEntry, viewer: string): LogEntry | null {
   if (entry.hidden === true) return viewer === GM_AUTHOR ? sharedEntry(entry) : null;
-  if (seesWhole(entry, viewer)) return sharedEntry(entry);
+  if (entry.kind === 'action' && !seesWhole(entry, viewer)) return null;
+  if (seesWhole(entry, viewer)) {
+    const shared = sharedEntry(entry);
+    if (shared.kind !== 'roll' || entry.origins === undefined || viewer === GM_AUTHOR) return shared;
+    const token = entry.origins[viewer] ?? null;
+    const roll = token === null && shared.roll.source !== undefined ? { ...shared.roll, source: { type: shared.roll.source.type } } : shared.roll;
+    return { ...shared, token, roll };
+  }
   if (entry.kind !== 'roll' || entry.mode === undefined) return null;
   // Who spoke is no part of the line: a hidden NPC would be named by it.
   const { id, at, who, name, mode } = entry;
@@ -118,6 +130,8 @@ function readLogEntries(saved: unknown): GmLogEntry[] {
     const speakerArt = vaultPath(value.speakerArt);
     const imageFile = entry.kind === 'image' ? vaultPath(value.imageFile) : undefined;
     const pin = entry.kind === 'found' ? readFoundPin(value.pin) : undefined;
+    const audience = entry.kind === 'action' ? readActionAudience(value.audience, entry.action) : undefined;
+    const origins = entry.kind === 'roll' && value.origins !== undefined ? readOrigins(value.origins) : undefined;
     entries.push({
       ...entry,
       ...(value.hidden === true && { hidden: true as const }),
@@ -125,19 +139,39 @@ function readLogEntries(saved: unknown): GmLogEntry[] {
       ...(speakerArt !== undefined && { speakerArt }),
       ...(imageFile !== undefined && { imageFile }),
       ...(pin !== undefined && { pin }),
+      ...(audience !== undefined && { audience }),
+      ...(origins === undefined ? {} : { origins }),
     });
   }
   return entries;
 }
 
-/** The vault path of a speaker's artwork the entries show, by its hash. */
-export function speakerArtIn(entries: readonly GmLogEntry[], hash: string): string | undefined {
-  return entries.find((entry) => entry.speakerArt !== undefined && 'speaker' in entry && entry.speaker?.art?.hash === hash)?.speakerArt;
+function readOrigins(value: unknown): Readonly<Record<string, string>> {
+  if (!isRecord(value)) return {};
+  const entries = Object.entries(value).filter((entry): entry is [string, string] => PLAYER_ID_PATTERN.test(entry[0]) && typeof entry[1] === 'string' && /^[0-9a-f]{24}$/.test(entry[1]));
+  return Object.fromEntries(entries.slice(0, MAX_PLAYERS));
 }
 
-/** The vault path of an image the GM showed that the entries hold, by its hash. */
-export function imageFileIn(entries: readonly GmLogEntry[], hash: string): string | undefined {
-  return entries.find((entry) => entry.kind === 'image' && entry.image.hash === hash && entry.imageFile !== undefined)?.imageFile;
+function readActionAudience(value: unknown, action: Extract<LogEntry, { kind: 'action' }>['action']): ActionAudience {
+  if (action === 'turn-ended') return '*';
+  if (action === 'approval-reminder') return 'gm';
+  return Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === 'string' && PLAYER_ID_PATTERN.test(id)))].slice(0, MAX_PLAYERS) : 'gm';
+}
+
+export function speakerArtIn(entries: readonly GmLogEntry[], hash: string, viewer: string): string | undefined {
+  for (const entry of entries) {
+    if (viewer !== GM_AUTHOR && (!seesWhole(entry, viewer) || (entry.hidden === true && viewOf(entry, viewer) === null))) continue;
+    if (entry.speakerArt !== undefined && 'speaker' in entry && entry.speaker?.art?.hash === hash) return entry.speakerArt;
+  }
+  return undefined;
+}
+
+export function imageFileIn(entries: readonly GmLogEntry[], hash: string, viewer: string): string | undefined {
+  for (const entry of entries) {
+    if (viewer !== GM_AUTHOR && (!seesWhole(entry, viewer) || (entry.hidden === true && viewOf(entry, viewer) === null))) continue;
+    if (entry.kind === 'image' && entry.image.hash === hash && entry.imageFile !== undefined) return entry.imageFile;
+  }
+  return undefined;
 }
 
 /** A vault path as kept with an entry, or undefined. */

@@ -42,9 +42,9 @@ export function sharedGrid(options: Readonly<GridOptions> | null): SharedGrid | 
  * The badges of the doors players see: each ordinary door's ends and whether it stands open; nothing
  * else of it. A secret door never has one for players, whatever `seen` says.
  */
-export function sharedDoors(walls: Readonly<Record<string, WallSegment>>, seen: ReadonlySet<string>): SharedDoor[] {
+export function sharedDoors(walls: Readonly<Record<string, WallSegment>>, seen: ReadonlySet<string>, alias?: (id: string) => string): SharedDoor[] {
   return wallList(walls).filter((wall) => wall.type === 'door' && seen.has(wall.id)).slice(0, MAX_DOOR_BADGES)
-    .map((wall) => ({ p: [wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y], open: !(wall.closed ?? true) }));
+    .map((wall) => ({ p: [wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y], open: !(wall.closed ?? true), ...(alias !== undefined && { id: alias(wall.id) }) }));
 }
 
 interface Box { minX: number; minY: number; maxX: number; maxY: number }

@@ -15,6 +15,8 @@ import { SecretRow } from './SecretRow.tsx';
 import { ImageRow, LootRow } from './ShownRows.tsx';
 import type { LogScroll } from './useLogScroll.ts';
 import type { LogUi } from './useLogUi.ts';
+import { ActionRow } from './ActionRow.tsx';
+import { AuthorColours } from './authorColours.ts';
 
 /** How often the rows' "5m ago" is read again. */
 const CLOCK_MS = 30_000;
@@ -88,6 +90,7 @@ export function LogList({ entries, stats, selected, ui, api, scroll, rollFace, s
   };
 
   return (
+    <AuthorColours value={people}>
     <div className="atlas-online-log__body">
       <div ref={scroll.listRef} className="atlas-online-log__list" tabIndex={-1} onScroll={scroll.onScroll}>
         {entries.length === 0 && (
@@ -118,6 +121,7 @@ export function LogList({ entries, stats, selected, ui, api, scroll, rollFace, s
                 {entry.kind === 'image' && <ImageRow entry={entry} src={imageSrc?.(entry) ?? null} onOpen={openImage === undefined ? undefined : () => openImage(entry)} time={time} thread={thread} api={api} {...flags} />}
                 {entry.kind === 'loot' && <LootRow entry={entry} time={time} thread={thread} api={api} {...flags} />}
                 {entry.kind === 'found' && <FoundRow entry={entry} onOpen={openFound === undefined ? undefined : () => openFound(entry)} time={time} thread={thread} api={api} {...flags} />}
+                {entry.kind === 'action' && <ActionRow entry={entry} time={time} />}
                 {(entry.kind === 'joined' || entry.kind === 'left') && (
                   <div className="atlas-online-log__presence">
                     {entry.kind === 'joined' ? `${shownName(entry.who, entry.name, api.self)} joined the table` : `${shownName(entry.who, entry.name, api.self)} left the table`}
@@ -132,5 +136,6 @@ export function LogList({ entries, stats, selected, ui, api, scroll, rollFace, s
       </div>
       <JumpPill scroll={scroll} />
     </div>
+    </AuthorColours>
   );
 }

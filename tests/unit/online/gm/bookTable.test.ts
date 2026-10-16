@@ -9,7 +9,7 @@ import { FakeSocket, workspace } from './fakeTable.ts';
 import { ANA, BEN, BRANNOCH, BRANNOCH_ART, CAL, cave, delivered, DOOM, MAP, MIRA_ART, MIRA_DOOM, ofType, openTable, traffic, WORLD_MAP, type Delivered } from './bookTableHarness.ts';
 import { advanceSettled as advance } from './settled.ts';
 
-vi.mock('obsidian', () => ({ Notice: class {}, normalizePath: (path: string) => path, requestUrl: () => Promise.resolve({ status: 201, json: null }), PluginSettingTab: class {}, Setting: class {} }));
+vi.mock('obsidian', async (original) => ({ ...(await original<Record<string, unknown>>()), Notice: class {}, normalizePath: (path: string) => path, requestUrl: () => Promise.resolve({ status: 201, json: null }), PluginSettingTab: class {}, Setting: class {} }));
 // The GM's marks draw with PIXI over Atlas's canvas, which a table of books has no use for.
 vi.mock('../../../../src/app/online/gm/gmMarks.ts', () => ({
   GmMarks: class {
@@ -177,5 +177,34 @@ describe('the players\' books at a running table', () => {
     await advance(100);
     expect(books(delivered(second.socket), CAL).at(-1)).toMatchObject({ character: { name: 'Brannoch' }, notes: [{ id: NOTE, title: 'Kept', body: SECRET_NOTE }], items: [{ name: 'Moon Blade' }] });
     second.online.stop();
+  });
+
+  it('bootstraps readiness without a presented scene and never replays a book edit', async () => {
+    const shelf = new BookShelf();
+    const { online, socket, from } = await openTable(shelf, PLAYERS);
+    from(ANA, { t: 'book-note', note: { id: NOTE, title: 'Kept', body: SECRET_NOTE } });
+    const saved = JSON.stringify(shelf.toData());
+    workspace.leaves = [];
+    workspace.presented = null;
+    await advance(1_500);
+    const since = delivered(socket).length;
+    from(ANA, { t: 'player-ready', agency: 1 });
+    from(ANA, { t: 'book-parts' });
+    from(ANA, { t: 'player-ready', agency: 1 });
+    await advance(1_000);
+    const sent = delivered(socket).slice(since);
+    expect(ofType(sent, 'scene')).toEqual([
+      { to: ANA, body: { t: 'scene', scene: null } },
+      { to: ANA, body: { t: 'scene', scene: null } },
+    ]);
+    expect(books(sent, ANA).at(-1)).toMatchObject({ character: { name: 'Brannoch' }, notes: [{ id: NOTE, body: SECRET_NOTE }] });
+    expect(ofType(sent, 'book', 'book-sheet', 'scene').every(({ to }) => to === ANA)).toBe(true);
+    expect(JSON.stringify(shelf.toData())).toBe(saved);
+    const beforeDeparture = delivered(socket).length;
+    socket.relay({ t: 'player-left', id: ANA });
+    from(ANA, { t: 'player-ready', agency: 1 });
+    await advance(1_000);
+    expect(ofType(delivered(socket).slice(beforeDeparture), 'book', 'scene').filter(({ to }) => to === ANA)).toEqual([]);
+    online.stop();
   });
 });

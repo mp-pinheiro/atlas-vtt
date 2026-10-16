@@ -3,14 +3,16 @@ import { resourceUpdate, withCurrent } from '../../../resources/resourceValues';
 import type { ViewState } from '../../../types/viewState';
 import type { Timers } from '../companionTimers.ts';
 import { editableValue, type ResourceEdit } from './resourceEdit.ts';
+import { DeferredSceneWrites, type DeferredSceneRequest } from '../DeferredSceneWrites';
 
 /** An edit of a token in the shared scene. */
 export type TokenResourceEdit = Extract<ResourceEdit, { readonly kind: 'token' }>;
+export type DeferredResourceRequest = Extract<DeferredSceneRequest, { readonly kind: 'resource' }>;
 /** What became of an edit: the current value the resource holds after it, or null when it was refused. */
 export type ResourceAnswer = (taken: number | null) => void;
 
 /** What resource writes read and write of an Atlas tab's store. */
-export type ResourceWriteState = Pick<ViewState, 'objects' | 'mapLoaded' | 'isMapLoading' | 'isDragging' | 'heldTokens'>;
+export type ResourceWriteState = Pick<ViewState, 'objects' | 'mapLoaded' | 'isMapLoading' | 'isDragging' | 'heldTokens'> & Partial<Pick<ViewState, 'mapPath'>>;
 
 export interface ResourceWriteStore {
   getState(): ResourceWriteState;
@@ -23,15 +25,12 @@ export interface ResourceWritePorts extends Timers {
   /** The resource definitions the scene's tokens are drawn by. */
   definitions(): readonly ResourceDefinition[];
   ownerOf(tokenId: string): string | undefined;
+  defer?(request: DeferredResourceRequest): boolean;
+  online?(from: string): boolean;
 }
 
-interface Waiting {
-  readonly edit: TokenResourceEdit;
-  readonly answer: ResourceAnswer;
-}
-
-const holds = (state: ResourceWriteState): boolean => state.isDragging || Object.keys(state.heldTokens).length > 0;
 const loaded = (state: ResourceWriteState): boolean => state.mapLoaded && !state.isMapLoading;
+let nextTicket = 0;
 
 /**
  * Players' edits of their characters' resources on the shared scene, written as the GM's own: one
@@ -44,9 +43,8 @@ const loaded = (state: ResourceWriteState): boolean => state.mapLoaded && !state
 export class ResourceWrites {
   private readonly store: ResourceWriteStore;
   private readonly ports: ResourceWritePorts;
-  private readonly waiting = new Map<string, Waiting>();
-  private timer: number | undefined;
-  private unsubscribe: (() => void) | null = null;
+  private readonly answers = new Map<number, { readonly answer: ResourceAnswer; readonly from: string; readonly mapPath: string | null | undefined }>();
+  private writes: DeferredSceneWrites | null = null;
 
   constructor(store: ResourceWriteStore, ports: ResourceWritePorts) {
     this.store = store;
@@ -54,45 +52,68 @@ export class ResourceWrites {
   }
 
   start(): void {
-    this.unsubscribe ??= this.store.subscribe((state) => {
-      if (this.waiting.size > 0 && !holds(state)) this.schedule();
+    if (this.ports.defer) return;
+    this.writes ??= new DeferredSceneWrites(this.store, {
+      setTimer: (fn, delay) => this.ports.setTimer(fn, delay),
+      clearTimer: (id) => this.ports.clearTimer(id),
+      apply: (request) => {
+        if (request.kind !== 'resource') return;
+        this.applyDeferred(request);
+      },
+      cancel: (request) => {
+        if (request.kind !== 'resource') return;
+        this.cancelDeferred(request);
+      },
     });
   }
 
   /** Ends the writes: edits that wait are refused. */
   stop(): void {
-    this.unsubscribe?.();
-    this.unsubscribe = null;
-    if (this.timer !== undefined) this.ports.clearTimer(this.timer);
-    this.timer = undefined;
-    const waiting = [...this.waiting.values()];
-    this.waiting.clear();
-    for (const { answer } of waiting) answer(null);
+    this.writes?.stop();
+    this.writes = null;
+    const answers = [...this.answers.values()];
+    this.answers.clear();
+    for (const { answer } of answers) answer(null);
   }
 
   write(edit: TokenResourceEdit, answer: ResourceAnswer): void {
     const state = this.store.getState();
-    if (!loaded(state)) return answer(null);
-    if (!holds(state)) return this.apply(edit, answer);
-    // The latest word of the player wins; the sheet that follows it answers the earlier one too.
-    this.waiting.set(`${edit.tokenId}\n${edit.key}`, { edit, answer });
+    if (!loaded(state) || this.ports.online?.(edit.from) === false) return answer(null);
+    this.start();
+    const ticket = ++nextTicket;
+    this.answers.set(ticket, { answer, from: edit.from, mapPath: state.mapPath });
+    const request: DeferredResourceRequest = { kind: 'resource', from: edit.from, edit, ticket };
+    if (this.ports.defer) {
+      if (!this.ports.defer(request)) this.cancelDeferred(request);
+    } else this.writes!.enqueue(request);
   }
 
-  /** Takes the waiting edits once the write that let go has finished (its listeners run inside the drag's undo step). */
-  private schedule(): void {
-    if (this.timer !== undefined) return;
-    this.timer = this.ports.setTimer(() => {
-      this.timer = undefined;
-      this.flush();
-    }, 0);
+  applyDeferred(request: DeferredResourceRequest): void {
+    const pending = this.answers.get(request.ticket);
+    this.answers.delete(request.ticket);
+    if (!pending) return;
+    if (pending.from !== request.from || pending.mapPath !== this.store.getState().mapPath || this.ports.online?.(request.from) === false) {
+      pending.answer(null);
+      return;
+    }
+    this.apply(request.edit, pending.answer);
   }
 
-  private flush(): void {
-    if (holds(this.store.getState())) return;
-    const waiting = [...this.waiting.values()];
-    this.waiting.clear();
-    for (const { edit, answer } of waiting) this.apply(edit, answer);
+  cancelDeferred(request: DeferredResourceRequest): void {
+    const pending = this.answers.get(request.ticket);
+    this.answers.delete(request.ticket);
+    pending?.answer(null);
   }
+
+  playerLeft(from: string): void {
+    this.writes?.clearPlayer(from);
+    for (const [ticket, pending] of [...this.answers]) {
+      if (pending.from !== from) continue;
+      this.answers.delete(ticket);
+      pending.answer(null);
+    }
+  }
+
 
   private apply(edit: TokenResourceEdit, answer: ResourceAnswer): void {
     const state = this.store.getState();

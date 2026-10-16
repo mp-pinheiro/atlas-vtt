@@ -1,7 +1,7 @@
 import type { WorkspaceLeaf } from 'obsidian';
 import { handledByAnotherControl } from '../../../keyboard/tooltipEscape';
 import { sceneStoreOf, selectedTokenIds, type SceneStore } from '../atlasView.ts';
-import { accountActions, MENU_WIDTH, renderMenu, type MenuActions } from './ConnectionMenu.ts';
+import { hostActions, MENU_WIDTH, renderMenu, type MenuActions } from './ConnectionMenu.ts';
 import { DockButton } from './dockButton.ts';
 import type { DockDeps } from './dockDeps.ts';
 import { copyText, detached, isInsideControl, isPlaced, place, roomAbove, rowOf, BAR_GAP } from './dockDom.ts';
@@ -15,6 +15,7 @@ import { KNOCK_ROOM, KnockStack } from './knockStack.ts';
 import { DockSurface } from './dockSurface.ts';
 import { PANEL_WIDTH, panelView, renderPanel, type PanelActions } from './OnlinePanel.ts';
 import { badgeOf, isRunning, menuModel, tooltipOf, type OnlineSnapshot, type SceneFacts } from './panelModel.ts';
+import { DockAgencySurface } from './agencySurface';
 
 export type { DockDeps } from './dockDeps.ts';
 
@@ -49,6 +50,7 @@ export class Dock {
   /** The panel's feedback form, kept while the control closes. */
   private readonly feedback: FeedbackDraft;
   private readonly cleanups: (() => void)[] = [];
+  private readonly agency: DockAgencySurface;
 
   constructor(leaf: WorkspaceLeaf, container: HTMLElement, store: SceneStore, deps: DockDeps) {
     this.leaf = leaf;
@@ -56,6 +58,7 @@ export class Dock {
     this.store = store;
     this.deps = deps;
     this.feedback = new FeedbackDraft(deps.feedback, () => this.update());
+    this.agency = new DockAgencySurface(() => { this.shownKey = ''; this.schedule(); }, deps.imageSrc);
     // Made in the view's own document (a popout's too), then kept apart until the row is there.
     this.root = detached(container, { cls: 'atlas-online-dock' });
     this.spacer = detached(container, { cls: 'atlas-online-room', attr: { 'aria-hidden': 'true' } });
@@ -96,6 +99,7 @@ export class Dock {
     if (this.frame !== null) this.win.cancelAnimationFrame(this.frame);
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.tooltip.dispose();
+    this.agency.destroy();
     this.knocks.dispose();
     this.qr.dispose();
     this.surface.dispose();
@@ -120,7 +124,7 @@ export class Dock {
     add<KeyboardEvent>(this.root, 'keydown', (event) => {
       if (keyStaysInControl(event)) event.stopPropagation();
     }, false);
-    this.cleanups.push(this.deps.api.onChange(() => this.update()), this.deps.account.onChange(() => this.update()));
+    this.cleanups.push(this.deps.api.onChange(() => this.update()), this.deps.host.onChange(() => this.update()));
     this.cleanups.push(this.store.subscribe((state) => {
       const view = viewFactsOf(state);
       if (makesWay(this.state.surface, this.view, view)) this.go(close(this.state), false);
@@ -164,7 +168,6 @@ export class Dock {
   private go(next: DockState, byKeyboard: boolean): void {
     const before = this.state.surface;
     this.state = next;
-    if (before === 'closed' && next.surface !== 'closed') void this.deps.account.refresh(false); // a grant or sign-out made elsewhere shows
     if (closesDiceLog(before, next.surface, this.view)) (this.store.getState() as ViewStoreState).setDiceLogOpen?.(false);
     if (before === 'closed' && next.surface !== 'closed') this.deps.opened?.(this.leaf);
     this.update();
@@ -182,6 +185,7 @@ export class Dock {
 
   private update(): void {
     const snapshot = this.deps.api.snapshot();
+    this.agency.sync(this.deps.api.agency?.());
     const table = tableFactsOf(snapshot);
     this.state = tableChanged(this.state, this.table, table);
     this.table = table;
@@ -211,26 +215,31 @@ export class Dock {
 
   /** A content layer for `surface`, named as the dialog the button controls; the layer it replaces gives up the name. */
   private newLayer(surface: Surface): HTMLElement {
+    this.agency.clear();
     this.layer?.removeAttribute('id');
     return detached(this.root, { attr: { id: this.surfaceId, role: 'dialog', 'aria-label': surface === 'panel' ? 'Online table' : 'Online play' } });
   }
 
   private drawMenu(layer: HTMLElement, snapshot: OnlineSnapshot, scene: SceneFacts, fresh: boolean): string {
-    const model = menuModel(snapshot, scene, this.deps.account.view(), this.qr.isOpen);
+    const model = menuModel(snapshot, scene, this.deps.host.state, this.qr.isOpen, this.deps.host.key() !== null);
     const key = JSON.stringify(model);
     if (fresh || key !== this.shownKey) renderMenu(layer, model, this.menuActions());
     return key;
   }
 
   private drawPanel(layer: HTMLElement, snapshot: OnlineSnapshot, scene: SceneFacts, fresh: boolean): string {
-    const view = panelView(snapshot, scene, this.feedback.view(), this.qr.isOpen);
-    const key = JSON.stringify(view);
-    if (fresh || key !== this.shownKey) renderPanel(layer, view, this.panelActions(scene));
+    const view = panelView(snapshot, scene, this.feedback.view(), this.qr.isOpen, this.deps.feedback.enabled());
+    const key = JSON.stringify([view, this.agency.key()]);
+    if (fresh || key !== this.shownKey) {
+      this.agency.clear();
+      renderPanel(layer, view, this.panelActions(scene));
+    }
     return key;
   }
 
   private closeSurface(): void {
     if (this.layer === null) return;
+    this.agency.clear();
     this.layer.removeAttribute('id');
     this.layer = null;
     this.layerKind = 'closed';
@@ -249,7 +258,7 @@ export class Dock {
 
   private menuActions(): MenuActions {
     return {
-      ...accountActions(this.deps.account),
+      ...hostActions(this.deps.host),
       ...gateRowActions(this.deps.api, this.root),
       start: () => this.deps.api.start(this.leaf),
       stop: () => this.deps.api.stop(),
@@ -278,6 +287,7 @@ export class Dock {
       kick: (playerId) => api.kick(playerId),
       selected: () => (scene.isShared ? selectedTokenIds(this.store.getState()) : []),
       imageSrc: (path) => this.deps.imageSrc(path),
+      renderAgency: parent => this.agency.render(parent, api.snapshot().sharedLeaf),
       ...this.feedback.actions,
     };
   }

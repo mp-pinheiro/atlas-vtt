@@ -14,6 +14,10 @@ export interface ListedPin {
   readonly place: Point;
 }
 
+export interface ReadablePin extends ListedPin {
+  readonly map: string;
+}
+
 /** What decides which readable pins the players see: the lit scene's sight, or for an unlit scene the committed fog alone. */
 export interface PinSight {
   readonly lit: boolean;

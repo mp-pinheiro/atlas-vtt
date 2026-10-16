@@ -1,3 +1,6 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
 // What a roll that kept some of its dice, or took advantage, shows: in the
 // result card and the dice log alike the kept dice stand out; a dropped die is
 // struck through by the badge's own `--dropped` state (`dieStates`).

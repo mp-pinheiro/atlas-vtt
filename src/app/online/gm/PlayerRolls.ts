@@ -6,7 +6,7 @@ import type { DiceSource } from './atlasDice.ts';
 import { tokenLabel } from './atlasView.ts';
 import type { LoggedRoll, RollRequest } from './log/TableLog.ts';
 import { rollFaceOf } from './log/logEntries.ts';
-import { MoveRate } from './moveCheck.ts';
+import { secureRandom } from './secureRandom';
 import type { RollNotes } from './RollShare.ts';
 
 /**
@@ -25,10 +25,6 @@ export function rollAudience(mode: Exclude<RollMode, 'public'>, who: string, whi
 export function buttonMode(request: RollRequest): RollMode {
   return request.to !== undefined && request.mode === 'public' ? 'gm' : request.mode;
 }
-
-/** Rolls a player may make: a burst of `ROLL_BURST`, then `ROLLS_PER_SECOND`. */
-export const ROLL_BURST = 3;
-export const ROLLS_PER_SECOND = 1;
 
 /** What a player's roll is checked against. */
 export interface RollContext {
@@ -68,7 +64,7 @@ export function checkRoll(from: string, message: PlayerRoll, context: RollContex
 }
 
 export interface PlayerRollsPorts {
-  context(): RollContext;
+  context(from: string): RollContext;
   /** The shared tab's dice, or null when it has none. */
   dice(): DiceSource | null;
   /** Runs a roll as `who`'s, so the roll's announcement goes to players as theirs (`RollShare.rollAs`). */
@@ -82,7 +78,7 @@ export interface PlayerRollsPorts {
   /** The id players know a token by. */
   alias(tokenId: string): string;
   send(body: GmMessage, to?: string): void;
-  now(): number;
+  actionAllowed(from: string): boolean;
 }
 
 /**
@@ -91,7 +87,6 @@ export interface PlayerRollsPorts {
  * when the check lets it name one. A roll that is not made is refused to its sender alone.
  */
 export class PlayerRolls {
-  private readonly rate = new MoveRate(ROLL_BURST, ROLLS_PER_SECOND);
   private readonly ports: PlayerRollsPorts;
 
   constructor(ports: PlayerRollsPorts) {
@@ -104,12 +99,12 @@ export class PlayerRolls {
    * throw it on the GM's screen and on Atlas's own player window.
    */
   receive(from: string, sent: PlayerRoll): void {
-    if (!this.rate.take(from, this.ports.now())) return this.refuse('rate', from);
+    if (!this.ports.actionAllowed(from)) return this.refuse('rate', from);
     const asked = sent.request;
     const request = asked === undefined ? undefined : this.ports.request(from, asked);
     if (request === null) return this.refuse('formula', from);
     const message: PlayerRoll = request === undefined ? sent : { ...sent, formula: request.formula, mode: buttonMode(request) };
-    const context = this.ports.context();
+    const context = this.ports.context(from);
     const verdict = checkRoll(from, message, context);
     if (!verdict.ok) return this.refuse(verdict.reason, from);
     const { tokenId } = verdict;
@@ -125,7 +120,7 @@ export class PlayerRolls {
     const origin = tokenId === null ? undefined : { viewId: dice.viewId, mapPath: context.mapPath, tokenId };
     let rolled = false;
     this.ports.rollAs(from, () => {
-      rolled = dice.rollDice(message.formula, source, origin) !== null;
+      rolled = dice.rollDice(message.formula, source, origin, { random: secureRandom }) !== null;
     }, notes);
     if (!rolled) this.refuse('unavailable', from);
   }

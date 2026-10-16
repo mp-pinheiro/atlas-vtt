@@ -35,7 +35,7 @@ interface Cursor {
 }
 
 /** The colour class of a cursor (`_player-colours.scss`). */
-const colourClass = (who: string): string => `atlas-online-colour-${who === GM_MARKS ? 'gm' : String(playerTone(who))}`;
+const colourClass = (who: string, colour?: number): string => `atlas-online-colour-${who === GM_MARKS ? 'gm' : String(playerTone(who, colour))}`;
 
 /** The places a cursor's message adds: those it passed, then the pointer where it is not the last of them. */
 function placesOf(cursor: SharedCursor, newest: TrackPoint | null): TrackPoint[] {
@@ -68,7 +68,7 @@ export class RemoteCursors {
   private readonly cursors = new Map<string, Cursor>();
 
   /** `labelOf` names a cursor's tag; `interval` is the senders' send interval, in ms. */
-  constructor(layer: HTMLElement, labelOf: (cursor: SharedCursor) => string, interval: number) {
+  constructor(layer: HTMLElement, labelOf: (cursor: SharedCursor) => string, interval: number, private readonly colourOf: (who: string) => number | undefined = () => undefined) {
     this.layer = layer;
     this.labelOf = labelOf;
     this.interval = interval;
@@ -80,6 +80,7 @@ export class RemoteCursors {
     for (const [who, cursor] of this.cursors) if (!present.has(who)) this.leave(cursor);
     for (const shared of cursors) {
       const cursor = this.cursors.get(shared.who) ?? this.add(shared.who);
+      for (let tone = 0; tone < 8; tone += 1) cursor.element.classList.toggle(`atlas-online-colour-${tone}`, shared.who !== GM_MARKS && tone === playerTone(shared.who, this.colourOf(shared.who)));
       const places = placesOf(shared, cursor.newest);
       cursor.track.push(places, shared.span, now);
       cursor.newest = places.at(-1) ?? cursor.newest;
@@ -143,7 +144,7 @@ export class RemoteCursors {
   }
 
   private add(who: string): Cursor {
-    const element = getDomHost().createDiv(this.layer, `atlas-online-cursor ${colourClass(who)}`);
+    const element = getDomHost().createDiv(this.layer, `atlas-online-cursor ${colourClass(who, this.colourOf(who))}`);
     const body = getDomHost().createDiv(element, 'atlas-online-cursor__body');
     getDomHost().createDiv(body, 'atlas-online-cursor__arrow');
     const label = getDomHost().createDiv(body, 'atlas-online-cursor__label');

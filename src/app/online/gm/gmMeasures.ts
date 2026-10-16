@@ -1,7 +1,7 @@
 import { MAX_COORDINATE, MAX_MARK_KEPT, type MarkPoint, type SharedMeasure } from '../protocol/index.ts';
 import type { Measurements } from '../../pixi/MeasureRenderer';
 import type { MeasureRecord } from '../../pixi/utils/measureDrawing';
-import { measureOriginOf, measureShownToPlayers, type MeasureOrigin, type TokenFootprint, type TokenSeen } from '../../vision/measureOrigin';
+import { measureOriginOf, measureShownToPlayers, UNSEEN_MEASURE_ORIGIN, type MeasureOrigin, type TokenFootprint, type TokenSeen } from '../../vision/measureOrigin';
 import { SpanMeter, type Press } from '../marks/index.ts';
 
 /** What the GM's measurements are judged by: where tokens stand and which ones the players see now. */
@@ -41,6 +41,7 @@ export class GmMeasures {
   private records: Measurements = { live: null, kept: [] };
   /** The time between the ends of the live measurement that players are told. */
   private readonly meter = new SpanMeter();
+  constructor(private readonly keptOrigins: 'current' | 'unseen' = 'current') {}
 
   /** Takes the measurements as they are at `now` (ms); `press` is the last press on the map, which began the live one if it is new. */
   follow(records: Measurements, press: Press | null, view: PlayersView, now: number): void {
@@ -63,7 +64,8 @@ export class GmMeasures {
     for (const record of records.kept) {
       if (this.kept.has(record)) continue;
       const last = this.last;
-      const from = last !== null && samePoint(last.record.start, record.start) && samePoint(last.record.end, record.end) ? last.origin : origin(record, view);
+      const from = last !== null && samePoint(last.record.start, record.start) && samePoint(last.record.end, record.end) ? last.origin
+        : this.keptOrigins === 'unseen' ? UNSEEN_MEASURE_ORIGIN : origin(record, view);
       this.kept.set(record, from);
     }
   }
@@ -88,6 +90,18 @@ export class GmMeasures {
     this.last = null;
     this.records = { live: null, kept: [] };
     this.meter.reset();
+  }
+
+  forkOrigins(): GmMeasures {
+    const fork = new GmMeasures(this.keptOrigins);
+    fork.live = this.live;
+    fork.last = this.last;
+    fork.records = this.records;
+    for (const record of this.records.kept) {
+      const origin = this.kept.get(record);
+      if (origin !== undefined) fork.kept.set(record, origin);
+    }
+    return fork;
   }
 }
 

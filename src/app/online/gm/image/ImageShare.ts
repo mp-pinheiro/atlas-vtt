@@ -6,7 +6,7 @@ import type { ScaleImage } from '../assetVariants.ts';
 import type { VaultImage } from '../TokenShare.ts';
 
 export interface ImageSharePorts {
-  send(body: GmMessage, to?: string): void;
+  send(body: GmMessage, to?: string, valid?: () => boolean): void;
   now(): number;
   /** A new showing's id: 24 hex characters from the cryptographic source. */
   randomId(): string;
@@ -17,7 +17,7 @@ export interface ImageSharePorts {
   /** Takes a showing into the table's log, with its file's vault path (the GM's alone). */
   logShown?(shown: ShownImageRef, path: string | null): void;
   /** The vault path of a shown image the table's log holds, by hash: players may be sent it while it does. */
-  loggedFile?(hash: string): string | undefined;
+  loggedFile?(hash: string, viewer: string): string | undefined;
   readImage?(path: string): Promise<VaultImage | null>;
 }
 
@@ -47,15 +47,15 @@ export class ImageShare {
     this.ports = ports;
     const scale = ports.scaleImage;
     this.answers = new AssetAnswers({
-      send: (body, to) => ports.send(body, to),
+      send: (body, to, valid) => ports.send(body, to, valid),
       now: () => ports.now(),
       readImage: (path) => ports.readImage?.(path) ?? Promise.resolve(null),
       scaleImage: scale === undefined ? undefined : (bytes, mime, maxSide) => (mime === 'image/gif' ? Promise.resolve(null) : scale(bytes, mime, maxSide)),
     }, {
       map: () => (this.current === null ? null : { hash: this.current.shown.image.hash, bytes: this.current.bytes, mime: this.current.shown.image.mime }),
       // An image shown before is served while the log holds it: as it was sent, else read again from its file.
-      explored: (hash) => (ports.loggedFile?.(hash) === undefined ? undefined : this.kept.get(hash)),
-      artPath: (hash) => ports.loggedFile?.(hash),
+      explored: (hash, player) => (ports.loggedFile?.(hash, player) === undefined ? undefined : this.kept.get(hash)),
+      artPath: (hash, player) => ports.loggedFile?.(hash, player),
     });
   }
 
@@ -106,7 +106,7 @@ export class ImageShare {
   /** A player's message: true when it asked for the shown image, or one the log holds, which is then served. */
   receive(from: string, body: unknown): boolean {
     const message = parsePlayerMessage(body);
-    if (message?.t !== 'asset-request' || (message.hash !== this.current?.shown.image.hash && this.ports.loggedFile?.(message.hash) === undefined)) return false;
+    if (message?.t !== 'asset-request' || (message.hash !== this.current?.shown.image.hash && this.ports.loggedFile?.(message.hash, from) === undefined)) return false;
     this.answers.answer(from, message);
     return true;
   }

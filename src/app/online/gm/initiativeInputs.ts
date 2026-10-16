@@ -6,6 +6,7 @@ import { mapResources } from '../../resources/collectionResources';
 import { entryTokenOf, listedForPlayers, playerInitiativeList } from '../../services/playerInitiativeList';
 import type { TokenEntity } from '../../types';
 import type { InitiativeRules } from '../../types/initiativeRulesTypes';
+import type { InitiativeEntry } from '../../types/initiativeTypes';
 import type { ViewState } from '../../types/viewState';
 import { ringColour } from './scenePicture.ts';
 
@@ -20,6 +21,10 @@ export interface InitiativeInputs {
   readonly rules: RulesLookup | null;
   /** A portrait's artwork as players are sent it, by vault path; null while unknown. */
   art(path: string): AssetRef | null;
+  alias?(entryId: string): string;
+  ownerOf?(tokenId: string): string | undefined;
+  readonly player?: string;
+  readonly turnKey?: string | null;
 }
 
 /** A number players are sent: finite and within the protocol's bound. */
@@ -52,7 +57,12 @@ export function sharedInitiative(inputs: InitiativeInputs): SharedInitiative | n
     initiativeRulesOf(rules, state.mapPath),
     hpVisible,
   );
-  const combatants = list.combatants.slice(0, MAX_COMBATANTS).map(({ entry, token }): SharedCombatant => ({
+  const combatants = list.combatants.slice(0, MAX_COMBATANTS).map(({ entry, token }): SharedCombatant => {
+    const original = entry as InitiativeEntry;
+    return {
+    ...(inputs.alias ? { id: inputs.alias(original.id) } : {}),
+    ...(inputs.player === undefined ? {} : { own: inputs.ownerOf?.(entry.tokenId) === inputs.player }),
+    rolled: original.hasInitiative !== false,
     initiative: finite(entry.initiative) ? entry.initiative : 0,
     name: inputs.showNames && typeof entry.name === 'string' ? entry.name.slice(0, MAX_NAME) : null,
     turn: list.isActive && !list.bySides && entry.isActive === true,
@@ -61,13 +71,38 @@ export function sharedInitiative(inputs: InitiativeInputs): SharedInitiative | n
     ring: token.showRing ? { colour: token.ringColor ? ringColour(token.ringColor) : null } : null,
     side: token.side,
     hp: token.hp !== null && finite(token.hp.current) && finite(token.hp.max) ? { current: token.hp.current, max: token.hp.max } : null,
-  }));
+    };
+  });
   return {
     isActive: list.isActive,
     round: finite(list.round) ? list.round : 0,
     bySides: list.bySides,
     firstSide: list.firstSide,
     activeSide: list.bySides ? list.activeSide : null,
+    ...(inputs.turnKey === undefined ? {} : { turnKey: inputs.turnKey }),
     combatants,
   };
+}
+
+export class InitiativeAliases {
+  private readonly aliases = new Map<string, string>();
+  private readonly entries = new Map<string, string>();
+
+  alias(entryId: string): string {
+    const held = this.aliases.get(entryId);
+    if (held !== undefined) return held;
+    const alias = Array.from(crypto.getRandomValues(new Uint8Array(12)), byte => byte.toString(16).padStart(2, '0')).join('');
+    this.aliases.set(entryId, alias);
+    this.entries.set(alias, entryId);
+    return alias;
+  }
+
+  resolve(alias: string): string | undefined {
+    return this.entries.get(alias);
+  }
+
+  clear(): void {
+    this.aliases.clear();
+    this.entries.clear();
+  }
 }

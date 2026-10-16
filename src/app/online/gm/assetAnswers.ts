@@ -4,7 +4,7 @@ import { AssetVariants, type ScaleImage } from './assetVariants.ts';
 import type { VaultImage } from './TokenShare.ts';
 
 export interface AssetAnswerPorts {
-  send(body: GmMessage, to: string): void;
+  send(body: GmMessage, to: string, valid?: () => boolean): void;
   now(): number;
   readImage(path: string): Promise<VaultImage | null>;
   /** Scales an image for a player who asks for a longest side; without it players get originals only. */
@@ -24,6 +24,7 @@ export interface PictureAssets {
   artPath(hash: string, player: string): string | undefined;
   /** A text the picture names by hash (a quest's whole text), as its bytes. */
   text?(hash: string, player: string): Uint8Array | undefined;
+  validity?(player: string): () => boolean;
 }
 
 /**
@@ -34,6 +35,8 @@ export interface PictureAssets {
 export class AssetAnswers {
   private readonly served = new ServedAssets();
   private readonly variants: AssetVariants | null;
+  private generation = 0;
+  private readonly playerGenerations = new Map<string, number>();
 
   constructor(private readonly ports: AssetAnswerPorts, private readonly picture: PictureAssets) {
     this.variants = ports.scaleImage === undefined ? null : new AssetVariants(ports.scaleImage);
@@ -42,6 +45,10 @@ export class AssetAnswers {
   answer(from: string, request: PlayerAssetRequest): void {
     const { hash, maxSide } = request;
     const first = request.from ?? 0;
+    const generation = this.generation;
+    const playerGeneration = this.playerGenerations.get(from);
+    const current = this.picture.validity?.(from);
+    const valid = (): boolean => generation === this.generation && playerGeneration === this.playerGenerations.get(from) && (current?.() ?? true) && this.authorized(hash, from);
     const map = this.picture.map(from);
     const isMap = map?.hash === hash;
     const explored = isMap ? undefined : this.picture.explored(hash, from);
@@ -49,40 +56,51 @@ export class AssetAnswers {
     const bytes = explored ?? (isMap || art !== undefined ? undefined : this.picture.text?.(hash, from));
     if (!isMap && bytes === undefined && art === undefined) return this.refuse(hash, from);
     if (!this.served.take(from, maxSide === undefined ? hash : `${hash}@${maxSide}`, first, this.ports.now())) return;
-    if (bytes !== undefined) return this.serve(hash, bytes, from, first);
-    if (isMap) return void this.serveImage(hash, map.bytes, map.mime, from, first, maxSide);
-    if (art !== undefined) void this.serveArt(hash, art, from, first, maxSide);
+    if (bytes !== undefined) return this.serve(hash, bytes, from, first, valid);
+    const pending = isMap ? this.serveImage(hash, map.bytes, map.mime, from, first, maxSide, valid)
+      : art === undefined ? null : this.serveArt(hash, art, from, first, maxSide, valid);
+    if (pending !== null) void pending.catch(() => {
+      if (valid()) this.refuse(hash, from);
+    });
   }
 
   /** A player left, or the picture changed for all (`undefined`): requests may come again at once. */
   forget(player?: string): void {
-    if (player === undefined) this.served.clear();
-    else this.served.forget(player);
+    if (player === undefined) { this.generation += 1; this.served.clear(); }
+    else { this.playerGenerations.set(player, (this.playerGenerations.get(player) ?? 0) + 1); this.served.forget(player); }
   }
 
   /** Reads artwork again and serves it while it still has the hash the player's picture names. */
-  private async serveArt(hash: string, path: string, to: string, first: number, maxSide: number | undefined): Promise<void> {
+  private async serveArt(hash: string, path: string, to: string, first: number, maxSide: number | undefined, valid: () => boolean): Promise<void> {
     const image = await this.ports.readImage(path).catch(() => null);
-    if (image === null || this.picture.artPath(hash, to) !== path || (await sha256Hex(image.bytes)) !== hash) return this.refuse(hash, to);
-    await this.serveImage(hash, image.bytes, image.mime, to, first, maxSide);
+    if (!valid()) return;
+    if (image === null || this.picture.artPath(hash, to) !== path) return this.refuse(hash, to);
+    const digest = await sha256Hex(image.bytes);
+    if (!valid()) return;
+    if (digest !== hash) return this.refuse(hash, to);
+    await this.serveImage(hash, image.bytes, image.mime, to, first, maxSide, valid);
   }
 
   /** The image itself, or its scaled copy for `maxSide`, while it is still in the picture once the copy is made. */
-  private async serveImage(hash: string, bytes: Uint8Array, mime: string, to: string, first: number, maxSide: number | undefined): Promise<void> {
-    if (maxSide === undefined || this.variants === null) return this.serve(hash, bytes, to, first);
+  private async serveImage(hash: string, bytes: Uint8Array, mime: string, to: string, first: number, maxSide: number | undefined, valid: () => boolean): Promise<void> {
+    if (!valid()) return;
+    if (maxSide === undefined || this.variants === null) return this.serve(hash, bytes, to, first, valid);
     const variant = await this.variants.get(hash, bytes, mime, maxSide);
-    if (!this.inPicture(hash, to)) return this.refuse(hash, to);
-    if (variant === null) return this.serve(hash, bytes, to, first);
-    this.ports.send({ t: 'asset-variant', hash, maxSide, variant: variant.ref, width: variant.width, height: variant.height }, to);
-    this.serve(variant.ref.hash, variant.bytes, to, first);
+    if (!valid()) return;
+    if (variant === null) return this.serve(hash, bytes, to, first, valid);
+    this.ports.send({ t: 'asset-variant', hash, maxSide, variant: variant.ref, width: variant.width, height: variant.height }, to, valid);
+    this.serve(variant.ref.hash, variant.bytes, to, first, valid);
   }
 
-  private inPicture(hash: string, player: string): boolean {
-    return this.picture.map(player)?.hash === hash || this.picture.artPath(hash, player) !== undefined;
+  private authorized(hash: string, player: string): boolean {
+    return this.picture.map(player)?.hash === hash || this.picture.artPath(hash, player) !== undefined || this.picture.explored(hash, player) !== undefined || this.picture.text?.(hash, player) !== undefined;
   }
 
-  private serve(hash: string, bytes: Uint8Array, to: string, first: number): void {
-    for (const chunk of assetChunks(hash, bytes, first)) this.ports.send(chunk, to);
+  private serve(hash: string, bytes: Uint8Array, to: string, first: number, valid: () => boolean): void {
+    for (const chunk of assetChunks(hash, bytes, first)) {
+      if (!valid()) return;
+      this.ports.send(chunk, to, valid);
+    }
   }
 
   private refuse(hash: string, to: string): void {

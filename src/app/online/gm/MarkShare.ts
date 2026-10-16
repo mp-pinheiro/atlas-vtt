@@ -1,11 +1,11 @@
-import { CURSOR_KEEPALIVE_MS, GM_MARKS, MARKS_INTERVAL_MS, MAX_LASER_SPAN_MS, MAX_MARK_LASER_NUMBERS, type GmMessage, type LaserState, type MarksMessage, type MeasureState, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from '../protocol/index.ts';
+import { CURSOR_KEEPALIVE_MS, GM_MARKS, MARKS_INTERVAL_MS, MAX_LASER_SPAN_MS, MAX_MARK_LASER_NUMBERS, playerMarkColour, type GmMessage, type LaserState, type MarksMessage, type MeasureState, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from '../protocol/index.ts';
 import type { SceneSource } from '../../host/sceneSource';
 import type { Measurements } from '../../pixi/MeasureRenderer';
 import { CursorShare, type CursorSharePorts } from './CursorShare.ts';
 import { GmMeasures, type PlayersView } from './gmMeasures.ts';
 import { checkLaser, checkMeasure, markRate } from './markCheck.ts';
 import type { MapSize, MoveRate } from './moveCheck.ts';
-import { Pacer, type CursorSource, type LaserSource, type PacerClock } from '../marks/index.ts';
+import { Pacer, type CursorSource, type LaserSource, type PacerClock, type Press } from '../marks/index.ts';
 
 /** The GM's own marks on the shared tab: its renderer's measurements, its laser, and what players see of the tokens. */
 export interface GmMarkSource extends PlayersView {
@@ -42,6 +42,9 @@ export interface MarkSharePorts extends PacerClock, Partial<Pick<CursorSharePort
   showPlayerMarks?(marks: PlayerMarks): void;
   /** Whether the GM lets everyone see each other's cursor; without it nobody's cursor is taken or sent. */
   cursorsShown?(): boolean;
+  playerColour?(player: string): string;
+  recordGmMeasures?(records: Measurements | null, press: Press | null): void;
+  recordPlayerMeasure?(from: string, state: MeasureState): void;
 }
 
 /** The live lane's key for `marks`: one waits at most. */
@@ -51,9 +54,7 @@ const MARKS_KEY = 'marks';
 export const LASER_SILENCE_MS = 1000;
 const isEmpty = (marks: MarksMessage): boolean => marks.lasers.length === 0 && marks.measures.length === 0 && (marks.cursors?.length ?? 0) === 0;
 
-/** Obsidian's default accent, for when the theme's cannot be read. */
 const DEFAULT_ACCENT = '#8a5cf5';
-
 /** A player's trail points not sent on yet, and the time they cover: null when a message of them told none. */
 interface WaitingTrail {
   readonly pts: number[];
@@ -140,7 +141,7 @@ export class MarkShare {
   /** A player's laser, measurements or cursor: checked, then kept until they change, go silent or the player leaves. */
   receive(from: string, message: PlayerLaser | PlayerMeasure | PlayerCursor): void {
     const now = this.ports.now();
-    const context = { scene: this.scene, map: this.map() };
+    const context = { scene: this.scene, map: this.map(), colour: this.ports.playerColour?.(from) ?? playerMarkColour(from) };
     if (message.t === 'cursor') {
       if (!this.cursors.receive(from, message, context)) return;
     } else if (message.t === 'laser') {
@@ -156,6 +157,7 @@ export class MarkShare {
       const covered = this.measures.get(from)?.covered;
       if (state.live === null && state.kept.length === 0) this.measures.delete(from);
       else this.measures.set(from, { state, covered: spansAdded(covered === undefined ? 0 : covered, state.span) });
+      this.ports.recordPlayerMeasure?.(from, state);
       this.show({ measure: from });
     }
     this.pacer.request();
@@ -206,13 +208,16 @@ export class MarkShare {
     this.stopSource = null;
     this.source = source;
     this.gm.reset();
+    this.ports.recordGmMeasures?.(null, null);
     if (source === null) return;
     // Atlas tells of a new measurement inside the press that began it, before the press reaches the
     // laser's tap: the press is read once the event is done.
     const { measurements } = source;
     const measured = (): void => queueMicrotask(() => {
       if (this.source !== source || measurements === null) return;
-      this.gm.follow(measurements.get(), source.laser.lastPress(), source, this.ports.now());
+      const records = measurements.get(), press = source.laser.lastPress();
+      this.gm.follow(records, press, source, this.ports.now());
+      this.ports.recordGmMeasures?.(records, press);
       this.pacer.request();
     });
     const request = (): void => this.pacer.request();

@@ -9,17 +9,26 @@ import { mapLayerSourceOf, rulesLookupOf } from './atlasMapLayers.ts';
 import { asTokenSource, call, drawnTokenPlaces, tokenRulesOf, type SceneStore } from './atlasView.ts';
 import { bookSceneOf, type BookScene } from './book/bookScene.ts';
 import { ResourceWrites } from './book/resourceWrites.ts';
-import { companionTimers } from './companionTimers.ts';
+import { companionTimers, type Timers } from './companionTimers.ts';
 import { GmMarks } from './gmMarks.ts';
-import type { GmMessage, RollRequestAnswer } from '../protocol/index.ts';
-import type { LoggedRoll, RollRequest } from './log/TableLog.ts';
-import { ownerIn, type SeatSource } from './seatSource.ts';
+import { playerMarkColour, type GmMessage, type RollRequestAnswer } from '../protocol/index.ts';
+import type { LoggedRoll, RollRequest, TableLog } from './log/TableLog.ts';
+import { givePlayerTokens, ownerIn } from './seatSource.ts';
 import type { PresentedTab } from './presentedScene.ts';
 import { PresentedStore } from './presentedStore.ts';
 import { SceneShare } from './SceneShare.ts';
 import type { AtlasTab, TabBinding } from './sharedTab.ts';
 import type { VaultImage } from './TokenShare.ts';
 import { showNotice } from '../../ui/notice';
+import { SceneAgency, type SceneAgencyStore } from './SceneAgency';
+import type { Ownership } from './ownership';
+import type { PlayedCharacter } from './book/characters';
+import type { DeliveryValidity } from './sendQueue';
+import { mapInitiativeRules } from '../../services/mapInitiativeRules';
+import { playerInitiativeModifier } from './initiativeModifier';
+import { templateDiceSet } from '../../statblocks/resolve/templateDiceSet';
+import { DEFAULT_DICE_RULES } from '../../gameSystems/diceRules';
+import { bindPendingPathSurface, type PendingPathRenderer } from './paths/pathSurface';
 
 /** A shared view's scene and the GM's marks on it. */
 export interface SceneBinding extends TabBinding {
@@ -34,24 +43,30 @@ export interface SceneBinding extends TabBinding {
 
 export interface SceneBindingPorts {
   readonly app: App;
-  readonly seats: SeatSource;
-  send(body: GmMessage, to?: string): void;
-  /** Sends a live message to all ahead of other frames; a newer one of the same key replaces it while it waits. */
-  sendLive(body: GmMessage, key: string): void;
+  readonly seats: Ownership;
+  readonly log: TableLog;
+  playedCharacter(from: string): PlayedCharacter | null;
+  readyPlayers(): readonly string[];
+  send(body: GmMessage, to?: string, validity?: DeliveryValidity): void;
+  sendLive(body: GmMessage, key: string, to?: string, validity?: DeliveryValidity): void;
   readImage(path: string): Promise<VaultImage | null>;
   /** Whether the binding is still the table's and its tab the same objects. */
   isLive(binding: SceneBinding): boolean;
   randomId(): string;
+  actionAllowed(from: string): boolean;
+  movementAllowed(from: string): boolean;
   /** Takes a roll of the shared tab into the table's log. */
   logRoll(roll: LoggedRoll): void;
   /** The name a player goes by at the table, or null when it is not known. */
   nameOf(player: string): string | null;
   /** The vault path of a speaker's artwork the table's log shows, by hash. */
-  logArt(hash: string): string | undefined;
+  logArt(hash: string, from: string): string | undefined;
+  readonly doorNonces: Map<string, Set<string>>;
   /** The roll button of the table's log a player's roll answers, as they may roll it. */
   rollRequest(from: string, answer: RollRequestAnswer): RollRequest | null;
   /** The entry of the table's log that tells who found a readable pin of a map, or null while nobody has. */
   foundPin(mapPath: string, pinId: string): string | null;
+  refreshSheet(from: string): void;
 }
 
 /** The last value a read gave while `shown`, given again while not: what players were last sent stays as it was. */
@@ -85,7 +100,49 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     marks.showPlayers({ lasers: [], measures: [] });
     marks.showPlayerCursors([]);
   });
-  const share = new SceneShare(store, {
+  const clock: Timers = {
+    now: () => timers.now(),
+    setTimer: (run, ms) => timers.setTimer(() => { if (live()) run(); }, ms),
+    clearTimer: timer => timers.clearTimer(timer),
+  };
+  const resources = new ResourceWrites(store, {
+    definitions: () => tokenRulesOf(shownRenderer())?.resources ?? [],
+    ownerOf: ownerIn(ports.seats, store),
+    defer: request => agency.deferredResource(request),
+    online: from => ports.seats.onlinePlayers().includes(from),
+    ...clock,
+  });
+  const agency: SceneAgency = new SceneAgency(store as unknown as SceneAgencyStore, {
+    ownership: ports.seats, log: ports.log,
+    doorNonces: ports.doorNonces,
+    current: from => shown() ? share.authority(from) : null,
+    tokenRules: () => tokenRulesOf(shownRenderer()) ?? { resources: [], conditions: [] },
+    initiativeRules: () => mapInitiativeRules(ports.app, store.getState().mapPath),
+    diceRules: () => diceSourceOf(leaf)?.rules() ?? DEFAULT_DICE_RULES,
+    dice: () => shown() ? diceSourceOf(leaf) : null,
+    playedCharacter: from => ports.playedCharacter(from),
+    modifier: entry => playerInitiativeModifier(ports.app, entry, store.getState().objects.tokens, mapInitiativeRules(ports.app, store.getState().mapPath)),
+    templateDiceSet: character => {
+      const token = store.getState().objects.tokens[character.tokenId];
+      return templateDiceSet(ports.app, token?.kind === 'character' ? token.statblockPath : undefined);
+    },
+    movementAllowed: from => ports.movementAllowed(from), actionAllowed: from => ports.actionAllowed(from),
+    give: (ids, player) => givePlayerTokens(ports.seats, store, ids, player),
+    send: (body, to) => live() && share.sendTable(body, to),
+    refresh: from => live() && share.resend(from),
+    refreshSheet: from => live() && ports.refreshSheet(from),
+    rollAs: (from, run, notes) => share.dice.rollAs(from, run, notes),
+    applyResource: request => resources.applyDeferred(request), cancelResource: request => resources.cancelDeferred(request),
+    resourcePlayerLeft: from => resources.playerLeft(from),
+    randomId: () => ports.randomId(), ...clock,
+  });
+  const share: SceneShare = new SceneShare(store, {
+    agency,
+    held: () => store.held,
+    permissions: () => ports.seats.permissionsFor(store.getState().mapPath ?? ''),
+    readyPlayers: () => ports.readyPlayers(),
+    memoryId: () => { const path = store.getState().mapPath; return path === null ? undefined : ports.seats.memoryIdFor(path); },
+    playerColour: player => playerMarkColour(player, ports.seats.colourOf(player)),
     tokenSource: () => asTokenSource(shownRenderer()),
     lightingSource: () => lightingSourceOf(shownRenderer()),
     measurement,
@@ -93,6 +150,8 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     showPlayerMarks: (marksShown) => shown() && marks.showPlayers(marksShown),
     showPlayerCursors: (cursors) => shown() && marks.showPlayerCursors(cursors),
     nameOf: (player) => ports.nameOf(player),
+    actionAllowed: (from) => ports.actionAllowed(from),
+    movementAllowed: (from) => ports.movementAllowed(from),
     accent: lastWhileShown(shown, () => accentColour(leaf.view.containerEl.ownerDocument)),
     atlasSettings: () => atlasPlayerSettings(ports.app),
     dice: () => (shown() ? diceSourceOf(leaf) : null),
@@ -101,27 +160,25 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     tokenRules: () => tokenRulesOf(shownRenderer()),
     readImage: (path) => ports.readImage(path),
     scaleImage: scaleInWindow,
-    send: (body, to) => live() && ports.send(body, to),
-    sendLive: (body, key) => live() && ports.sendLive(body, key),
+    send: (body, to, validity) => live() && ports.send(body, to, validity),
+    sendLive: (body, key, to, validity) => live() && ports.sendLive(body, key, to, validity),
     drawnPlaces: (tokenIds) => drawnTokenPlaces(shownRenderer(), tokenIds),
     notice: (text) => live() && showNotice(text),
     seats: ports.seats,
     randomId: () => ports.randomId(),
     logRoll: (roll) => live() && ports.logRoll(roll),
-    logArt: (hash) => ports.logArt(hash),
+    logArt: (hash, from) => ports.logArt(hash, from),
     foundPin: (mapPath, pinId) => ports.foundPin(mapPath, pinId),
     rollRequest: (from, answer) => (shown() ? ports.rollRequest(from, answer) : null),
     now: () => timers.now(),
     setTimer: (run, ms) => timers.setTimer(() => live() && run(), ms),
     clearTimer: (timer) => timers.clearTimer(timer),
   });
-  const resources = new ResourceWrites(store, {
-    definitions: () => tokenRulesOf(shownRenderer())?.resources ?? [],
-    ownerOf: ownerIn(ports.seats, store),
-    now: () => timers.now(),
-    setTimer: (run, ms) => timers.setTimer(() => live() && run(), ms),
-    clearTimer: (timer) => timers.clearTimer(timer),
-  });
+  const pathRenderer = 'getAppInstance' in renderer && typeof renderer.getAppInstance === 'function'
+    && 'getViewportInstance' in renderer && typeof renderer.getViewportInstance === 'function'
+    && 'getCanvasElement' in renderer && typeof renderer.getCanvasElement === 'function'
+    && 'addDmWorldOverlay' in renderer && typeof renderer.addDmWorldOverlay === 'function' ? renderer as PendingPathRenderer : null;
+  let stopPaths: (() => void) | null = null;
   const binding: SceneBinding = {
     share,
     store,
@@ -134,8 +191,11 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     start: () => {
       share.start();
       resources.start();
+      if (pathRenderer !== null) stopPaths = bindPendingPathSurface(pathRenderer, store, agency.paths, player => ports.seats.colourOf(player));
     },
     stop: () => {
+      stopPaths?.();
+      stopPaths = null;
       resources.stop();
       share.stop();
       store.dispose();

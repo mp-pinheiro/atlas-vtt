@@ -1,8 +1,13 @@
 // @vitest-environment node
-import { CLOSE, KEEPALIVE_MS, KEEPALIVE_PING, KEEPALIVE_PONG } from '../../../../src/app/online/protocol/index.ts';
+import { CLOSE, KEEPALIVE_MS, KEEPALIVE_PING, KEEPALIVE_PONG, MAX_GM_FRAME, parseClientFrame, parseGmMessage, parseRelayFrame } from '../../../../src/app/online/protocol/index.ts';
+import type { GmMessage } from '../../../../src/app/online/protocol/game.ts';
+import { utf8Length } from '../../../../src/app/online/protocol/shape.ts';
+import { ASSET_CHUNK_BYTES } from '../../../../src/app/online/protocol/asset.ts';
+import { PlayerRouter } from '../../../../player/src/connection/playerRouter.ts';
+import { createPlayerStore } from '../../../../player/src/state/playerStore.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Timers } from '../../../../src/app/online/gm/companionTimers.ts';
-import { BATCH_MS, BURST } from '../../../../src/app/online/gm/sendQueue.ts';
+import { BATCH_MS, BURST, BULK_BUFFERED } from '../../../../src/app/online/gm/sendQueue.ts';
 import { FLUSH_LOOK_MS, LATE_MS, OPEN_TIMEOUT_MS, PULSE_DEADLINE_MS, SETTLE_MS, WELCOME_TIMEOUT_MS } from '../../../../src/app/online/gm/socketWatch.ts';
 import { TableConnection, type TableStatus } from '../../../../src/app/online/gm/TableConnection.ts';
 
@@ -18,6 +23,7 @@ class FakeSocket extends EventTarget {
   bufferedAmount = 0;
   readonly sent: string[] = [];
   closedByGm = false;
+  static sendObserver: ((socket: FakeSocket, text: string) => void) | null = null;
 
   constructor(readonly url: string) {
     super();
@@ -27,6 +33,7 @@ class FakeSocket extends EventTarget {
 
   send(text: string): void {
     this.sent.push(text);
+    FakeSocket.sendObserver?.(this, text);
   }
 
   close(): void {
@@ -58,12 +65,18 @@ class FakeSocket extends EventTarget {
   }
 }
 
+interface FakeTimers extends Timers {
+  advance(ms: number): void;
+  late(ms: number): (() => void)[];
+  pending(): number;
+}
+
 /**
  * The companion's timers under the test's hand. `advance` runs them on time; `late` moves the clock on
  * while nothing runs (a hidden window, a machine asleep) and hands back what is due, for the test to
  * run when it likes, as the browser does when the window wakes.
  */
-function fakeTimers(): Timers & { advance(ms: number): void; late(ms: number): (() => void)[]; pending(): number } {
+function fakeTimers(): FakeTimers {
   let now = 0;
   let timers: { at: number; run: () => void; id: number }[] = [];
   let ids = 0;
@@ -101,24 +114,57 @@ const last = (): FakeSocket => {
   return socket;
 };
 
-function table(): { connection: TableConnection; timers: ReturnType<typeof fakeTimers>; statuses: TableStatus[]; welcomes: number[]; closing: (number | null)[] } {
+function table(): { connection: TableConnection; timers: FakeTimers; statuses: TableStatus[]; welcomes: number[] } {
   const timers = fakeTimers();
   const statuses: TableStatus[] = [];
   const welcomes: number[] = [];
-  const closing: (number | null)[] = [];
   const connection = new TableConnection('https://relay.example', 'abcdefghijklmnopqrstuvwxyz', 'host-secret-0123456789abcdefABCDEF', {
-    status: (status) => statuses.push(status), welcome: (players) => welcomes.push(players.length), joined: () => undefined, left: () => undefined, message: () => undefined, access: (closesAt) => closing.push(closesAt),
+    status: (status) => statuses.push(status), welcome: (players) => welcomes.push(players.length), joined: () => undefined, left: () => undefined, message: () => undefined,
   }, null, timers);
   connection.start();
-  return { connection, timers, statuses, welcomes, closing };
+  return { connection, timers, statuses, welcomes };
 }
+function wholePicture(scene: string, perPlayerVision: boolean, padding = ''): GmMessage {
+  const packet = parseGmMessage({
+    t: 'picture', scene, revision: 1, whole: true,
+    messages: [
+      { t: 'tokens', scene, seq: 1, tokens: [], cell: 70, snap: null },
+      { t: 'fog', scene, seq: 1, fog: null },
+      { t: 'sight', scene, lighting: { ambient: 0 }, lights: [], tokens: [], held: [] },
+      { t: 'lighting', scene, cellSize: 70, unitDistance: 5, walls: [], zones: [], senses: [] },
+      { t: 'mine', scene, tokens: [] },
+      { t: 'grid', scene, grid: null },
+      { t: 'doors', scene, doors: [] },
+      { t: 'sensed', scene, tokens: [] },
+      { t: 'pins', scene, pins: [] },
+      { t: 'annotations', scene, drawings: [], texts: [] },
+      { t: 'rules', scene, grid: { type: 'square', size: 70, offsetX: 0, offsetY: 0 }, snap: true,
+        measurement: { mode: 'metric', unitType: 'feet', unitDistance: 5, ruleDistance: 5, diagonalRule: 'equidistant', rangeBands: [], coneAngle: 90 }, accent: null },
+      { t: 'agency', scene, permissions: { approval: false, perPlayerVision, playerConditions: false, playerDoors: false }, conditions: [], values: {} },
+    ],
+  });
+  if (packet?.t !== 'picture') throw new Error('Invalid whole picture fixture');
+  return padding === '' ? packet : { ...packet, padding } as GmMessage;
+}
+function relayBodies(text: string): unknown[] {
+  const client = parseClientFrame(text);
+  if (client?.t === 'send') return [client.body];
+  if (client?.t === 'sends') return client.sends.map(send => send.body);
+  return [];
+}
+
+
 
 beforeEach(() => {
   FakeSocket.all = [];
   FakeSocket.refuses = false;
+  FakeSocket.sendObserver = null;
   vi.stubGlobal('WebSocket', FakeSocket);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  FakeSocket.sendObserver = null;
+  vi.unstubAllGlobals();
+});
 
 describe('the GM\'s try to reach the table', () => {
   it('gives up a socket that never opens after 10 s and tries again, where it waited for good', () => {
@@ -234,25 +280,6 @@ describe('the GM\'s try to reach the table', () => {
     }
   });
 
-  it('passes on when the relay says the table closes, and that it no longer does: by its word, or by a welcome', () => {
-    const { timers, closing } = table();
-    last().welcome();
-    expect(closing).toEqual([null]);
-    last().receive('{"v":1,"t":"access","closesAt":1760000000000}');
-    last().receive('{"v":1,"t":"access","closesAt":null}');
-    last().receive('{"v":1,"t":"access","closesAt":1760000000000}');
-    expect(closing).toEqual([null, 1760000000000, null, 1760000000000]);
-    // The socket drops and comes back: the welcome clears the word, and the relay's reminder behind it sets it again.
-    last().drop();
-    timers.advance(1_000);
-    last().welcome();
-    expect(closing.at(-1)).toBeNull();
-    last().receive('{"v":1,"t":"access","closesAt":1760000000000}');
-    expect(closing.at(-1)).toBe(1760000000000);
-    // A frame that is no such word changes nothing.
-    last().receive('{"v":1,"t":"access","closesAt":"soon"}');
-    expect(closing).toHaveLength(6);
-  });
 });
 
 describe('the pulse of the GM\'s socket', () => {
@@ -425,5 +452,127 @@ describe('the pulse of the GM\'s socket', () => {
     const frames = batching.sent.slice(start).map((text) => JSON.parse(text) as { t: string; sends?: unknown[] });
     expect(frames.map((frame) => frame.t)).toEqual(['send', 'sends']);
     expect(frames[1]?.sends).toEqual([{ to: '*', body: { t: 'scene', scene: null } }, { to: '*', body: { t: 'scene', scene: null } }]);
+  });
+  it('delivers one exact multipart picture before live traffic inserted after its first part', () => {
+    const player = { id: 'abcdefghijklmnopqrst', name: 'Mira' };
+    const scene = 'wire-scene';
+    const { timers, connection } = table();
+    const socket = last();
+    socket.welcome([player], true);
+    const store = createPlayerStore();
+    store.getState().beginScene({ id: scene, map: null, lit: true, personal: true });
+    const router = new PlayerRouter({ store, send: () => true });
+    const received: unknown[] = [];
+    let blockedPart: string | null = null;
+    FakeSocket.sendObserver = (current, text) => {
+      for (const body of relayBodies(text)) {
+        const frame = parseRelayFrame(JSON.stringify({ v: 1, t: 'game', from: 'gm', body }));
+        if (frame?.t !== 'game') throw new Error('Queue output was not a relay game frame');
+        received.push(body);
+        router.receive(frame);
+        if (body !== null && typeof body === 'object' && 't' in body && body.t === 'part' && blockedPart === null) {
+          blockedPart = body.id;
+          current.bufferedAmount = BULK_BUFFERED + 1;
+        }
+      }
+    };
+
+    const body = wholePicture(scene, true, '🗺️é'.repeat(90_000));
+    const serialized = JSON.stringify(body);
+    expect(utf8Length(serialized)).toBeGreaterThan(ASSET_CHUNK_BYTES);
+    const firstSent = socket.sent.length;
+    connection.send(body, player.id);
+    expect(received).toHaveLength(1);
+    expect(store.getState().scene?.pictureRevision).toBe(0);
+    connection.sendLive({ t: 'people', people: [] }, 'table-update', player.id);
+    socket.bufferedAmount = 0;
+    timers.advance(10);
+
+    const parts = received.filter((value): value is Extract<GmMessage, { t: 'part' }> =>
+      value !== null && typeof value === 'object' && 't' in value && value.t === 'part' && value.id === blockedPart);
+    expect(parts.map(part => part.index)).toEqual(Array.from({ length: Math.ceil(utf8Length(serialized) / ASSET_CHUNK_BYTES) }, (_, index) => index));
+    const joined = new Uint8Array(parts.reduce((size, part) => size + atob(part.data).length, 0));
+    let offset = 0;
+    for (const part of parts) {
+      const bytes = atob(part.data);
+      for (let index = 0; index < bytes.length; index += 1) joined[offset + index] = bytes.charCodeAt(index);
+      offset += bytes.length;
+    }
+    expect(new TextDecoder('utf-8', { fatal: true }).decode(joined)).toBe(serialized);
+    expect(store.getState().scene?.pictureRevision).toBe(1);
+    expect(store.getState().scene?.agency?.permissions.perPlayerVision).toBe(true);
+    expect(store.getState().people).toEqual({ t: 'people', people: [] });
+    const ordered = received.map(value => value !== null && typeof value === 'object' && 't' in value ? value.t : null);
+    expect(ordered.at(-1)).toBe('people');
+    expect(ordered.slice(0, -1).every(type => type === 'part')).toBe(true);
+    const wire = socket.sent.slice(firstSent);
+    expect(wire.every(text => utf8Length(text) <= MAX_GM_FRAME)).toBe(true);
+    expect(wire.every(text => {
+      const parsed = parseClientFrame(text);
+      return parsed !== null && (parsed.t !== 'sends' || parsed.sends.length > 0);
+    })).toBe(true);
+    router.destroy();
+    connection.stop();
+  });
+
+  it('drops a revoked picture tail and accepts a newer whole picture without advancing from the partial', () => {
+    const player = { id: 'abcdefghijklmnopqrst', name: 'Mira' };
+    const scene = 'wire-scene';
+    const { timers, connection } = table();
+    const socket = last();
+    socket.welcome([player], true);
+    const store = createPlayerStore();
+    store.getState().beginScene({ id: scene, map: null, lit: true, personal: true });
+    const router = new PlayerRouter({ store, send: () => true });
+    const received: unknown[] = [];
+    let blockedPart: string | null = null;
+    FakeSocket.sendObserver = (current, text) => {
+      for (const body of relayBodies(text)) {
+        const frame = parseRelayFrame(JSON.stringify({ v: 1, t: 'game', from: 'gm', body }));
+        if (frame?.t !== 'game') throw new Error('Queue output was not a relay game frame');
+        received.push(body);
+        router.receive(frame);
+        if (body !== null && typeof body === 'object' && 't' in body && body.t === 'part' && blockedPart === null) {
+          blockedPart = body.id;
+          current.bufferedAmount = BULK_BUFFERED + 1;
+        }
+      }
+    };
+
+    let oldValid = true;
+    const oldPicture = wholePicture(scene, false, 'stale'.repeat(100_000));
+    connection.send(oldPicture, player.id, { recipient: player.id, scene, generation: 1, projection: 1, valid: () => oldValid });
+    expect(received).toHaveLength(1);
+    expect(store.getState().scene?.pictureRevision).toBe(0);
+    expect(store.getState().scene?.covered).toBe(true);
+
+    oldValid = false;
+    const current = wholePicture(scene, true);
+    connection.send(current, player.id, { recipient: player.id, scene, generation: 1, projection: 2, valid: () => true });
+    socket.bufferedAmount = 0;
+    timers.advance(10);
+
+    const oldParts = received.filter(value => value !== null && typeof value === 'object' && 't' in value && value.t === 'part' && value.id === blockedPart);
+    expect(oldParts).toHaveLength(1);
+    expect(store.getState().scene?.pictureRevision).toBe(1);
+    expect(store.getState().scene?.covered).toBe(false);
+    expect(store.getState().scene?.agency?.permissions.perPlayerVision).toBe(true);
+
+    const delta = {
+      t: 'picture', scene, revision: 2, whole: false,
+      messages: [{ t: 'delta', scene, of: 'tokens', seq: 2, lists: { tokens: { remove: [], upsert: [], order: [] } }, set: {}, unset: [] }],
+    } as GmMessage;
+    connection.send(delta, player.id);
+    timers.advance(BATCH_MS);
+    expect(store.getState().scene?.pictureRevision).toBe(2);
+    expect(store.getState().scene?.tokens?.seq).toBe(2);
+    const wire = socket.sent.filter(text => parseClientFrame(text)?.t === 'send' || parseClientFrame(text)?.t === 'sends');
+    expect(wire.every(text => utf8Length(text) <= MAX_GM_FRAME)).toBe(true);
+    expect(wire.every(text => {
+      const parsed = parseClientFrame(text);
+      return parsed !== null && (parsed.t !== 'sends' || parsed.sends.length > 0);
+    })).toBe(true);
+    router.destroy();
+    connection.stop();
   });
 });

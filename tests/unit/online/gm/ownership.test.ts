@@ -98,7 +98,7 @@ describe('player tokens', () => {
   it('are player tokens to players whether or not the GM gave them to anyone, and making a token the GM\'s takes it back', () => {
     const { owners } = ownership();
     owners.joined({ id: ANA, name: 'Ana' });
-    expect(owners.claimOf(MAP, 'seeing', seeing)).toBe('taken');
+    expect(owners.claimOf(MAP, 'seeing', seeing)).toBe('open');
     expect(owners.claimOf(MAP, 'blind', blind)).toBeNull();
     owners.give(['seeing'], {}, ANA);
     expect(owners.claimOf(MAP, 'seeing', seeing)).toBe('taken');

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { MARKS_INTERVAL_MS, MAX_LASER_SPAN_MS, type PlayerLaser, type PlayerMeasure } from '../../../../src/app/online/protocol/index.ts';
+import { MARKS_INTERVAL_MS, MAX_LASER_SPAN_MS, playerMarkColour, type PlayerLaser, type PlayerMeasure } from '../../../../src/app/online/protocol/index.ts';
 import { describe, expect, it } from 'vitest';
 import { checkLaser, checkMeasure, MARKS_PER_SECOND, nearMap, swatchColour } from '../../../../src/app/online/gm/markCheck.ts';
 import { LASER_SILENCE_MS } from '../../../../src/app/online/gm/MarkShare.ts';
@@ -11,6 +11,12 @@ const MAP = { width: 1000, height: 800 };
 const CONTEXT = { scene: 's1', map: MAP };
 const laser = (changes: Partial<PlayerLaser> = {}): PlayerLaser => ({ t: 'laser', scene: 's1', color: '#66ffa9', size: 16, at: [100, 100], pts: [100, 100, 110, 100], on: true, ...changes });
 const measure = (changes: Partial<PlayerMeasure> = {}): PlayerMeasure => ({ t: 'measure', scene: 's1', color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], ...changes });
+const withoutMarkColour = <T extends { readonly color: string }>(entry: T): Omit<T, 'color'> => {
+  const result = { ...entry };
+  Reflect.deleteProperty(result, 'color');
+  return result;
+};
+const withoutMarkColours = <T extends { readonly color: string }>(entries: readonly T[]): Omit<T, 'color'>[] => entries.map(withoutMarkColour);
 
 describe('checking players\' marks', () => {
   it('takes only the swatches\' colours, as the swatch writes them', () => {
@@ -45,6 +51,19 @@ describe('checking players\' marks', () => {
 });
 
 describe('MarkShare', () => {
+  it('uses the chosen player colour instead of client-supplied mark colours', () => {
+    const chosen = playerMarkColour(ANA, 6);
+    const harness = markHarness(undefined, (player) => player === ANA ? chosen : playerMarkColour(player));
+    harness.share.setScene('s1');
+    harness.share.receive(ANA, laser({ color: '#66ffa9' }));
+    harness.share.receive(ANA, measure({ color: '#ff9f2e' }));
+    harness.advance(MARKS_INTERVAL_MS);
+    expect(lastMarks(harness)?.lasers.find((entry) => entry.who === ANA)?.color).toBe(chosen);
+    expect(lastMarks(harness)?.measures.find((entry) => entry.who === ANA)?.color).toBe(chosen);
+    expect(harness.shown?.lasers.find((entry) => entry.who === ANA)?.color).toBe(chosen);
+    expect(harness.shown?.measures.find((entry) => entry.who === ANA)?.color).toBe(chosen);
+  });
+
   it('passes each player\'s laser and measurements on to all, the GM\'s too, and draws the players\' for the GM', async () => {
     const harness = markHarness();
     harness.share.setScene('s1');
@@ -59,9 +78,10 @@ describe('MarkShare', () => {
     expect(harness.sent.every(({ to }) => to === undefined)).toBe(true);
     expect(marks?.lasers.map((entry) => entry.who)).toEqual(['gm', ANA]);
     expect(marks?.lasers[0]).toMatchObject({ who: 'gm', color: '#ff0059', at: [5, 5], on: false });
-    expect(marks?.measures).toEqual([
-      { who: 'gm', color: '#123456', live: { shape: 'circle', a: [1, 1], b: [3, 4] }, kept: [] },
-      { who: BEN, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [] },
+    expect(marks?.measures[0]).toMatchObject({ who: 'gm', color: '#123456' });
+    expect(withoutMarkColours(marks?.measures ?? [])).toEqual([
+      { who: 'gm', live: { shape: 'circle', a: [1, 1], b: [3, 4] }, kept: [] },
+      { who: BEN, live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [] },
     ]);
     expect(harness.shown?.lasers.map((entry) => entry.who)).toEqual([ANA]);
     expect(harness.shown?.measures.map((entry) => entry.who)).toEqual([BEN]);
@@ -121,17 +141,17 @@ describe('MarkShare', () => {
     harness.advance(1);
     const sent = harness.sent.length;
     harness.share.receive(ANA, laser({ pts: [100, 100, 110, 100], span: 20 }));
-    expect(harness.shown?.lasers).toEqual([
-      { who: BEN, color: '#66ffa9', size: 16, at: [7, 7], pts: [], on: true },
-      { who: ANA, color: '#66ffa9', size: 16, at: [100, 100], pts: [100, 100, 110, 100], on: true, span: 20 },
+    expect(withoutMarkColours(harness.shown?.lasers ?? [])).toEqual([
+      { who: BEN, size: 16, at: [7, 7], pts: [], on: true },
+      { who: ANA, size: 16, at: [100, 100], pts: [100, 100, 110, 100], on: true, span: 20 },
     ]);
     harness.advance(5);
     harness.share.receive(ANA, laser({ at: [130, 100], pts: [120, 100, 130, 100], span: 5 }));
     // Only what is new: the overlay adds each update's points to the trail.
-    expect(harness.shown?.lasers[1]).toEqual({ who: ANA, color: '#66ffa9', size: 16, at: [130, 100], pts: [120, 100, 130, 100], on: true, span: 5 });
+    expect(harness.shown?.lasers[1]).toMatchObject({ who: ANA, size: 16, at: [130, 100], pts: [120, 100, 130, 100], on: true, span: 5 });
     harness.share.receive(BEN, measure());
     expect(harness.shown?.lasers.map((entry) => entry.pts)).toEqual([[], []]);
-    expect(harness.shown?.measures).toEqual([{ who: BEN, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [] }]);
+    expect(withoutMarkColours(harness.shown?.measures ?? [])).toEqual([{ who: BEN, live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [] }]);
     expect(harness.sent.length).toBe(sent);
     harness.share.playerLeft(BEN);
     expect(harness.shown?.lasers.map((entry) => entry.who)).toEqual([ANA]);
@@ -146,7 +166,7 @@ describe('MarkShare', () => {
     harness.share.setScene('s1');
     harness.share.receive(ANA, laser({ pts: [1, 1], span: 400 }));
     harness.advance(MARKS_INTERVAL_MS);
-    expect(lastMarks(harness)?.lasers).toEqual([{ who: ANA, color: '#66ffa9', size: 16, at: [100, 100], pts: [1, 1], on: true, span: 400 }]);
+    expect(withoutMarkColours(lastMarks(harness)?.lasers ?? [])).toEqual([{ who: ANA, size: 16, at: [100, 100], pts: [1, 1], on: true, span: 400 }]);
     harness.advance(10);
     harness.share.receive(ANA, laser({ pts: [2, 2, 3, 3], span: 12 }));
     harness.advance(10);
@@ -160,9 +180,11 @@ describe('MarkShare', () => {
     harness.advance(MARKS_INTERVAL_MS);
     // The last change went out, once, with everything since the message before it.
     expect(harness.sent.length).toBe(count + 1);
-    expect(lastMarks(harness)?.lasers).toEqual([
-      { who: 'gm', color: '#ff0059', size: 16, at: [50, 50], pts: [40, 40, 50, 50], on: true, span: 31 },
-      { who: ANA, color: '#66ffa9', size: 16, at: [5, 5], pts: [2, 2, 3, 3, 4, 4], on: true, span: 21 },
+    const lasers = lastMarks(harness)?.lasers ?? [];
+    expect(lasers[0]).toMatchObject({ who: 'gm', color: '#ff0059' });
+    expect(withoutMarkColours(lasers)).toEqual([
+      { who: 'gm', size: 16, at: [50, 50], pts: [40, 40, 50, 50], on: true, span: 31 },
+      { who: ANA, size: 16, at: [5, 5], pts: [2, 2, 3, 3, 4, 4], on: true, span: 21 },
     ]);
     // A player who tells no span is sent on without one, and long pauses add up to no more than a message may tell.
     harness.share.receive(ANA, laser({ pts: [6, 6], span: 30 }));
@@ -189,20 +211,22 @@ describe('MarkShare', () => {
     harness.advance(8);
     await drag(20);
     harness.share.receive(BEN, measure({ span: 400 }));
-    expect(harness.shown?.measures).toEqual([{ who: BEN, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], span: 400 }]);
+    expect(withoutMarkColours(harness.shown?.measures ?? [])).toEqual([{ who: BEN, live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], span: 400 }]);
     harness.advance(5);
     harness.share.receive(BEN, measure({ live: { shape: 'line', a: [10, 10], b: [90, 10] }, span: 5 }));
     harness.share.receive(ANA, measure({ span: 9 }));
     // The GM's overlay is told the time of the measurement that just arrived, and no time again for those that stand.
-    expect(harness.shown?.measures).toEqual([
-      { who: BEN, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [90, 10] }, kept: [] },
-      { who: ANA, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], span: 9 },
+    expect(withoutMarkColours(harness.shown?.measures ?? [])).toEqual([
+      { who: BEN, live: { shape: 'line', a: [10, 10], b: [90, 10] }, kept: [] },
+      { who: ANA, live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], span: 9 },
     ]);
     harness.advance(MARKS_INTERVAL_MS);
-    expect(lastMarks(harness)?.measures).toEqual([
-      { who: 'gm', color: '#123456', live: { shape: 'line', a: [0, 0], b: [20, 0] }, kept: [], span: MARKS_INTERVAL_MS + 15 },
-      { who: BEN, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [90, 10] }, kept: [], span: 405 },
-      { who: ANA, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], span: 9 },
+    const measures = lastMarks(harness)?.measures ?? [];
+    expect(measures[0]).toMatchObject({ who: 'gm', color: '#123456' });
+    expect(withoutMarkColours(measures)).toEqual([
+      { who: 'gm', live: { shape: 'line', a: [0, 0], b: [20, 0] }, kept: [], span: MARKS_INTERVAL_MS + 15 },
+      { who: BEN, live: { shape: 'line', a: [10, 10], b: [90, 10] }, kept: [], span: 405 },
+      { who: ANA, live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], span: 9 },
     ]);
     // A player who tells no time is sent on without one, as is one whose measurements stand; no time passed for the GM's.
     harness.share.receive(BEN, measure({ live: { shape: 'line', a: [10, 10], b: [95, 10] }, span: 30 }));

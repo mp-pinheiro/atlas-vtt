@@ -79,10 +79,11 @@ describe('the rules players measure by', () => {
     const table = shareHarness(state({ grid: GRID }), new Map([['maps/cave.webp', new Uint8Array([1, 2, 3])]]));
     table.share.start();
     await table.set(state({ grid: GRID }));
-    const scene = table.sent.find(({ body }) => body.t === 'scene')?.body;
+    const scene = table.sent.filter(({ body }) => body.t === 'scene' && body.scene !== null).at(-1)?.body;
     const first = rulesOf(table.sent);
     expect(first).toHaveLength(1);
-    expect(first[0]?.body).toMatchObject({ t: 'rules', scene: scene?.t === 'scene' ? scene.scene?.id : '', snap: true, accent: null });
+    if (scene?.t !== 'scene' || scene.scene === null) throw new Error('no shared scene');
+    expect(first[0]?.body).toMatchObject({ t: 'rules', scene: scene.scene.id, snap: true, accent: null });
     table.share.resend('ben');
     expect(rulesOf(table.sent).at(-1)?.to).toBe('ben');
     await table.set(state({ grid: { ...GRID, size: 100 } }));

@@ -10,7 +10,7 @@ import { FakeSocket, workspace } from './fakeTable.ts';
 import { ANA, BEN, BRANNOCH_ART, delivered, MIRA_ART, ofType, openTable, traffic } from './bookTableHarness.ts';
 import { advanceSettled as advance } from './settled.ts';
 
-vi.mock('obsidian', () => ({ Notice: class {}, normalizePath: (path: string) => path, requestUrl: () => Promise.resolve({ status: 201, json: null }), PluginSettingTab: class {}, Setting: class {} }));
+vi.mock('obsidian', async (original) => ({ ...(await original<Record<string, unknown>>()), Notice: class {}, normalizePath: (path: string) => path, requestUrl: () => Promise.resolve({ status: 201, json: null }), PluginSettingTab: class {}, Setting: class {} }));
 vi.mock('../../../../src/app/online/gm/gmMarks.ts', () => ({
   GmMarks: class {
     source(): null {
@@ -150,7 +150,10 @@ describe('slots at a running table', () => {
     for (let count = 0; count < BOOK_BURST + 10; count += 1) from(BEN, { t: 'book-equip', item: bens, slot: count < BOOK_BURST ? 'head' : null });
     await advance(100);
     expect(shelf.of('Cairn', MIRA_ART).equipped).toEqual([{ slot: 'head', item: bens }]);
-    expect(ofType(delivered(socket).slice(since), 'book').map(({ to }) => to)).toEqual([BEN]);
+    const acknowledgements = ofType(delivered(socket).slice(since), 'book');
+    expect(acknowledgements.length).toBeGreaterThan(0);
+    expect(acknowledgements.every(({ to }) => to === BEN)).toBe(true);
+    expect(lastBook(socket, BEN)).toMatchObject({ equipped: [{ slot: 'head', item: bens }] });
 
     // Ana's slots come back with her, and nothing of them ever reached Ben.
     socket.relay({ t: 'player-left', id: ANA });

@@ -40,13 +40,13 @@ export const AUTHOR_COLOURS = PLAYER_COLOURS;
 export const GM_COLOUR = '--interactive-accent';
 
 /** Which of `AUTHOR_COLOURS` an author has (`'gm'` for the GM): the player's colour everywhere at the table (`playerTone`). */
-export function authorTone(who: string): number | 'gm' {
-  return who === GM_AUTHOR ? 'gm' : playerTone(who);
+export function authorTone(who: string, colour?: number): number | 'gm' {
+  return who === GM_AUTHOR ? 'gm' : playerTone(who, colour);
 }
 
 /** The CSS variable that holds an author's colour. */
-export function authorColour(who: string): string {
-  return playerColourVariable(who);
+export function authorColour(who: string, colour?: number): string {
+  return playerColourVariable(who, colour);
 }
 
 /** The letter on an author's disc: the first character of the name, in upper case. */

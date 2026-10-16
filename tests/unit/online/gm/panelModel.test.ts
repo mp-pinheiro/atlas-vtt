@@ -2,19 +2,20 @@
 import type { WorkspaceLeaf } from 'obsidian';
 import { describe, expect, it } from 'vitest';
 import {
-  badgeOf, closingOf, groupsOf, menuModel, onlineApi, playerColour, seatsNoteOf, selectionBarOf, tooltipOf,
+  badgeOf, groupsOf, menuModel, onlineApi, playerColour, seatsNoteOf, selectionBarOf, tooltipOf,
   type ControlSource, type OnlineSnapshot, type SceneFacts,
 } from '../../../../src/app/online/gm/dock/panelModel.ts';
-import { closingText, type LostTable } from '../../../../src/app/online/gm/tableEnd.ts';
 import { PLAYER_COLOURS } from '../../../../src/app/online/protocol/index.ts';
+import { Ownership } from '../../../../src/app/online/gm/ownership';
+import { TEST_RELAY_ORIGIN } from './relayFixture.ts';
 
 const ANA = { id: 'a'.repeat(20), name: 'Ana', online: true };
 const BEN = { id: 'b'.repeat(20), name: 'Ben', online: false };
 const CLEM = { id: 'c'.repeat(20), name: 'clem', online: true };
 
-const snapshot = (over: Partial<OnlineSnapshot> = {}): OnlineSnapshot => ({ status: 'online', link: 'https://play.atlas-vtt.dev/#code', sharedLeaf: null, sharedName: null, sharedTokens: {}, players: [], playerTokens: [], seats: null, gate: null, ...over });
-
-const CAN_HOST = { kind: 'can-host', account: { id: 'acc_mara', handle: 'mara', name: 'Mara' }, access: { plan: 'beta', maxPlayers: 12, endsAt: null } } as const;
+const snapshot = (over: Partial<OnlineSnapshot> = {}): OnlineSnapshot => ({ status: 'online', link: `${TEST_RELAY_ORIGIN}/#code`, sharedLeaf: null, sharedName: null, sharedTokens: {}, players: [], playerTokens: [], seats: null, gate: null, qr: false, ...over });
+const CAN_HOST = 'ready' as const;
+const SIGNED_OUT = 'unconfigured' as const;
 
 /** A table's gates as the control reads them: a fixed view, and every choice recorded. */
 function fakeGate(): NonNullable<ControlSource['table']>['gate'] & { calls: unknown[][] } {
@@ -30,7 +31,6 @@ function fakeGate(): NonNullable<ControlSource['table']>['gate'] & { calls: unkn
     moved: () => void calls.push(['moved']),
   };
 }
-const SIGNED_OUT = { kind: 'signed-out', notice: null } as const;
 
 const scene = (over: Partial<SceneFacts> = {}): SceneFacts => ({
   isShared: true,
@@ -59,29 +59,20 @@ describe('the badge', () => {
 });
 
 describe('the menu', () => {
-  it('offers Start without a table, with what the account may do', () => {
-    expect(menuModel(snapshot({ status: 'idle' }), scene(), SIGNED_OUT)).toEqual({ kind: 'start', account: SIGNED_OUT, starting: false, lost: null });
-    expect(menuModel(snapshot({ status: 'starting' }), scene(), CAN_HOST)).toEqual({ kind: 'start', account: CAN_HOST, starting: true, lost: null });
+  it('offers Start only after host key access is ready', () => {
+    expect(menuModel(snapshot({ status: 'idle' }), scene(), SIGNED_OUT)).toEqual({ kind: 'start', host: SIGNED_OUT, hostKeyConfigured: false, starting: false, lost: null });
+    expect(menuModel(snapshot({ status: 'starting' }), scene(), CAN_HOST, false, true)).toEqual({ kind: 'start', host: CAN_HOST, hostKeyConfigured: true, starting: true, lost: null });
   });
 
   it('says how the last table ended when the server ended it, until the next one starts', () => {
     for (const lost of ['refused', 'no-access', 'superseded'] as const) {
-      expect(menuModel(snapshot({ status: 'refused', lost }), scene(), CAN_HOST)).toEqual({ kind: 'start', account: CAN_HOST, starting: false, lost });
+      expect(menuModel(snapshot({ status: 'refused', lost }), scene(), CAN_HOST)).toEqual({ kind: 'start', host: CAN_HOST, hostKeyConfigured: false, starting: false, lost });
     }
     // A table that is starting, or one the GM stopped, was lost by nothing.
     expect(menuModel(snapshot({ status: 'starting', lost: 'no-access' }), scene(), CAN_HOST)).toMatchObject({ lost: null });
     expect(menuModel(snapshot({ status: 'stopped' }), scene(), CAN_HOST)).toMatchObject({ lost: null });
   });
 
-  it('says when a running table closes because its account may no longer host, in the menu and by its own line', () => {
-    const closesAt = Date.UTC(2026, 9, 12, 14, 30);
-    expect(closingOf(snapshot())).toBeNull();
-    expect(closingOf(snapshot({ closesAt }))).toBe(closingText(closesAt));
-    expect(menuModel(snapshot({ closesAt }), scene(), CAN_HOST)).toMatchObject({ kind: 'waiting', closing: closingText(closesAt) });
-    // Written out, in the time of whoever reads it.
-    expect(closingText(closesAt, 'en-GB', 'UTC')).toBe('This table closes on 12 October 2026 at 14:30. Your account’s access to online play ended.');
-    expect(closingText(closesAt, 'en-GB', 'Europe/Berlin')).toContain('12 October 2026 at 16:30');
-  });
 
   it('says the table is full once as many players are online as the plan seats', () => {
     expect(seatsNoteOf(snapshot({ seats: 2, players: [ANA] }))).toBeNull();
@@ -92,13 +83,13 @@ describe('the menu', () => {
 
   it('shows the link, the status and the shared map while players are awaited', () => {
     expect(menuModel(snapshot({ status: 'connecting' }), scene({ isShared: false }), CAN_HOST)).toEqual({
-      kind: 'waiting', link: 'https://play.atlas-vtt.dev/#code', status: { text: 'Connecting…', tone: 'amber' }, isShared: false, gate: null, qr: false, imageShown: false, closing: null,
+      kind: 'waiting', link: `${TEST_RELAY_ORIGIN}/#code`, status: { text: 'Connecting…', tone: 'amber' }, isShared: false, gate: null, qr: false, imageShown: false,
     });
     // The gates come along: the GM needs the code before the first player can join.
     // Who waits is not among it: a knock must not draw the menu anew under the GM's pointer.
     const gate = { code: '483912', requireCode: true, askToJoin: true, paused: false, pauseArmed: false };
     const waiting = [{ id: 'm'.repeat(20), name: 'Mira', answered: false, full: false, armed: false }];
-    expect(menuModel(snapshot({ gate: { ...gate, waiting } }), scene(), CAN_HOST)).toEqual({ kind: 'waiting', link: 'https://play.atlas-vtt.dev/#code', status: { text: 'Online, waiting for players', tone: 'green' }, isShared: true, gate, qr: false, imageShown: false, closing: null });
+    expect(menuModel(snapshot({ gate: { ...gate, waiting } }), scene(), CAN_HOST)).toEqual({ kind: 'waiting', link: `${TEST_RELAY_ORIGIN}/#code`, status: { text: 'Online, waiting for players', tone: 'green' }, isShared: true, gate, qr: false, imageShown: false });
     // The QR card's state is part of the menu, whose button says whether it is open.
     expect(menuModel(snapshot(), scene(), CAN_HOST, true)).toMatchObject({ kind: 'waiting', qr: true });
     // An image shown before anyone joined has its line here too.
@@ -179,6 +170,7 @@ describe('the view of OnlineControl', () => {
       state,
       calls,
       table: null,
+      ownership: new Ownership({ players: {}, characters: {}, owners: {}, playerTokens: {} }, () => undefined),
       onChange: () => () => undefined,
       status: () => state.status,
       link: () => state.link,
@@ -223,14 +215,6 @@ describe('the view of OnlineControl', () => {
     }
   });
 
-  it('reads when the running table closes for want of access, and nothing while it does not', () => {
-    const table = { sharedTab: null, sharedStore: null, presentedName: null, gate: fakeGate(), image: NO_IMAGE, closesAt: null as number | null };
-    const api = onlineApi({ ...control(), table }, hideNothing);
-    expect(api.snapshot()).not.toHaveProperty('closesAt');
-    table.closesAt = 1760000000000;
-    expect(api.snapshot().closesAt).toBe(1760000000000);
-    expect(onlineApi(control(), hideNothing).snapshot()).not.toHaveProperty('closesAt');
-  });
 
   it('names each token by who claimed it, and assigning marks the token too', () => {
     const source = control();
@@ -247,7 +231,7 @@ describe('the view of OnlineControl', () => {
   it('names the scene players see and its tokens from the table\'s shared store, and none while nothing is shared', () => {
     const tokens = { ogre: { imagePath: 'art/ogre.webp' } };
     const shared = { getState: () => ({ objects: { tokens } }) };
-    const table = { sharedTab: null, sharedStore: shared as typeof shared | null, presentedName: 'Kings Inn' as string | null, gate: fakeGate(), image: NO_IMAGE, closesAt: null };
+    const table = { sharedTab: null, sharedStore: shared as typeof shared | null, presentedName: 'Kings Inn' as string | null, gate: fakeGate(), image: NO_IMAGE };
     const source = { ...control(), table };
     const api = onlineApi(source, hideNothing);
     expect(api.snapshot()).toMatchObject({ sharedLeaf: null, sharedName: 'Kings Inn', sharedTokens: tokens });
@@ -257,7 +241,7 @@ describe('the view of OnlineControl', () => {
 
   it('reads the running table\'s gates and passes the GM\'s choices on; without a table there are none and nothing happens', () => {
     const gate = fakeGate();
-    const api = onlineApi({ ...control(), table: { sharedTab: null, sharedStore: null, presentedName: null, gate, image: NO_IMAGE, closesAt: null } }, hideNothing);
+    const api = onlineApi({ ...control(), table: { sharedTab: null, sharedStore: null, presentedName: null, gate, image: NO_IMAGE } }, hideNothing);
     expect(api.snapshot().gate).toEqual(gate.view());
     api.gate.newCode();
     api.gate.setRequireCode(false);
@@ -274,7 +258,7 @@ describe('the view of OnlineControl', () => {
   it('says that players are shown an image only while they are, and hides it by the way it is given', () => {
     const image = { isShown: false };
     let hidden = 0;
-    const api = onlineApi({ ...control(), table: { sharedTab: null, sharedStore: null, presentedName: null, gate: fakeGate(), image, closesAt: null } }, () => void (hidden += 1));
+    const api = onlineApi({ ...control(), table: { sharedTab: null, sharedStore: null, presentedName: null, gate: fakeGate(), image } }, () => void (hidden += 1));
     expect(api.snapshot()).not.toHaveProperty('imageShown');
     image.isShown = true;
     expect(api.snapshot().imageShown).toBe(true);

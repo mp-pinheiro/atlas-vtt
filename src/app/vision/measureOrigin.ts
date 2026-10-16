@@ -21,6 +21,7 @@ export interface MeasureOrigin {
 
 /** The origin of a measurement that starts on no token. */
 export const NO_MEASURE_ORIGIN: MeasureOrigin = Object.freeze({ tokenIds: Object.freeze([]), unseenAtStart: false });
+export const UNSEEN_MEASURE_ORIGIN: MeasureOrigin = Object.freeze({ tokenIds: Object.freeze([]), unseenAtStart: true });
 
 /**
  * The circles every token covers, hidden ones included: as wide as its sprite, or its ring where that

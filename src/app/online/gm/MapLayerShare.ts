@@ -9,7 +9,7 @@ import type { MapLayerSource } from './atlasMapLayers.ts';
 import type { SceneState, SceneStore } from './atlasView.ts';
 import { sharedInitiative } from './initiativeInputs.ts';
 import { sharedAnnotations, sharedDoors, sharedGrid } from './mapLayerInputs.ts';
-import { ReadablePins, type ListedPin } from './pins/ReadablePins.ts';
+import { ReadablePins, type ListedPin, type ReadablePin } from './pins/ReadablePins.ts';
 import type { VaultImage } from './TokenShare.ts';
 import { WidgetShare } from './WidgetShare.ts';
 
@@ -65,6 +65,7 @@ export class MapLayerShare {
   private annotationsSent: SharedAnnotations | null = null;
   /** Vault paths of the portraits the last initiative list shows, by hash. */
   private shownArt = new Map<string, string>();
+  private readonly doorAliases = new Map<string, string>();
 
   constructor(store: SceneStore, ports: MapLayerSharePorts) {
     this.store = store;
@@ -80,6 +81,7 @@ export class MapLayerShare {
     if (scene?.id === this.scene?.id) return;
     this.scene = scene;
     this.last.clear();
+    this.doorAliases.clear();
     this.annotations = null;
     this.annotationsSent = null;
     this.shownArt = new Map();
@@ -112,6 +114,26 @@ export class MapLayerShare {
     this.setScene(null);
   }
 
+  doorAlias(id: string): string {
+    const existing = this.doorAliases.get(id);
+    if (existing !== undefined) return existing;
+    const alias = this.ports.randomId();
+    this.doorAliases.set(id, alias);
+    return alias;
+  }
+
+  doorId(alias: string): string | undefined {
+    for (const [id, value] of this.doorAliases) if (value === alias && this.doorVisible(id)) return id;
+    return undefined;
+  }
+
+  doorVisible(id: string): boolean {
+    const state = this.store.getState();
+    if (this.scene?.lit !== true || !state.mapLoaded || state.isMapLoading) return false;
+    const fog = this.fog.get(state.objects.fog, state.mapPath);
+    return this.ports.mapLayers()?.doorsSeen(state.objects.walls, fog)?.has(id) === true;
+  }
+
   private flush(): void {
     const scene = this.scene;
     const state: LayerState = this.store.getState();
@@ -141,7 +163,7 @@ export class MapLayerShare {
     if (pins !== null) this.publish({ t: 'pins', scene: scene.id, pins: this.pins.shared(pins, (pinId) => this.ports.foundPin?.(state.mapPath ?? '', pinId) ?? null) });
     if (!scene.lit) return;
     const seen = source.doorsSeen(state.objects.walls, fog);
-    if (seen !== null) this.publish({ t: 'doors', scene: scene.id, doors: sharedDoors(state.objects.walls, seen) });
+    if (seen !== null) this.publish({ t: 'doors', scene: scene.id, doors: sharedDoors(state.objects.walls, seen, id => this.doorAlias(id)) });
     const sensed = source.sensed(state.objects.tokens);
     if (sensed !== null) this.publish({ t: 'sensed', scene: scene.id, tokens: sensed });
   }
@@ -150,7 +172,7 @@ export class MapLayerShare {
    * The readable pin players know as `alias` in the scene `sceneId`, while they see it now; null for
    * any other, and while the scene is not shared, loads or its layers cannot be read.
    */
-  readablePin(sceneId: string, alias: string): (ListedPin & { readonly map: string }) | null {
+  readablePin(sceneId: string, alias: string): ReadablePin | null {
     const state: LayerState = this.store.getState();
     const source = this.ports.mapLayers();
     const map = state.mapPath;

@@ -101,6 +101,12 @@ describe('the live lane of a drag', () => {
       const ids = ['a', 'b', 'c', 'd', 'e'];
       let tokens = ids.map((id, index) => token(id, { x: 100 + index * 100, y: 100 }));
       const table = await started(tokens);
+      const initial = tokenLists(table.sent).at(-1)?.tokens ?? [];
+      expect(initial).toHaveLength(ids.length);
+      const listedByToken = new Map(initial.flatMap((entry) => {
+        const candidate = tokens.find(({ x }) => x === entry.x);
+        return candidate === undefined ? [] : [[candidate.id, entry.id] as const];
+      }));
       let unseen = new Set<string>();
       const lastPlace = new Map<string, { x: number; y: number }>();
       table.perception = (id) => (unseen.has(id) ? 'unseen' : 'seen');
@@ -111,9 +117,6 @@ describe('the live lane of a drag', () => {
         const before = table.sent.length;
         await table.set(scene(tokens, held));
         await table.advance(5 + random() * 40);
-        // Every place sent now is of a token in the players' last list that their picture shows, where the GM has it;
-        // an end repeats the last place sent of that token.
-        const listed = (table.share as unknown as { tokens: { listedToken(alias: string): string | undefined } }).tokens;
         const inList = new Set(tokenLists(table.sent).at(-1)?.tokens.map((entry: SharedToken) => entry.id));
         for (const message of table.sent.slice(before).flatMap(({ body }) => (body.t === 'live' ? [body] : []))) {
           for (const place of message.tokens) {
@@ -123,7 +126,9 @@ describe('the live lane of a drag', () => {
               lastPlace.delete(place.id);
               continue;
             }
-            const gm = tokens.find((entry) => entry.id === listed.listedToken(place.id));
+            const gmId = [...listedByToken].find(([, alias]) => alias === place.id)?.[0];
+            const gm = tokens.find((entry) => entry.id === gmId);
+            expect(gmId, at).toBeDefined();
             expect(inList.has(place.id), at).toBe(true);
             expect(gm === undefined || gm.isHidden === true || unseen.has(gm.id), at).toBe(false);
             expect([Math.round((gm?.x ?? 0) * 100) / 100, gm?.y], at).toEqual([place.x, place.y]);

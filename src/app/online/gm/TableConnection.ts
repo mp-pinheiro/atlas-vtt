@@ -5,8 +5,9 @@ import { randomHex } from '../../utils/randomHex';
 import { messageParts } from './assetServe.ts';
 import { companionTimers, type Timers } from './companionTimers.ts';
 import type { GateFrame } from './joinGate.ts';
-import { SendQueue } from './sendQueue.ts';
+import { SendQueue, type DeliveryValidity, type QueueFrame } from './sendQueue.ts';
 import { Deadline, OPEN_TIMEOUT_MS, Pulse, WELCOME_TIMEOUT_MS } from './socketWatch.ts';
+import { utf8Length } from '../protocol/shape.ts';
 
 export type TableStatus = 'connecting' | 'online' | 'stopped' | 'refused';
 
@@ -17,8 +18,6 @@ export interface TableEvents {
   joined(player: PlayerInfo): void;
   left(player: string): void;
   message(from: string, body: unknown): void;
-  /** The table closes at `closesAt` (the relay's clock) because its account may no longer host; null: it does not, said by the relay or by a welcome. */
-  access(closesAt: number | null): void;
 }
 
 /** The table's gates as the connection needs them: what the relay is told, and what it says back. */
@@ -138,22 +137,25 @@ export class TableConnection {
   }
 
   /** Sends a game message to one player, or to all. */
-  send(body: GmMessage, to: string = ALL_PLAYERS): void {
-    if (this.isGone(to)) return;
-    for (const part of messageParts(body, partId)) {
-      const entry = JSON.stringify({ to, body: part });
-      this.queue.push(sendFrame(entry), to, entry);
-    }
+  send(body: GmMessage, to: string = ALL_PLAYERS, validity?: DeliveryValidity): void {
+    if (this.isGone(to) || validity?.valid() === false) return;
+    const serialized = JSON.stringify(body);
+    const recipient = JSON.stringify(to);
+    const frames: QueueFrame[] = messageParts(body, partId, serialized).map(part => {
+      const entry = `{"to":${recipient},"body":${part === body ? serialized : JSON.stringify(part)}}`;
+      return { text: sendFrame(entry), to, entry, entryBytes: utf8Length(entry) };
+    });
+    this.queue.pushPacket(frames, validity, body.t === 'picture' ? { recipient: to, scene: body.scene, revision: body.revision } : undefined);
   }
 
   /**
    * Sends a live message (where dragged tokens are now) to one player or to all: it goes before every
    * other waiting frame, and a newer one of the same `key` replaces it while it waits.
    */
-  sendLive(body: GmMessage, key: string, to: string = ALL_PLAYERS): void {
-    if (this.isGone(to)) return;
+  sendLive(body: GmMessage, key: string, to: string = ALL_PLAYERS, validity?: DeliveryValidity): void {
+    if (this.isGone(to) || validity?.valid() === false) return;
     const entry = JSON.stringify({ to, body });
-    this.queue.pushLive(`${to}\n${key}`, sendFrame(entry), to, entry);
+    this.queue.pushLive(`${to}\n${key}`, sendFrame(entry), to, entry, validity);
   }
 
   /** Whether a message to `to` would reach nobody: no player is connected, or not that one. */
@@ -229,14 +231,11 @@ export class TableConnection {
       if (this.gate !== null) socket.send(JSON.stringify({ v: PROTOCOL_VERSION, t: 'gate', ...this.gate.frame() }));
       this.queue.attach(this.pulse.start(socket), frame.batch === true);
       this.setStatus('online');
-      // A table that still closes for want of access says so again after its welcome.
-      this.events.access(null);
       this.gate?.welcomed(frame.waiting ?? []);
       this.events.welcome(frame.players);
     } else if (frame.t === 'knock') this.gate?.knocked({ id: frame.id, name: frame.name });
     else if (frame.t === 'knock-gone') this.gate?.gone(frame.id, frame.full === true);
     else if (frame.t === 'gate-paused') this.gate?.paused(frame.until);
-    else if (frame.t === 'access') this.events.access(frame.closesAt);
     else if (frame.t === 'player-joined') {
       this.players.add(frame.id);
       this.events.joined({ id: frame.id, name: frame.name });

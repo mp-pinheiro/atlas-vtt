@@ -1,4 +1,4 @@
-import type { Http } from './account/http.ts';
+import type { Http } from './host/http.ts';
 import { readCreated, type CreatedTable } from './createdTable.ts';
 
 /** Why no table was made: the relay's status (0: not reached) and a sentence for the GM. */

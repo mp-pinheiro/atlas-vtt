@@ -1,10 +1,22 @@
 import { playerTone } from '../../protocol/index.ts';
 import type { WorkspaceLeaf } from 'obsidian';
-import type { AccountView } from '../account/accountView.ts';
+import type { HostState } from '../host/HostControl.ts';
 import type { GateActions, GateView } from '../joinGate.ts';
 import { gateRowsOf, type GateRows } from './gateRows.ts';
 import type { OnlineControl } from '../OnlineControl.ts';
-import { closingText, type LostTable } from '../tableEnd.ts';
+import type { LostTable } from '../tableEnd.ts';
+import type { Ownership } from '../ownership';
+import type { PendingPaths } from '../PendingPaths';
+import type { ClaimRequests } from '../claims';
+import type { SceneStore } from '../atlasView';
+import { sceneStoreOf } from '../atlasView';
+
+export interface DockAgency {
+  readonly ownership: Ownership;
+  readonly paths: PendingPaths | null;
+  readonly claims: ClaimRequests | null;
+  readonly store: SceneStore | null;
+}
 
 /**
  * What the control on the map reads of online play, and what it shows from that. The control reads
@@ -18,6 +30,7 @@ export interface OnlinePlayer {
   readonly id: string;
   readonly name: string;
   readonly online: boolean;
+  readonly colour?: number;
 }
 
 export interface PlayerTokenClaim {
@@ -48,8 +61,6 @@ export interface OnlineSnapshot {
   readonly imageShown?: boolean;
   /** How the last table ended, when the server ended it; absent once another was started. */
   readonly lost?: LostTable;
-  /** When the relay closes the running table because its account may no longer host; absent while it does not. */
-  readonly closesAt?: number;
 }
 
 export interface OnlineApi {
@@ -68,17 +79,19 @@ export interface OnlineApi {
   /** The running table's gates; nothing happens while none runs. */
   readonly gate: GateActions;
   onChange(listener: () => void): () => void;
+  agency?(): DockAgency;
 }
 
 /** The part of `OnlineControl` the control uses. */
-export type ControlSource = Pick<OnlineControl, 'onChange' | 'status' | 'link' | 'seats' | 'isStarting' | 'lost' | 'start' | 'stop' | 'share' | 'players' | 'kick' | 'playerTokens' | 'markPlayerTokens' | 'give'> & {
+export type ControlSource = Pick<OnlineControl, 'ownership' | 'onChange' | 'status' | 'link' | 'seats' | 'isStarting' | 'lost' | 'start' | 'stop' | 'share' | 'players' | 'kick' | 'playerTokens' | 'markPlayerTokens' | 'give'> & {
   readonly table: {
     readonly sharedTab: WorkspaceLeaf | null;
     readonly sharedStore: { getState(): { readonly objects: { readonly tokens: Readonly<Record<string, SceneToken>> } } } | null;
     readonly presentedName: string | null;
     readonly gate: GateActions & { view(): GateView };
     readonly image: { readonly isShown: boolean };
-    readonly closesAt: number | null;
+    readonly pendingPaths?: PendingPaths | null;
+    readonly claimRequests?: ClaimRequests | null;
   } | null;
 };
 
@@ -122,6 +135,7 @@ export function onlineApi(control: ControlSource, hideImage: () => void): Online
     release: (ids) => control.give(ids, null),
     kick: (playerId) => control.kick(playerId),
     hideImage,
+    agency: () => ({ ownership: control.ownership, paths: control.table?.pendingPaths ?? null, claims: control.table?.claimRequests ?? null, store: control.table?.sharedTab ? sceneStoreOf(control.table.sharedTab) : null }),
     gate: {
       newCode: () => control.table?.gate.newCode(),
       setRequireCode: (on) => control.table?.gate.setRequireCode(on),
@@ -134,11 +148,9 @@ export function onlineApi(control: ControlSource, hideImage: () => void): Online
   };
 }
 
-/** How the last table ended and when the running one closes, as the snapshot carries them: only what there is. */
-function lostOf(control: ControlSource): Pick<OnlineSnapshot, 'lost' | 'closesAt'> {
+function lostOf(control: ControlSource): Pick<OnlineSnapshot, 'lost'> {
   const lost = control.lost();
-  const closesAt = control.table?.closesAt ?? null;
-  return { ...(lost !== null && { lost }), ...(closesAt !== null && { closesAt }) };
+  return lost === null ? {} : { lost };
 }
 
 /** Whether a table runs or is being created. */
@@ -170,8 +182,6 @@ export function seatsNoteOf(snapshot: OnlineSnapshot): string | null {
 
 const playersText = (count: number): string => (count === 1 ? '1 player' : `${count} players`);
 
-/** The line of a table that closes because its account may no longer host; null while it does not. */
-export const closingOf = (snapshot: OnlineSnapshot): string | null => (snapshot.closesAt === undefined ? null : closingText(snapshot.closesAt));
 
 /** The button's tooltip. */
 export function tooltipOf(snapshot: OnlineSnapshot): string {
@@ -213,13 +223,11 @@ export interface SceneFacts {
 }
 
 export type MenuModel =
-  | { readonly kind: 'start'; readonly account: AccountView; readonly starting: boolean; readonly lost: LostTable | null }
-  | { readonly kind: 'waiting'; readonly link: string | null; readonly status: { readonly text: string; readonly tone: Tone }; readonly isShared: boolean; readonly gate: GateRows | null; readonly qr: boolean; readonly imageShown: boolean; readonly closing: string | null };
-
-/** The connection menu: sign in and start a table (after one the server ended: how it ended), or the running table's link while players are awaited (`qr`: its QR card is open). */
-export function menuModel(snapshot: OnlineSnapshot, scene: SceneFacts, account: AccountView, qr = false): MenuModel {
-  if (!isRunning(snapshot.status) || snapshot.status === 'starting') return { kind: 'start', account, starting: snapshot.status === 'starting', lost: snapshot.status === 'refused' ? snapshot.lost ?? 'refused' : null };
-  return { kind: 'waiting', link: snapshot.link, status: statusOf(snapshot), isShared: scene.isShared, gate: gateRowsOf(snapshot.gate), qr, imageShown: snapshot.imageShown === true, closing: closingOf(snapshot) };
+  | { readonly kind: 'start'; readonly host: HostState; readonly hostKeyConfigured: boolean; readonly starting: boolean; readonly lost: LostTable | null }
+  | { readonly kind: 'waiting'; readonly link: string | null; readonly status: { readonly text: string; readonly tone: Tone }; readonly isShared: boolean; readonly gate: GateRows | null; readonly qr: boolean; readonly imageShown: boolean };
+export function menuModel(snapshot: OnlineSnapshot, scene: SceneFacts, host: HostState, qr = false, hostKeyConfigured = false): MenuModel {
+  if (!isRunning(snapshot.status) || snapshot.status === 'starting') return { kind: 'start', host, hostKeyConfigured, starting: snapshot.status === 'starting', lost: snapshot.status === 'refused' ? snapshot.lost ?? 'refused' : null };
+  return { kind: 'waiting', link: snapshot.link, status: statusOf(snapshot), isShared: scene.isShared, gate: gateRowsOf(snapshot.gate), qr, imageShown: snapshot.imageShown === true };
 }
 
 export interface GroupPlayer extends OnlinePlayer {
@@ -248,11 +256,11 @@ export interface PlayerGroup {
 }
 
 /** The player's colour in the panel: the one everyone at the table sees them in (`playerTone`). */
-export function playerColour(id: string): number {
-  return playerTone(id);
+export function playerColour(id: string, colour?: number): number {
+  return playerTone(id, colour);
 }
 
-const groupPlayer = (player: OnlinePlayer): GroupPlayer => ({ ...player, initial: (player.name.trim()[0] ?? '?').toUpperCase(), colour: playerColour(player.id) });
+const groupPlayer = (player: OnlinePlayer): GroupPlayer => ({ ...player, initial: (player.name.trim()[0] ?? '?').toUpperCase(), colour: playerTone(player.id, player.colour) });
 
 const byName = (a: OnlinePlayer, b: OnlinePlayer): number => a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
 

@@ -10,7 +10,7 @@ import { ANA, BEN, BRANNOCH_ART, CAL, delivered, MIRA_ART, nameWorldMap, nameWor
 import { NO_STRETCH } from '../../../../src/app/grid/mapStretch';
 import { advanceSettled as advance } from './settled.ts';
 
-vi.mock('obsidian', () => ({ Notice: class {}, normalizePath: (path: string) => path, requestUrl: () => Promise.resolve({ status: 201, json: null }), PluginSettingTab: class {}, Setting: class {} }));
+vi.mock('obsidian', async (original) => ({ ...(await original<Record<string, unknown>>()), Notice: class {}, normalizePath: (path: string) => path, requestUrl: () => Promise.resolve({ status: 201, json: null }), PluginSettingTab: class {}, Setting: class {} }));
 vi.mock('../../../../src/app/online/gm/gmMarks.ts', () => ({
   GmMarks: class {
     source(): null {

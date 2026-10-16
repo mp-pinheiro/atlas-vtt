@@ -15,17 +15,24 @@ describe('the shared scene', () => {
     const table = harness();
     table.share.start();
     await table.set(state());
-    expect(scenes(table.sent)).toEqual([{ id: '000000000000000000000001', map: { hash: await sha256Hex(MAP), size: MAP.length, mime: 'image/webp' }, lit: false }]);
-    expect(table.sent[0]?.to).toBeUndefined();
+    const sent = table.sent.filter(({ body }) => body.t === 'scene' && body.scene !== null).at(-1);
+    expect(sent?.body).toMatchObject({ t: 'scene', scene: { map: { hash: await sha256Hex(MAP), size: MAP.length, mime: 'image/webp' }, lit: false } });
+    expect(sent?.to).toBeUndefined();
   });
 
-  it('is held while a scene loads and goes out once it has loaded', async () => {
+  it('withdraws a shared scene while loading and republishes it after it has loaded', async () => {
     const table = harness(state({ isMapLoading: true, mapLoaded: false }));
     table.share.start();
     await table.set(state({ isMapLoading: true, mapLoaded: false, background: 'maps/other.webp' }));
     expect(table.sent).toEqual([]);
     await table.set(state());
-    expect(scenes(table.sent)).toHaveLength(1);
+    const active = scenes(table.sent).filter((scene) => scene !== null).at(-1);
+    expect(active).toMatchObject({ map: { hash: await sha256Hex(MAP) } });
+    table.sent.length = 0;
+    await table.set(state({ isMapLoading: true, mapLoaded: false }));
+    expect(scenes(table.sent).at(-1)).toBeNull();
+    await table.set(state());
+    expect(scenes(table.sent).filter((scene) => scene !== null).at(-1)).toMatchObject({ map: { hash: await sha256Hex(MAP) } });
   });
 
   it('is lit while its lighting and Atlas\'s dynamic lighting are on, and withdrawn with a notice while the GM\'s lighting cannot be read', async () => {
@@ -33,15 +40,17 @@ describe('the shared scene', () => {
     table.share.start();
     const lit = state({ lighting: { enabled: true, ambient: 0 } });
     await table.set(lit);
+    expect(scenes(table.sent).at(-1)).toMatchObject({ lit: true });
     table.settings = { dynamicLighting: false, showNames: true, showDiceRolls: false, showInitiative: true, showWidgets: true, showCursors: false };
     await table.set(state({ lighting: { enabled: true, ambient: 0.5 } }));
+    expect(scenes(table.sent).at(-1)).toMatchObject({ lit: false });
     table.settings = { dynamicLighting: null, showNames: true, showDiceRolls: false, showInitiative: true, showWidgets: true, showCursors: false };
     table.lighting = null;
     await table.set(lit);
+    expect(scenes(table.sent).at(-1)).toBeNull();
     table.lighting = GENERIC_SOURCE;
     await table.set(state({ lighting: { enabled: true, ambient: 0.2 } }));
-    const sent = scenes(table.sent) as ({ lit: boolean } | null)[];
-    expect(sent.map((scene) => scene?.lit ?? null)).toEqual([true, false, null, true]);
+    expect(scenes(table.sent).at(-1)).toMatchObject({ lit: true });
     expect(table.notices).toEqual([LIGHTING_REFUSAL]);
   });
 
@@ -49,8 +58,9 @@ describe('the shared scene', () => {
     const table = harness();
     table.share.start();
     await table.set(state());
+    const first = table.sent.filter(({ body }) => body.t === 'scene' && body.scene !== null).at(-1);
     table.share.resend('alice');
-    const [first, again] = table.sent.filter(({ body }) => body.t === 'scene');
+    const again = table.sent.filter(({ body, to }) => body.t === 'scene' && body.scene !== null && to === 'alice').at(-1);
     expect(again?.to).toBe('alice');
     expect(again?.body).toEqual(first?.body);
   });
@@ -59,23 +69,58 @@ describe('the shared scene', () => {
     const table = shareHarness(state(), new Map([['maps/cave.webp', MAP], ['maps/other.webp', MAP.slice(1)]]));
     table.share.start();
     await table.set(state());
-    const [first] = scenes(table.sent) as { id: string }[];
-    table.share.receive('a'.repeat(20), { t: 'measure', scene: first?.id, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [] });
+    const first = table.sent.find(({ body }) => body.t === 'scene' && body.scene !== null)?.body;
+    if (first?.t !== 'scene' || first.scene === null) throw new Error('no shared scene');
+    const firstScene = first.scene;
+    table.share.receive('a'.repeat(20), { t: 'measure', scene: firstScene.id, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [] });
     await table.advance(MARKS_INTERVAL_MS);
-    expect(table.sent.some(({ body }) => body.t === 'marks' && body.scene === first?.id)).toBe(true);
+    expect(table.sent.some(({ body }) => body.t === 'marks' && body.scene === firstScene.id)).toBe(true);
     await table.set(state({ background: 'maps/other.webp' }));
-    const switched = table.sent.findIndex(({ body }) => body.t === 'scene' && body.scene?.id !== first?.id);
+    const switched = table.sent.findIndex(({ body }) => body.t === 'scene' && body.scene !== null && body.scene.id !== firstScene.id);
     expect(switched).toBeGreaterThan(0);
-    expect(table.sent.slice(switched).filter(({ body }) => body.t === 'marks' && body.scene === first?.id)).toEqual([]);
+    expect(table.sent.slice(switched).filter(({ body }) => body.t === 'marks' && body.scene === firstScene.id)).toEqual([]);
   });
 
   it('withdraws an image players cannot be sent, such as an SVG', async () => {
-    const table = harness(state({ background: 'maps/cave.svg' }));
+    const table = harness();
     table.share.start();
+    await table.set(state());
     await table.set(state({ background: 'maps/cave.svg' }));
-    expect(scenes(table.sent)).toEqual([null]);
+    expect(scenes(table.sent).at(-1)).toBeNull();
     expect(imageMimeType('maps/cave.svg')).toBeNull();
     expect(imageMimeType('maps/Cave.JPG')).toBe('image/jpeg');
+  });
+
+  it('does not publish or restart polling when a map read finishes after the share stops', async () => {
+    const read = Promise.withResolvers<{ bytes: Uint8Array<ArrayBuffer>; mime: 'image/webp' }>();
+    const table = shareHarness(state(), new Map(), undefined, undefined, { readImage: () => read.promise });
+    table.share.start();
+    table.sent.length = 0;
+    table.share.stop();
+    read.resolve({ bytes: MAP, mime: 'image/webp' });
+    await table.settle();
+    await table.advance(1_000);
+    expect(table.sent).toEqual([]);
+  });
+
+  it('keeps the newest map when a delayed read returns to the same map identity', async () => {
+    const first = Promise.withResolvers<{ bytes: Uint8Array<ArrayBuffer>; mime: 'image/webp' }>();
+    const latest = MAP.slice(2);
+    let caveReads = 0;
+    const table = shareHarness(state(), new Map(), undefined, undefined, {
+      readImage: (path) => path === 'maps/cave.webp' && caveReads++ === 0
+        ? first.promise
+        : Promise.resolve({ bytes: path === 'maps/cave.webp' ? latest : MAP.slice(1), mime: 'image/webp' }),
+    });
+    table.share.start();
+    await table.set(state({ background: 'maps/other.webp' }));
+    await table.set(state());
+    const current = scenes(table.sent).at(-1);
+    expect(current).toMatchObject({ map: { hash: await sha256Hex(latest) } });
+    first.resolve({ bytes: MAP, mime: 'image/webp' });
+    await table.settle();
+    expect(scenes(table.sent).at(-1)).toEqual(current);
+    table.share.stop();
   });
 });
 

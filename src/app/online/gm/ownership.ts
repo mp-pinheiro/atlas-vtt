@@ -1,11 +1,11 @@
-import { PLAYER_ID_PATTERN, playerName, type Claim, type PlayerInfo } from '../protocol/index.ts';
+import { PLAYER_ID_PATTERN, playerName, type Claim, type PlayerInfo, type ScenePermissions } from '../protocol/index.ts';
 import { sideOf } from '../../initiative/sides';
 import type { TokenEntity } from '../../types';
 
 /** Who plays at the table, which tokens are theirs, and which tokens are player tokens, as saved in the companion's data. */
 export interface OwnershipData {
   /** Every player who joined the table, by id. */
-  readonly players: Readonly<Record<string, { readonly name: string }>>;
+  readonly players: Readonly<Record<string, { readonly name: string; readonly colour?: number }>>;
   /** The owner of each character, by the id of the library token its tokens were placed from (`TokenEntity.assetId`). */
   readonly characters: Readonly<Record<string, string>>;
   /** The owner of each token placed from no library token, by token id. */
@@ -15,6 +15,8 @@ export interface OwnershipData {
    * every other token is a player token when it is on the players' side (`sideOf`: it sees).
    */
   readonly playerTokens: Readonly<Record<string, Readonly<Record<string, boolean>>>>;
+  readonly permissions?: Readonly<Record<string, Partial<ScenePermissions>>>;
+  readonly memoryIds?: Readonly<Record<string, string>>;
 }
 
 /** A player token of a scene, or a token a player was given, with its owner if it has one. */
@@ -29,6 +31,7 @@ export type OwnedToken = Pick<TokenEntity, 'assetId'>;
 /** A player in the GM's list. */
 export interface KnownPlayer extends PlayerInfo {
   readonly online: boolean;
+  readonly colour?: number;
 }
 
 const MAX_TOKEN_ID = 200;
@@ -39,10 +42,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 /** Ownership read from saved data: players with a valid id and name, and owners that are among them. */
 export function readOwnership(data: unknown): OwnershipData {
   const record = isRecord(data) ? data : {};
-  const players: Record<string, { name: string }> = {};
+  const players: Record<string, { name: string; colour?: number }> = {};
   for (const [id, entry] of Object.entries(isRecord(record.players) ? record.players : {})) {
     const name = isRecord(entry) ? playerName(entry.name) : null;
-    if (PLAYER_ID_PATTERN.test(id) && name !== null) players[id] = { name };
+    if (PLAYER_ID_PATTERN.test(id) && name !== null) players[id] = { name, ...(isRecord(entry) && validColour(entry.colour) ? { colour: entry.colour } : {}) };
   }
   const playerTokens: Record<string, Record<string, boolean>> = {};
   for (const [mapPath, marks] of Object.entries(isRecord(record.playerTokens) ? record.playerTokens : {})) {
@@ -50,7 +53,18 @@ export function readOwnership(data: unknown): OwnershipData {
     const kept = Object.entries(marks).filter((entry): entry is [string, boolean] => entry[0].length <= MAX_TOKEN_ID && typeof entry[1] === 'boolean');
     if (kept.length > 0) playerTokens[mapPath] = Object.fromEntries(kept);
   }
-  return { players, characters: ownersIn(record.characters, players), owners: ownersIn(record.owners, players), playerTokens };
+  const permissions: Record<string, Partial<ScenePermissions>> = {};
+  const memoryIds: Record<string, string> = {};
+  for (const [path, value] of Object.entries(isRecord(record.permissions) ? record.permissions : {})) {
+    if (path.length <= MAX_MAP_PATH && isRecord(value)) {
+      const kept = Object.fromEntries(permissionKeys.filter((key) => value[key] === true).map((key) => [key, true]));
+      if (Object.keys(kept).length > 0) permissions[path] = kept;
+    }
+  }
+  for (const [path, value] of Object.entries(isRecord(record.memoryIds) ? record.memoryIds : {})) {
+    if (path.length <= MAX_MAP_PATH && typeof value === 'string' && /^[0-9a-f]{24}$/.test(value)) memoryIds[path] = value;
+  }
+  return { players, characters: ownersIn(record.characters, players), owners: ownersIn(record.owners, players), playerTokens, ...(Object.keys(permissions).length > 0 && { permissions }), ...(Object.keys(memoryIds).length > 0 && { memoryIds }) };
 }
 
 /** Saved owners by key (a library token or token id) whose owner is one of `players`. */
@@ -62,6 +76,8 @@ function ownersIn(field: unknown, players: Readonly<Record<string, unknown>>): R
   return owners;
 }
 
+const permissionKeys = ['approval', 'perPlayerVision', 'playerConditions', 'playerDoors'] as const;
+const validColour = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 7;
 /** Whether a token is a player token by default: it is on the players' side, as Atlas's initiative and lighting take it (`sideOf`). */
 export const isPlayerSide = (token: TokenEntity): boolean => sideOf(token) === 'players';
 
@@ -82,23 +98,36 @@ export class Ownership {
   /** The GM's marks by map path, then token id: true for a player token, false for the GM's own. */
   private readonly marks = new Map<string, Map<string, boolean>>();
   private readonly online = new Set<string>();
+  private readonly colours = new Map<string, number>();
+  private readonly permissions = new Map<string, Partial<ScenePermissions>>();
+  private readonly memoryIds = new Map<string, string>();
   private readonly listeners = new Set<() => void>();
   private readonly save: (data: OwnershipData) => void;
 
   constructor(data: OwnershipData, save: (data: OwnershipData) => void) {
     this.save = save;
-    for (const [id, { name }] of Object.entries(data.players)) this.players.set(id, name);
+    for (const [id, { name, colour }] of Object.entries(data.players)) {
+      this.players.set(id, name);
+      if (validColour(colour)) this.colours.set(id, colour);
+    }
     for (const [assetId, owner] of Object.entries(data.characters)) this.characters.set(assetId, owner);
     for (const [tokenId, owner] of Object.entries(data.owners)) this.owners.set(tokenId, owner);
     for (const [mapPath, marks] of Object.entries(data.playerTokens)) this.marks.set(mapPath, new Map(Object.entries(marks)));
+    for (const [path, permissions] of Object.entries(data.permissions ?? {})) this.permissions.set(path, permissions);
+    for (const [path, id] of Object.entries(data.memoryIds ?? {})) this.memoryIds.set(path, id);
   }
 
   toData(): OwnershipData {
     return {
-      players: Object.fromEntries([...this.players].map(([id, name]) => [id, { name }])),
+      players: Object.fromEntries([...this.players].map(([id, name]) => {
+        const colour = this.colours.get(id);
+        return [id, { name, ...(colour !== undefined && { colour }) }];
+      })),
       characters: Object.fromEntries(this.characters),
       owners: Object.fromEntries(this.owners),
       playerTokens: Object.fromEntries([...this.marks].map(([mapPath, marks]) => [mapPath, Object.fromEntries(marks)])),
+      ...(this.permissions.size > 0 && { permissions: Object.fromEntries(this.permissions) }),
+      ...(this.memoryIds.size > 0 && { memoryIds: Object.fromEntries(this.memoryIds) }),
     };
   }
 
@@ -111,6 +140,7 @@ export class Ownership {
   /** A new table: its players are new, so nobody is known and nothing is owned; player tokens stay. */
   reset(): void {
     this.players.clear();
+    this.colours.clear();
     this.characters.clear();
     this.owners.clear();
     this.online.clear();
@@ -142,6 +172,7 @@ export class Ownership {
   remove(id: string): void {
     this.online.delete(id);
     this.players.delete(id);
+    this.colours.delete(id);
     for (const owners of [this.characters, this.owners]) for (const [key, owner] of owners) if (owner === id) owners.delete(key);
     this.changed(true);
   }
@@ -180,12 +211,9 @@ export class Ownership {
     this.changed(true);
   }
 
-  /**
-   * What players may know of a token: `taken` for a player token or one a player was given, null for
-   * the GM's own. Never `open`: older pages offered such a token to claim, and only the GM gives tokens.
-   */
   claimOf(mapPath: string, tokenId: string, token: TokenEntity): Claim {
-    return this.ownerOf(tokenId, token) !== undefined || this.isPlayerToken(mapPath, tokenId, token) ? 'taken' : null;
+    if (this.ownerOf(tokenId, token) !== undefined) return 'taken';
+    return !token.isHidden && this.isPlayerToken(mapPath, tokenId, token) ? 'open' : null;
   }
 
   /** The player tokens of a scene and the tokens players were given there, each with its owner, in the scene's order. */
@@ -208,10 +236,64 @@ export class Ownership {
     return this.players.get(playerId) ?? null;
   }
 
+  permissionsFor(mapPath: string): ScenePermissions {
+    const saved = this.permissions.get(mapPath);
+    return { approval: saved?.approval === true, perPlayerVision: saved?.perPlayerVision === true, playerConditions: saved?.playerConditions === true, playerDoors: saved?.playerDoors === true };
+  }
+
+  setPermission(mapPath: string, key: keyof ScenePermissions, value: boolean): void {
+    if (!mapPath || mapPath.length > MAX_MAP_PATH || !permissionKeys.includes(key)) return;
+    const next = { ...this.permissions.get(mapPath) };
+    if (value) next[key] = true;
+    else delete next[key];
+    if (Object.keys(next).length === 0) this.permissions.delete(mapPath);
+    else this.permissions.set(mapPath, next);
+    this.changed(true);
+  }
+
+  memoryIdFor(mapPath: string): string {
+    const known = this.memoryIds.get(mapPath);
+    if (known !== undefined) return known;
+    if (!mapPath || mapPath.length > MAX_MAP_PATH) throw new Error('Invalid scene path');
+    const id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    this.memoryIds.set(mapPath, id);
+    this.changed(true);
+    return id;
+  }
+
+  renameMap(oldPath: string, newPath: string): void {
+    if (!newPath || newPath.length > MAX_MAP_PATH || oldPath === newPath) return;
+    let changed = false;
+    for (const map of [this.marks, this.permissions, this.memoryIds]) {
+      for (const [path, value] of [...map.entries()]) {
+        if (path !== oldPath && !path.startsWith(`${oldPath}/`)) continue;
+        const next = `${newPath}${path.slice(oldPath.length)}`;
+        if (next.length > MAX_MAP_PATH) continue;
+        map.delete(path);
+        (map as Map<string, unknown>).set(next, value);
+        changed = true;
+      }
+    }
+    if (changed) this.changed(true);
+  }
+
+  colourOf(player: string): number | undefined {
+    return this.colours.get(player);
+  }
+
+  setColour(player: string, colour: number): void {
+    if (!this.players.has(player) || !validColour(colour) || this.colours.get(player) === colour) return;
+    this.colours.set(player, colour);
+    this.changed(true);
+  }
+
   /** Every known player: those online first, then by name. */
   list(): KnownPlayer[] {
     return [...this.players]
-      .map(([id, name]) => ({ id, name, online: this.online.has(id) }))
+      .map(([id, name]) => {
+        const colour = this.colours.get(id);
+        return { id, name, online: this.online.has(id), ...(colour !== undefined && { colour }) };
+      })
       .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
   }
 

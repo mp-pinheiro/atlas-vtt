@@ -2,9 +2,9 @@ import { runInBackground } from '../../utils/backgroundTask';
 import { Component, type App, type Plugin, type TFile } from 'obsidian';
 import { showNotice } from '../../ui/notice';
 import type { AtlasSettingSection } from '../../settings/settingSections';
-import { AccountControl } from './account/AccountControl.ts';
-import { obsidianHttp } from './account/obsidianHttp.ts';
-import { secretTokenStore } from './account/tokenStore.ts';
+import { hostKeyStore } from './host/hostKeyStore.ts';
+import { HostControl } from './host/HostControl.ts';
+import { obsidianHttp } from './host/obsidianHttp.ts';
 import { activeAtlasLeaf } from './atlasView.ts';
 import { BookShelf } from './book/BookShelf.ts';
 import { readBooks } from './book/bookStore.ts';
@@ -26,6 +26,7 @@ import type { OnlineTable } from './OnlineTable.ts';
 import { Ownership, readOwnership } from './ownership.ts';
 import { readSavedTable, type SavedTable } from './savedTable.ts';
 import { DEFAULT_SETTINGS, onlineSettingsSections, readSettings, type OnlineSettings } from './settings.ts';
+import { t } from '../../i18n';
 
 /** How long a change of the table's log or of a player's book waits before the data file is written. */
 const LOG_SAVE_MS = 10_000;
@@ -42,8 +43,7 @@ export class OnlineFeature extends Component {
   settings: OnlineSettings = { ...DEFAULT_SETTINGS };
   /** The GM's side of online play, for panels and commands: table, players and player tokens. */
   online: OnlineControl;
-  /** The GM's Atlas account, which tables are asked for with. */
-  readonly account: AccountControl;
+  readonly host: HostControl;
   private readonly app: App;
   /** The running table as saved in this device's data, so a reload comes back to it. */
   private savedTable: SavedTable | null = null;
@@ -66,13 +66,7 @@ export class OnlineFeature extends Component {
     super();
     this.app = plugin.app;
     this.online = new OnlineControl(this.app, new Ownership(readOwnership(undefined), () => undefined));
-    this.account = new AccountControl({
-      http: obsidianHttp,
-      timers: companionTimers(),
-      tokens: secretTokenStore(this.app),
-      openUrl: (url) => void window.open(url),
-      notify: (text) => showNotice(text),
-    });
+    this.host = new HostControl({ http: obsidianHttp, store: hostKeyStore(this.app), origin: () => this.settings.relayOrigin, saveOrigin: async (origin) => { this.settings.relayOrigin = origin; await this.saveSettings(); }, stopTable: () => this.online.stop(), forgetTable: () => { this.savedTable = null; void this.saveSettings(); }, confirmOriginChange: async () => this.online.table === null && !this.online.isStarting() || window.confirm(t('onlinePlayer.confirmRelayChange')), notify: (text) => showNotice(text) });
   }
 
   /** The running table, or null. */
@@ -82,7 +76,7 @@ export class OnlineFeature extends Component {
 
   /** Online play's sections of Atlas's settings; none until its data was read, so no row can save over it. */
   settingsSections(): AtlasSettingSection[] {
-    return this.ready ? onlineSettingsSections(this) : [];
+    return this.ready ? onlineSettingsSections({ settings: this.settings, host: this.host, saveSettings: () => this.saveSettings() }) : [];
   }
 
   /** Runs one of online play's commands, or checks whether it can run now. */
@@ -106,6 +100,9 @@ export class OnlineFeature extends Component {
       },
       table: () => this.savedTable,
       playerNames: () => this.online.players().map((player) => player.name),
+      feedbackEnabled: () => this.settings.feedbackEnabled,
+      relayOrigin: () => this.settings.relayOrigin,
+      hostKey: () => this.host.key(),
       connection: () => this.online.table?.connectionStats() ?? null,
     }, version, () => version);
     this.register(diagnostics.listen(window));
@@ -122,7 +119,9 @@ export class OnlineFeature extends Component {
     this.online = new OnlineControl(this.app, ownership, (table) => {
       this.savedTable = table;
       void this.saveSettings();
-    }, this.account, { read: () => this.savedLog, write: (entries) => this.keepLog(entries) }, this.books);
+    }, this.host, { read: () => this.savedLog, write: (entries) => this.keepLog(entries) }, this.books);
+    this.registerEvent(this.app.vault.on('rename', (file, oldPath) => ownership.renameMap(oldPath, file.path)));
+    if (record.table !== undefined && this.savedTable === null) void this.saveSettings();
     // Atlas's "Display on player view" reaches the players online too, while a table runs.
     const images = new ImageTakeover<TFile>(() => atlasImageDisplay(this.app), {
       share: () => this.online.table?.image ?? null,
@@ -143,7 +142,7 @@ export class OnlineFeature extends Component {
     this.register(() => loot.setOutlet(null));
     const docks = new DockMounts(this.app.workspace, {
       api: onlineApi(this.online, () => images.hide()),
-      account: this.account,
+      host: this.host,
       imageSrc: (path) => this.app.vault.adapter.getResourcePath(path),
       feedback: diagnostics,
       opened: (leaf) => logs.close(leaf),
@@ -166,8 +165,6 @@ export class OnlineFeature extends Component {
       if (!this.live) return;
       // A table that ran when Obsidian or Atlas was last unloaded comes back with the same link.
       if (this.savedTable !== null) this.online.resume(this.savedTable);
-      // A signed-in GM's session is renewed, and the dock learns what it may host.
-      void this.account.refresh(true);
       docks.sync();
       logs.sync();
     });
@@ -217,6 +214,7 @@ export class OnlineFeature extends Component {
     if (this.logSave !== null) void this.saveSettings();
     // Unloading closes the connection only: the table stays on the server and comes back on the next load.
     this.online.close();
+    this.host.stop();
     stopCompanionTimers();
   }
 
@@ -225,6 +223,7 @@ export class OnlineFeature extends Component {
     if (this.logSave !== null) companionTimers().clearTimer(this.logSave);
     this.logSave = null;
     await this.data.write({ ...this.settings, ownership: this.online.ownership.toData(), table: this.savedTable, ...(this.savedLog !== undefined && { tableLog: this.savedLog }), books: this.books.toData() });
+    this.docks?.sync();
   }
 
   /** What one of online play's commands does; the plugin registers the commands once (`registerOnlinePlay`). */

@@ -13,6 +13,7 @@ import { ReplyQuote } from './ReplyQuote.tsx';
 import { RowShell } from './RowShell.tsx';
 import { SpeakerFace } from './SpeakerFace.tsx';
 import { ThreadPill } from './ThreadPill.tsx';
+import { useAuthorColour } from './authorColours.ts';
 
 export interface ChatRowProps extends RowFlags {
   readonly entry: ChatEntry;
@@ -39,6 +40,7 @@ const actorName = (entry: ChatEntry): string => entry.speaker?.name ?? shownName
  */
 export const ChatRow = memo(function ChatRow({ entry, continued, time, portrait, whisper, thread, api, ...flags }: ChatRowProps): ReactElement {
   const { id, who, name, text, reply, speaker } = entry;
+  const colour = useAuthorColour(who);
   const own = api.self !== null && who === api.self;
   const reactions = reactionsFor(entry, api.self);
   const author = shownName(who, name, api.self);
@@ -51,7 +53,7 @@ export const ChatRow = memo(function ChatRow({ entry, continued, time, portrait,
   ) : emote ? (
     <InlineText
       id={id} text={text} inline={entry.inline} api={api} className="atlas-online-log__emote"
-      lead={<><span className={classes('atlas-online-log__emote-name', speaker === undefined && toneClass(who))}>{actorName(entry)}</span>{' '}</>}
+      lead={<><span className={classes('atlas-online-log__emote-name', speaker === undefined && toneClass(who, colour))}>{actorName(entry)}</span>{' '}</>}
     >
       {edited}
       <span className="atlas-online-log__time"> {time}</span>
@@ -80,10 +82,10 @@ export const ChatRow = memo(function ChatRow({ entry, continued, time, portrait,
               {inCharacter ? (
                 <>
                   <span className="atlas-online-log__speaker">{speaker.name}</span>
-                  <span className={`atlas-online-log__author ${toneClass(who)}`}>{own ? 'you' : author}</span>
+                  <span className={`atlas-online-log__author ${toneClass(who, colour)}`}>{own ? 'you' : author}</span>
                 </>
               ) : (
-                <span className={`atlas-online-log__name ${toneClass(who)}`}>{author}</span>
+                <span className={`atlas-online-log__name ${toneClass(who, colour)}`}>{author}</span>
               )}
               <span className="atlas-online-log__time">{time}</span>
             </div>

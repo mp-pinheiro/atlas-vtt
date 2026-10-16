@@ -4,15 +4,17 @@ import {
 } from '../protocol/index.ts';
 import { apiVersion, Platform, requestUrl } from 'obsidian';
 import type { CompanionFeedback } from './companionReports.ts';
-import { RELAY_ORIGIN } from './servers.ts';
 
 /** Where the companion's own code runs in a stack: Obsidian names a plugin's script by its id. */
-const OWN_FRAMES = 'plugin:atlas-online';
+const OWN_FRAMES = 'plugin:atlas-vtt';
 
 /** What the companion knows: whether to send, and what a report must never carry. */
 export interface CompanionFacts {
   /** Whether the GM switched error reports on (off by default). */
   reportErrors(): boolean;
+  feedbackEnabled(): boolean;
+  relayOrigin(): string;
+  hostKey(): string | null;
   setReportErrors(on: boolean): void;
   /** The running table's code, host secret and join code, or null. */
   table(): { readonly code: string; readonly secret: string; readonly gate: { readonly code: string } } | null;
@@ -50,10 +52,10 @@ export class CompanionDiagnostics implements CompanionFeedback {
       table: () => this.tag(),
       known: () => {
         const table = facts.table();
-        return [table?.code ?? '', table?.secret ?? '', ...this.joinCodes(), ...facts.playerNames()].filter((text) => text !== '');
+        return [facts.hostKey() ?? '', table?.code ?? '', table?.secret ?? '', ...this.joinCodes(), ...facts.playerNames()].filter((text) => text !== '');
       },
       post: async (report) => {
-        await postJson(`${RELAY_ORIGIN}${REPORTS_PATH}`, report);
+        await postJson(`${this.facts.relayOrigin()}${REPORTS_PATH}`, report);
       },
       now: () => Date.now(),
       enabled: () => facts.reportErrors(),
@@ -79,15 +81,19 @@ export class CompanionDiagnostics implements CompanionFeedback {
   setReportErrors(on: boolean): void {
     this.facts.setReportErrors(on);
   }
+  enabled(): boolean {
+    return this.facts.feedbackEnabled();
+  }
 
   async send(text: string, withDiagnostics: boolean): Promise<FeedbackResult> {
+    if (!this.facts.feedbackEnabled()) return 'failed';
     const post: FeedbackPost = {
       // What the GM wrote goes as written, but for the join code: a pasted one stops being one.
       v: 1, source: 'companion', text: withoutKnown(text, this.joinCodes()),
       diagnostics: withDiagnostics ? { ...this.environment(), table: await this.tag(), errors: this.reporter.recentIds(), connection: this.facts.connection() } : null,
     };
     try {
-      return feedbackResultOf(await postJson(`${RELAY_ORIGIN}${FEEDBACK_PATH}`, post));
+      return feedbackResultOf(await postJson(`${this.facts.relayOrigin()}${FEEDBACK_PATH}`, post));
     } catch {
       return 'failed';
     }
@@ -97,7 +103,7 @@ export class CompanionDiagnostics implements CompanionFeedback {
     if (!(thrown instanceof Error) || thrown.stack?.includes(OWN_FRAMES) !== true) return;
     void this.reporter.capture(kind, thrown).then((id) => {
       if (id === null) return;
-      const where = this.facts.reportErrors() ? ` reported to ${new URL(RELAY_ORIGIN).host}` : ' (error reports are off, nothing was sent)';
+      const where = this.facts.reportErrors() ? ` sent to ${new URL(this.facts.relayOrigin()).host} (discarded by relay)` : ' (error reports are off, nothing was sent)';
       console.warn(`Atlas Online: error ${id}${where}`);
     });
   }

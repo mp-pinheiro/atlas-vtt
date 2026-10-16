@@ -1,0 +1,33 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-pending-paths {
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  display: flex;
+  flex-direction: column;
+  padding: $spacing-s;
+  gap: $spacing-s;
+  background: var(--background-primary);
+  max-height: 50vh;
+  overflow: auto;
+
+  &__header,
+  &__row,
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: $spacing-s;
+    flex-wrap: wrap;
+  }
+
+  &__row {
+    padding: $spacing-s;
+    border-radius: $radius-l;
+    background: var(--background-secondary);
+  }
+
+  &__row output {
+    color: var(--text-muted);
+  }
+}

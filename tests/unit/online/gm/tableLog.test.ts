@@ -324,6 +324,26 @@ describe('rolls', () => {
     expect(body).toEqual({ t: 'log-entry', entry: { id: last(log).id, at: last(log).at, who: MIRA, name: 'Mira', kind: 'roll', roll: ROLL, token: 'ab'.repeat(12) } });
   });
 
+  it('keeps token-bound ability names within their original recipient picture across replay and save', () => {
+    const { log, sent } = harness();
+    log.welcome([{ id: MIRA, name: 'Mira' }, { id: TOM, name: 'Tom' }]);
+    sent.length = 0;
+    log.rolled({ who: 'gm', roll: { ...ROLL, source: { type: 'statblock', abilityName: 'Private lair action' } }, token: 'd'.repeat(24), shared: true, origins: { [TOM]: 'e'.repeat(24) } });
+    const mira = sent.find(value => value.to === MIRA)?.body;
+    const tom = sent.find(value => value.to === TOM)?.body;
+    expect(mira).toMatchObject({ t: 'log-entry', entry: { kind: 'roll', token: null, roll: { total: 14, source: { type: 'statblock' } } } });
+    expect(JSON.stringify(mira)).not.toContain('Private lair action');
+    expect(tom).toMatchObject({ t: 'log-entry', entry: { token: 'e'.repeat(24), roll: { source: { abilityName: 'Private lair action' } } } });
+    expect(JSON.stringify(sent)).not.toContain('origins');
+    const restored = harness(JSON.parse(JSON.stringify(log.saved())));
+    restored.log.resend(MIRA);
+    restored.log.resend(TOM);
+    expect(JSON.stringify(restored.sent.filter(value => value.to === MIRA))).not.toContain('Private lair action');
+    expect(JSON.stringify(restored.sent.filter(value => value.to === TOM))).toContain('Private lair action');
+    expect(restored.sent.every(value => parseGmMessage(value.body) !== null)).toBe(true);
+    log.dispose(); restored.log.dispose();
+  });
+
   it('the players are not shown stay with the GM: never sent, live or to a joiner, and none of a player\'s to react to', () => {
     const { log, sent } = harness();
     log.joined({ id: MIRA, name: 'Mira' });

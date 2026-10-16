@@ -21,7 +21,7 @@ export function retractEntry(send: Send, players: Iterable<string>, entry: GmLog
 /** The newest entries one player may see that fit `bytes`, or of a log everyone sees alike (`null`). */
 export function snapshotFor(list: readonly GmLogEntry[], player: string | null, bytes: number): LogEntry[] {
   const seen = list.flatMap((entry) => {
-    const view = player === null ? (entry.hidden === true ? null : sharedEntry(entry)) : viewOf(entry, player);
+    const view = player === null ? (isOpen(entry) ? sharedEntry(entry) : null) : viewOf(entry, player);
     return view === null ? [] : [view];
   });
   return entriesWithin(seen, bytes);

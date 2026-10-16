@@ -130,7 +130,7 @@ export class LogMounts {
 
   /** A speaker's portrait on the GM's screen: the artwork the log names by its hash, from the vault. */
   private speakerPortrait(table: OnlineTable, speaker: LogSpeaker): Portrait | null {
-    const path = speaker.art === null ? undefined : table.log.artFile(speaker.art.hash);
+    const path = speaker.art === null ? undefined : table.log.artFile(speaker.art.hash, GM_AUTHOR);
     return path === undefined ? null : { src: this.deps.imageSrc(path), showRing: speaker.ring !== null, ...(speaker.ring !== null && { ringColor: speaker.ring }) };
   }
 

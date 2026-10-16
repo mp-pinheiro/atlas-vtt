@@ -1,5 +1,6 @@
 import { MAX_BATCH_SENDS, MAX_GM_FRAME, PROTOCOL_VERSION } from '../protocol/index.ts';
 import { companionTimers, type Timers } from './companionTimers.ts';
+import { utf8Length } from '../protocol/shape.ts';
 
 /** What the queue needs of a socket. */
 export interface QueueSocket {
@@ -33,34 +34,53 @@ const BATCH_TAIL = ']}';
 /** The clock and timers the queue paces with; the companion's in Obsidian, fakes in tests. */
 export type QueueClock = Timers;
 
-interface QueuedFrame {
-  readonly text: string;
-  /** The player or players (`ALL_PLAYERS`) a game message goes to; unset for the GM's own requests. */
-  readonly to: string | undefined;
-  /** A game message as an entry of a `sends` frame; unset for the GM's own requests to the relay, which always go alone. */
-  readonly entry: string | undefined;
+export interface DeliveryValidity {
+  readonly recipient?: string;
+  readonly scene?: string;
+  readonly generation?: number;
+  readonly projection?: number;
+  valid(): boolean;
 }
 
-type Next = { readonly frame: QueuedFrame; readonly live: true; readonly key: string } | { readonly frame: QueuedFrame; readonly live: false };
+export interface PacketIdentity {
+  readonly recipient: string;
+  readonly scene: string;
+  readonly revision: number;
+}
 
-/**
- * Frames in two lanes, under the relay's rate limit (a token bucket) and the socket's buffer: live
- * frames (`pushLive`) keep only the latest of each key and go first; every other frame goes in order
- * after them, and only while the socket holds little unsent, so a large asset never holds a live
- * frame back for long. Frames wait while no socket is attached and go out once one is. A socket of a
- * relay that takes `sends` frames (`attach` with `batching`) gets the game messages of a moment in
- * one frame, live ones first, at most every `BATCH_MS`, each frame within the relay's limits.
- */
+export interface QueueFrame {
+  readonly text: string;
+  readonly to: string | undefined;
+  readonly entry: string | undefined;
+  readonly entryBytes: number;
+}
+
+interface QueuedFrame extends QueueFrame {
+  readonly validity?: DeliveryValidity;
+}
+
+interface QueuedPacket {
+  readonly frames: readonly QueueFrame[];
+  readonly to: string | undefined;
+  readonly validity?: DeliveryValidity;
+  readonly identity?: PacketIdentity;
+  index: number;
+}
+
+type Queued = QueuedFrame | QueuedPacket;
+type Next = { readonly frame: QueueFrame; readonly live: true; readonly key: string } | { readonly frame: QueueFrame; readonly live: false };
+const pending = (item: Queued): number => 'frames' in item ? item.frames.length - item.index : 1;
+
 export class SendQueue {
-  private frames: QueuedFrame[] = [];
-  private live = new Map<string, QueuedFrame>();
+  private frames: Queued[] = [];
+  private readonly live = new Map<string, QueuedFrame>();
+  private queued = 0;
   private socket: QueueSocket | null = null;
   private batching = false;
   private timer: number | undefined;
   private tokens = BURST;
   private filledAt: number;
   private sentAt = Number.NEGATIVE_INFINITY;
-  /** The last batch left messages behind that did not fit in it: the next goes without waiting. */
   private full = false;
   private readonly clock: QueueClock;
 
@@ -70,30 +90,38 @@ export class SendQueue {
   }
 
   get length(): number {
-    return this.frames.length + this.live.size;
+    return this.queued + this.live.size;
   }
 
-  /** Queues a frame; `to` names who a game message is for, so it can be dropped once they are gone; `entry` is the message as a batch carries it. */
-  push(frame: string, to?: string, entry?: string): void {
-    this.frames.push({ text: frame, to, entry });
+  push(frame: string, to?: string, entry?: string, validity?: DeliveryValidity): void {
+    this.frames.push({ text: frame, to, entry, entryBytes: entry === undefined ? 0 : utf8Length(entry), ...(validity === undefined ? {} : { validity }) });
+    this.queued += 1;
     this.pump();
   }
 
-  /** Queues a live frame: it replaces a waiting one of the same key and goes before every other frame. */
-  pushLive(key: string, frame: string, to?: string, entry?: string): void {
+  pushPacket(frames: readonly QueueFrame[], validity?: DeliveryValidity, identity?: PacketIdentity): void {
+    const first = frames[0];
+    if (first === undefined || validity?.valid() === false) return;
+    this.frames.push({ frames, to: first.to, index: 0, ...(validity === undefined ? {} : { validity }), ...(identity === undefined ? {} : { identity }) });
+    this.queued += frames.length;
+    this.pump();
+  }
+
+  pushLive(key: string, frame: string, to?: string, entry?: string, validity?: DeliveryValidity): void {
     this.live.delete(key);
-    this.live.set(key, { text: frame, to, entry });
+    this.live.set(key, { text: frame, to, entry, entryBytes: entry === undefined ? 0 : utf8Length(entry), ...(validity === undefined ? {} : { validity }) });
     this.pump();
   }
 
-  /** Drops the waiting game messages for recipients that are gone. */
   drop(gone: (to: string) => boolean): void {
-    const kept = (frame: QueuedFrame): boolean => frame.to === undefined || !gone(frame.to);
-    this.frames = this.frames.filter(kept);
-    this.live = new Map([...this.live].filter(([, frame]) => kept(frame)));
+    this.frames = this.frames.filter(item => {
+      if (item.to === undefined || !gone(item.to)) return true;
+      this.queued -= pending(item);
+      return false;
+    });
+    for (const [key, frame] of this.live) if (frame.to !== undefined && gone(frame.to)) this.live.delete(key);
   }
 
-  /** Sends through `socket` from now on; `batching`: its relay takes `sends` frames. */
   attach(socket: QueueSocket, batching = false): void {
     this.socket = socket;
     this.batching = batching;
@@ -106,7 +134,6 @@ export class SendQueue {
     this.timer = undefined;
   }
 
-  /** Sends what the rate and the socket allow now and schedules the rest. */
   pump(): void {
     if (this.socket === null || this.timer !== undefined) return;
     for (;;) {
@@ -118,50 +145,66 @@ export class SendQueue {
       if (this.tokens < 1) return this.wait(((1 - this.tokens) * 1000) / FRAMES_PER_SECOND);
       if (this.socket.bufferedAmount > (next.live ? MAX_BUFFERED : BULK_BUFFERED)) return this.wait(DRAIN_CHECK_MS);
       const text = this.batching ? this.takeBatch(this.socket.bufferedAmount) : this.take(next).text;
+      if (text === null) continue;
       this.tokens -= 1;
       this.sentAt = this.clock.now();
       this.socket.send(text);
     }
   }
 
-  /** The frame to send next: the oldest live one, else the oldest of the others. */
   private next(): Next | null {
-    const [live] = this.live;
-    if (live !== undefined) return { frame: live[1], live: true, key: live[0] };
-    const frame = this.frames[0];
+    let item = this.frames[0];
+    while (item !== undefined && item.validity?.valid() === false) {
+      this.queued -= pending(item);
+      this.frames.shift();
+      item = this.frames[0];
+    }
+    if (item !== undefined && 'frames' in item && item.index > 0) {
+      const frame = item.frames[item.index];
+      if (frame !== undefined) return { frame, live: false };
+    }
+    for (const [key, frame] of this.live) {
+      if (frame.validity?.valid() === false) this.live.delete(key);
+      else return { frame, key, live: true };
+    }
+    if (item === undefined) return null;
+    const frame = 'frames' in item ? item.frames[item.index] : item;
     return frame === undefined ? null : { frame, live: false };
   }
 
-  private take(next: Next): QueuedFrame {
+  private take(next: Next): QueueFrame {
     if (next.live) this.live.delete(next.key);
-    else this.frames.shift();
+    else {
+      const item = this.frames[0];
+      if (item !== undefined && 'frames' in item) {
+        item.index += 1;
+        if (item.index === item.frames.length) this.frames.shift();
+      } else this.frames.shift();
+      this.queued -= 1;
+    }
     return next.frame;
   }
 
-  /**
-   * The next frame of a batching socket: as many waiting game messages as fit in one `sends` frame,
-   * live ones first and the others only while the socket holds little; one message alone goes as its
-   * own frame, and so does a request to the relay.
-   */
-  private takeBatch(buffered: number): string {
-    const taken: QueuedFrame[] = [];
+  private takeBatch(buffered: number): string | null {
+    const taken: QueueFrame[] = [];
     let size = BATCH_HEAD.length + BATCH_TAIL.length;
     this.full = false;
     for (let next = this.next(); next !== null; next = this.next()) {
       if (!next.live && buffered > BULK_BUFFERED) break;
-      const { entry } = next.frame;
-      const fits = entry !== undefined && taken.length < MAX_BATCH_SENDS && size + entry.length + 1 <= MAX_GM_FRAME;
+      const { entry, entryBytes } = next.frame;
+      const fits = entry !== undefined && taken.length < MAX_BATCH_SENDS && size + entryBytes + 1 <= MAX_GM_FRAME;
       if (!fits) {
         if (taken.length === 0) return this.take(next).text;
         this.full = true;
         break;
       }
       taken.push(this.take(next));
-      size += entry.length + 1;
+      size += entryBytes + 1;
     }
-    const [first] = taken;
-    if (taken.length === 1 && first !== undefined) return first.text;
-    return `${BATCH_HEAD}${taken.map((frame) => frame.entry).join(',')}${BATCH_TAIL}`;
+    const first = taken[0];
+    if (first === undefined) return null;
+    if (taken.length === 1) return first.text;
+    return `${BATCH_HEAD}${taken.map(frame => frame.entry).join(',')}${BATCH_TAIL}`;
   }
 
   private refill(): void {

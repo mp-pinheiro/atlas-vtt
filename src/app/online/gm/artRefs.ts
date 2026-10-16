@@ -12,6 +12,7 @@ export class ArtRefs {
   private readonly art = new Map<string, ArtEntry>();
   private readonly readImage: (path: string) => Promise<VaultImage | null>;
   private readonly read: () => void;
+  private generation = 0;
 
   constructor(readImage: (path: string) => Promise<VaultImage | null>, read: () => void) {
     this.readImage = readImage;
@@ -22,9 +23,10 @@ export class ArtRefs {
   get(path: string): AssetRef | null {
     const entry = this.art.get(path);
     if (entry !== undefined) return entry === 'reading' ? null : entry;
+    const generation = this.generation;
     this.art.set(path, 'reading');
     void this.refOf(path).then((ref) => {
-      if (this.art.get(path) !== 'reading') return;
+      if (generation !== this.generation || this.art.get(path) !== 'reading') return;
       this.art.set(path, ref);
       if (ref !== null) this.read();
     });
@@ -33,6 +35,7 @@ export class ArtRefs {
 
   /** Forgets every path: a new scene reads its artwork afresh. */
   clear(): void {
+    this.generation += 1;
     this.art.clear();
   }
 

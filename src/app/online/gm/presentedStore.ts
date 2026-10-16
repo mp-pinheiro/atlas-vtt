@@ -36,7 +36,7 @@ export class PresentedStore implements SceneStore {
 
   /** Whether players are held on the last state they saw. */
   get held(): boolean {
-    return this.frozen !== null;
+    return this.frozen !== null || this.holding;
   }
 
   /** Atlas presents this tab of the view now, or none of its tabs (null). */

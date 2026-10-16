@@ -11,6 +11,7 @@ export interface PlayedCharacter {
   readonly key: string;
   /** The token the character was read from. */
   readonly tokenId: string;
+  readonly mapPath: string;
   /** What names the library token that token was placed from: the character, while its token is in no shown scene. */
   readonly placed: PlacedTokenSource;
   /** The sheet as last read from the scene. */
@@ -81,7 +82,7 @@ export class Characters {
       if (sheet === null) continue;
       if (before !== undefined) holders.delete(bookOf(before));
       holders.set(bookOf(character), owner);
-      this.played.set(owner, { ...character, tokenId, placed: placedOf(token), sheet });
+      this.played.set(owner, { ...character, tokenId, mapPath: scene.mapPath, placed: placedOf(token), sheet });
       settled.add(owner);
     }
   }

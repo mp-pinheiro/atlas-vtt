@@ -33,7 +33,7 @@ export class CursorOverlay {
   };
 
   /** `labelOf` names a cursor's tag. */
-  constructor(labelOf: (cursor: SharedCursor) => string) {
+  constructor(labelOf: (cursor: SharedCursor) => string, private readonly colourOf: (who: string) => number | undefined = () => undefined) {
     this.labelOf = labelOf;
   }
 
@@ -71,7 +71,7 @@ export class CursorOverlay {
     host.viewport.on('zoomed', this.onCamera);
     const layer = this.layer ?? getDomHost().createDiv(host.canvas.ownerDocument.body, 'atlas-online-cursors');
     this.layer = layer;
-    this.cursors ??= new RemoteCursors(layer, this.labelOf, MARKS_INTERVAL_MS);
+    this.cursors ??= new RemoteCursors(layer, this.labelOf, MARKS_INTERVAL_MS, this.colourOf);
     let anchor: Element = host.canvas;
     while (anchor.nextElementSibling?.classList.contains(MARKS_CANVAS) === true) anchor = anchor.nextElementSibling;
     anchor.after(layer);

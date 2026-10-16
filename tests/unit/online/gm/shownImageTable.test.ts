@@ -6,9 +6,11 @@ import { OnlineControl } from '../../../../src/app/online/gm/OnlineControl.ts';
 import { Ownership, readOwnership } from '../../../../src/app/online/gm/ownership.ts';
 import type { SavedTable } from '../../../../src/app/online/gm/savedTable.ts';
 import { app, FakeSocket, png, workspace } from './fakeTable.ts';
+import { TEST_RELAY_ORIGIN } from './relayFixture.ts';
 import { advanceSettled as advance } from './settled.ts';
 
-vi.mock('obsidian', () => ({
+vi.mock('obsidian', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
   Notice: class {},
   normalizePath: (path: string) => path,
   requestUrl: () => Promise.resolve({ status: 201, json: null }),
@@ -18,7 +20,7 @@ vi.mock('obsidian', () => ({
 
 const ANA = 'anaanaanaanaanaanaan';
 const BEN = 'benbenbenbenbenbenbe';
-const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, mapPath: null, gate: { code: '483912', requireCode: false, askToJoin: false } };
+const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, origin: TEST_RELAY_ORIGIN, mapPath: null, gate: { code: '483912', requireCode: false, askToJoin: false } };
 
 interface Sent {
   readonly to: string | undefined;
@@ -96,7 +98,10 @@ describe('the running table\'s shown image', () => {
     expect(table.image.dismiss()).toBe(true);
     next.relay({ t: 'game', from: BEN, body: { t: 'asset-request', hash } });
     await advance(100);
-    expect(sends(next).slice(from)).toEqual([{ to: ALL_PLAYERS, body: { t: 'shown-image', shown: null } }]);
+    const withdrawn = sends(next).slice(from);
+    expect(images(withdrawn)).toMatchObject([{ to: ALL_PLAYERS, body: { t: 'shown-image', shown: null } }]);
+    expect(withdrawn.filter(({ body }) => body.t === 'asset-chunk')).toEqual([]);
+    expect(withdrawn.find(({ to, body }) => to === BEN && body.t === 'asset-refused')?.body.hash).toBe(hash);
     online.stop();
   });
 });

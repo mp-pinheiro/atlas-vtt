@@ -26,8 +26,8 @@ export function assetChunks(hash: string, bytes: Uint8Array, from = 0): GmMessag
  * most `ASSET_CHUNK_BYTES` of its UTF-8 text each (a scene's walls may run to megabytes). None
  * for a message of more than `MAX_PARTS` parts, which no client puts together.
  */
-export function messageParts(body: GmMessage, id: () => string): GmMessage[] {
-  const bytes = new TextEncoder().encode(JSON.stringify(body));
+export function messageParts(body: GmMessage, id: () => string, serialized = JSON.stringify(body)): GmMessage[] {
+  const bytes = new TextEncoder().encode(serialized);
   if (bytes.length <= ASSET_CHUNK_BYTES) return [body];
   const count = Math.ceil(bytes.length / ASSET_CHUNK_BYTES);
   if (count > MAX_PARTS) return [];

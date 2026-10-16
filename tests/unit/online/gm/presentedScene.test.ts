@@ -12,11 +12,13 @@ import { findPresentedTab, PRESENT_COMMAND, presentedScene, readPresented, showP
 import type { SavedTable } from '../../../../src/app/online/gm/savedTable.ts';
 import { app, atlasTab, FakeSocket, FakeTabs, png, present, switchScene, workspace } from './fakeTable.ts';
 import { sceneState } from './shareHarness.ts';
+import { TEST_RELAY_ORIGIN } from './relayFixture.ts';
 import { advanceSettled as advance } from './settled.ts';
 
 const seen = vi.hoisted(() => ({ notices: [] as string[] }));
 
-vi.mock('obsidian', () => ({
+vi.mock('obsidian', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
   Notice: class {
     constructor(text: string) {
       seen.notices.push(text);
@@ -48,12 +50,12 @@ const ANA = 'anaanaanaanaanaanaan';
 const BEN = 'benbenbenbenbenbenbe';
 const CAVE = 'Scenes/Cave.atlasmap';
 const HALL = 'Scenes/Hall.atlasmap';
-const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, mapPath: CAVE, gate: { code: '483912', requireCode: true, askToJoin: true } };
+const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, origin: TEST_RELAY_ORIGIN, mapPath: CAVE, gate: { code: '483912', requireCode: true, askToJoin: true } };
 const character = (id: string, name: string, x: number): TokenEntity => ({ id, kind: 'character', name, imagePath: 'art/ogre.png', x, y: 140 });
 const cave = (x = 140): SceneState => sceneState({ mapPath: CAVE, background: 'maps/cave.png', objects: { ...sceneState().objects, tokens: { 'gm-ogre': character('gm-ogre', 'Ogre', x) } } });
 const hall = (): SceneState => sceneState({ mapPath: HALL, background: 'maps/hall.png', objects: { ...sceneState().objects, tokens: { 'gm-goblin': character('gm-goblin', 'Goblin', 700) } } });
 
-type Body = { readonly t: string; readonly scene?: unknown; readonly id?: string; readonly tokens?: readonly { readonly id: string; readonly x: number }[] };
+type Body = { readonly t: string; readonly scene?: unknown; readonly id?: string; readonly x?: number | null; readonly y?: number | null; readonly tokens?: readonly { readonly id: string; readonly x: number }[] };
 const bodies = (socket: FakeSocket, to?: string): Body[] => socket.frames().flatMap((frame) => (frame.t === 'send' && frame.body !== undefined && (to === undefined || frame.to === to) ? [frame.body as Body] : []));
 const scenes = (socket: FakeSocket, to?: string): unknown[] => bodies(socket, to).filter((body) => body.t === 'scene').map((body) => body.scene);
 const mapHash = (scene: unknown): unknown => (scene as { map?: { hash?: string } } | null)?.map?.hash;
@@ -92,10 +94,11 @@ describe('the scene players see', () => {
     workspace.leaves = [tab.leaf];
     present(tab);
     const { online, socket } = await running();
-    const shown = scenes(socket).at(-1);
+    let shown = scenes(socket).at(-1);
     expect(mapHash(shown)).toBeDefined();
     online.give(['gm-ogre'], ANA);
     await advance(500);
+    shown = scenes(socket).at(-1);
     const ogre = bodies(socket, undefined).filter((body) => body.t === 'tokens').at(-1)?.tokens?.[0];
     if (ogre === undefined) throw new Error('no token list');
 
@@ -107,12 +110,14 @@ describe('the scene players see', () => {
 
     // Ana's move of her ogre is refused at the place players see, her release is not taken; Ben, joining now, gets the held Cave.
     const scene = (shown as { id: string }).id;
+    const beforeAction = bodies(socket, ANA).length;
     socket.relay({ t: 'game', from: ANA, body: { t: 'move', scene, id: ogre.id, x: 420, y: 140 } });
     socket.relay({ t: 'game', from: ANA, body: { t: 'release', scene, id: ogre.id } });
     socket.relay({ t: 'player-joined', id: BEN, name: 'Ben' });
     await advance(500);
-    expect(bodies(socket, ANA).at(-1)).toMatchObject({ t: 'move-refused', x: 140, y: 140 });
+    expect(bodies(socket, ANA).slice(beforeAction).find(({ t }) => t === 'move-refused')).toMatchObject({ t: 'move-refused', x: null, y: null });
     expect(online.ownership.ownerOf('gm-ogre', undefined)).toBe(ANA);
+    expect(online.table?.sharedStore?.getState().objects.tokens['gm-ogre']?.x).toBe(140);
     expect(scenes(socket, BEN)).toEqual([shown]);
     expect(bodies(socket, BEN).find((body) => body.t === 'tokens')?.tokens).toMatchObject([{ id: ogre.id, x: 140 }]);
     expect(JSON.stringify(socket.frames().slice(before))).not.toMatch(/Goblin|hall\.png|Hall/);

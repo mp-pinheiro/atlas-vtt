@@ -8,6 +8,7 @@ export interface MarkContext {
   readonly scene: string | null;
   /** The map's size, or null when it is unknown. */
   readonly map: MapSize | null;
+  readonly colour?: string;
 }
 
 /** Laser and measure messages a player may send a second, each: the client sends one every `MARKS_INTERVAL_MS`, about 30. */
@@ -41,7 +42,7 @@ export function nearMap([x, y]: MarkPoint, map: MapSize | null): boolean {
  */
 export function checkLaser(message: PlayerLaser, context: MarkContext): LaserState | null {
   if (context.scene === null || message.scene !== context.scene) return null;
-  const color = swatchColour(message.color);
+  const color = context.colour ?? swatchColour(message.color);
   if (color === null) return null;
   const { size } = resolveLaserPointerSettings({ size: message.size });
   const at = message.at !== null && nearMap(message.at, context.map) ? message.at : null;
@@ -61,7 +62,7 @@ const measureNearMap = (measure: SharedMeasure, map: MapSize | null): boolean =>
  */
 export function checkMeasure(message: PlayerMeasure, context: MarkContext): MeasureState | null {
   if (context.scene === null || message.scene !== context.scene) return null;
-  const color = swatchColour(message.color);
+  const color = context.colour ?? swatchColour(message.color);
   if (color === null) return null;
   const live = message.live !== null && measureNearMap(message.live, context.map) ? message.live : null;
   const kept = message.kept.filter((measure) => measureNearMap(measure, context.map));

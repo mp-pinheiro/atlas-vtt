@@ -3,6 +3,7 @@ import { JOIN_CODE_PATTERN, shownJoinCode } from '../../../../src/app/online/pro
 import { describe, expect, it } from 'vitest';
 import { ARM_MS, FULL_NOTE_MS, gateFrame, newGate, newJoinCode, readGate, TableGate, type GateFrame, type GateSettings } from '../../../../src/app/online/gm/joinGate.ts';
 import { readSavedTable } from '../../../../src/app/online/gm/savedTable.ts';
+import { TEST_RELAY_ORIGIN } from './relayFixture.ts';
 
 const MIRA = { id: 'm'.repeat(20), name: 'Mira' };
 const NOOR = { id: 'n'.repeat(20), name: 'Noor' };
@@ -81,10 +82,10 @@ describe('a table\'s gates as kept', () => {
     expect(readGate({ code: '483912', requireCode: false, askToJoin: false })).toEqual({ code: '483912', requireCode: false, askToJoin: false });
     for (const none of [undefined, null, 'gate', 7]) expect(readGate(none, () => 7)).toEqual({ code: '000007', requireCode: true, askToJoin: true });
     expect(readGate({ code: '48391', requireCode: 'no', askToJoin: 0 }, () => 7)).toEqual({ code: '000007', requireCode: true, askToJoin: true });
-    const saved = readSavedTable({ code: 'a'.repeat(26), secret: 's'.repeat(43), mapPath: null, maxPlayers: 4 });
+    const saved = readSavedTable({ code: 'a'.repeat(26), secret: 's'.repeat(43), origin: TEST_RELAY_ORIGIN, mapPath: null, maxPlayers: 4 });
     expect(saved?.gate).toMatchObject({ requireCode: true, askToJoin: true });
     expect(saved?.gate.code).toMatch(JOIN_CODE_PATTERN);
-    expect(readSavedTable({ code: 'a'.repeat(26), secret: 's'.repeat(43), gate: { code: '111111', requireCode: true, askToJoin: false } })?.gate).toEqual({ code: '111111', requireCode: true, askToJoin: false });
+    expect(readSavedTable({ code: 'a'.repeat(26), secret: 's'.repeat(43), origin: TEST_RELAY_ORIGIN, gate: { code: '111111', requireCode: true, askToJoin: false } })?.gate).toEqual({ code: '111111', requireCode: true, askToJoin: false });
   });
 
   it('tell the relay the code only while it is asked for', () => {

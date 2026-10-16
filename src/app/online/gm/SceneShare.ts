@@ -1,230 +1,247 @@
-import { MAX_ASSET_BYTES, parsePlayerMessage, type AssetRef, type GmMessage, type RollRequestAnswer, type SharedScene } from '../protocol/index.ts';
-import { imageDimensions } from '../../imageProcessing/imageDimensions';
-import type { RollSceneLookup } from '../../services/playerRollSource';
+import { MAX_ASSET_BYTES, parsePlayerMessage, type AssetRef, type GmMessage, type RollRequestAnswer, type ScenePermissions, type SharedScene } from '../protocol/index.ts';
+import { headerOf } from '../../imageProcessing/imageDimensions';
 import type { DiceSource } from './atlasDice.ts';
 import { isLit, LIGHTING_REFUSAL, type AtlasPlayerSettings, type LightingSource } from './atlasLighting.ts';
 import type { SceneState, SceneStore } from './atlasView.ts';
 import { AssetAnswers } from './assetAnswers.ts';
 import { imageMimeType, REPEAT_REQUEST_MS, sha256Hex } from './assetServe.ts';
 import type { ScaleImage } from './assetVariants.ts';
-import { MineShare } from './mineShare.ts';
-import { InputShare } from './InputShare.ts';
-import { LiveShare } from './LiveShare.ts';
 import type { LoggedRoll, RollRequest } from './log/TableLog.ts';
-import { SceneDice } from './SceneDice.ts';
-import { MapLayerShare } from './MapLayerShare.ts';
+import type { SceneDice } from './SceneDice.ts';
+import type { MapLayerShare } from './MapLayerShare.ts';
 import type { MapLayerSource } from './atlasMapLayers.ts';
-import { MarkShare, type MarkSharePorts } from './MarkShare.ts';
-import { sceneWalls, type MapSize } from './moveCheck.ts';
-import { ownerIn, type SeatSource } from './seatSource.ts';
-import { PlayerMoves } from './playerMoves.ts';
-import { RulesShare, type RulesSharePorts } from './RulesShare.ts';
-import { TOKEN_POLL_MS, TokenShare, type TokenSharePorts } from './TokenShare.ts';
+import type { MarkSharePorts } from './MarkShare.ts';
+import type { MapSize } from './moveCheck.ts';
+import type { SeatSource } from './seatSource.ts';
+import type { RulesSharePorts } from './RulesShare.ts';
+import { TOKEN_POLL_MS, type TokenSharePorts } from './TokenShare.ts';
+import { PartyShare } from './PartyShare';
+import { SceneRecipients } from './SceneRecipients';
+import type { SceneAgency } from './SceneAgency';
+import type { AgencyRecipient } from './sceneAgencyTypes';
+import type { DeliveryValidity } from './sendQueue';
+import type { ReadablePin } from './pins/ReadablePins';
 
 export { imageMimeType, isLit, LIGHTING_REFUSAL, REPEAT_REQUEST_MS };
 
-export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<MarkSharePorts, 'gmMarks' | 'showPlayerMarks' | 'showPlayerCursors' | 'nameOf'> {
+export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<MarkSharePorts, 'gmMarks' | 'showPlayerMarks' | 'showPlayerCursors' | 'nameOf' | 'playerColour'> {
   notice(text: string): void;
-  /** Sends a live message (where dragged tokens are now) ahead of other frames, the latest of a key winning; without it drags reach players through the token list only. */
-  sendLive?(body: GmMessage, key: string): void;
-  /** Where the GM's canvas draws these tokens now (the GM's own drag runs ahead of the store there). */
+  actionAllowed(from: string): boolean;
+  movementAllowed(from: string): boolean;
+  send(body: GmMessage, to?: string, validity?: DeliveryValidity): void;
+  sendLive?(body: GmMessage, key: string, to?: string, validity?: DeliveryValidity): void;
   drawnPlaces?(tokenIds: readonly string[]): ReadonlyMap<string, { readonly x: number; readonly y: number }>;
-  /** Who plays and owns which token; without it no player is told which tokens are theirs. */
   seats?: SeatSource | undefined;
-  /** Where the GM's lighting reads its rules and measurement, or null while it cannot be read. */
   lightingSource(): LightingSource | null;
-  /** The Atlas settings that decide what players get. */
   atlasSettings(): AtlasPlayerSettings;
-  /** The shared tab's dice; without them players cannot roll and see no rolls. */
   dice?(): DiceSource | null;
-  /** The shared tab's grid, doors, sensed tokens and collection; without it players get none of the map's layers. */
   mapLayers?(): MapLayerSource | null;
-  /** Scales an image for a player who asks for a longest side; without it players get originals only. */
   scaleImage?: ScaleImage;
-  /** Takes a roll of the shared tab into the table's log. */
   logRoll?(roll: LoggedRoll): void;
-  /** The vault path of a speaker's artwork the log shows, by hash. */
-  logArt?(hash: string): string | undefined;
-  /** The roll button of the log a player's roll answers, as they may roll it. */
+  logArt?(hash: string, from: string): string | undefined;
   rollRequest?(from: string, answer: RollRequestAnswer): RollRequest | null;
-  /** The log entry that tells who found a readable pin of a map, or null while nobody has. */
   foundPin?(mapPath: string, pinId: string): string | null;
+  readonly agency?: SceneAgency;
+  permissions?(): ScenePermissions;
+  readyPlayers?(): readonly string[];
+  memoryId?(): string | undefined;
+  held?(): boolean;
 }
 
-/**
- * The shared scene of one Atlas tab: what the players see of it (the map image and the tokens they
- * see), sent whole to everyone when it changes, to a player who joins, and to all after a reconnect.
- * Nothing goes out while the scene loads; a scene this step cannot share is withdrawn. Assets go
- * only to a player whose current picture holds them.
- */
+interface BuiltScene {
+  readonly map: AssetRef | null;
+  readonly bytes: Uint8Array<ArrayBuffer> | null;
+  readonly size: MapSize | null;
+}
+
 export class SceneShare {
-  private readonly store: SceneStore;
-  private readonly ports: SceneSharePorts;
-  private scene: SharedScene | null = null;
-  private mapBytes: Uint8Array | null = null;
-  /** The shared map's size, by which players' moves are kept on it; null when it is unknown. */
-  private mapSize: MapSize | null = null;
-  /** The map path and image of the scene sent or being read: a change starts a new scene. */
-  private key: string | null = null;
-  private refusal: string | null = null;
-  private readonly assets: AssetAnswers;
-  private readonly tokens: TokenShare;
-  private readonly live: LiveShare | null;
-  private readonly mine: MineShare | null;
-  private readonly inputs: InputShare;
-  /** What players see of the map beside its tokens, the readable pins among it. */
   readonly layers: MapLayerShare;
-  private readonly rules: RulesShare;
-  private readonly moves: PlayerMoves;
-  private readonly marks: MarkShare;
+  readonly dice: SceneDice;
+  readonly agency: SceneAgency | null;
+  private scene: SharedScene | null = null;
+  private mapBytes: Uint8Array<ArrayBuffer> | null = null;
+  private mapSize: MapSize | null = null;
+  private key: string | null = null;
+  private generation = 0;
+  private delivery = 0;
+  private stopped = false;
+  private refusal: string | null = null;
+  private personal = false;
+  private approval = false;
+  private readonly assets: AssetAnswers;
+  private readonly party: PartyShare;
+  private readonly recipients: SceneRecipients | null;
   private unsubscribe: (() => void) | null = null;
   private poll: number | undefined;
 
-  constructor(store: SceneStore, ports: SceneSharePorts) {
-    this.store = store;
-    this.ports = ports;
-    const seats = ports.seats;
-    const ownerOf = ownerIn(seats, store);
-    const mine = seats === undefined ? null : new MineShare({ onlinePlayers: () => seats.onlinePlayers(), ownerOf }, (body, to) => ports.send(body, to));
-    this.mine = mine;
-    this.tokens = new TokenShare(store, ports, (listed) => mine?.setList(listed));
-    this.live = ports.sendLive === undefined ? null : new LiveShare(store, { ...ports, sendLive: (body, key) => ports.sendLive?.(body, key) }, () => ({
-      scene: this.tokens.listedScene,
-      alias: (tokenId) => this.tokens.listedAlias(tokenId),
-    }));
-    this.inputs = new InputShare(store, {
-      ...ports,
-      shownTokens: () => this.tokens.shownIds(),
-      tokenAlias: (id) => this.tokens.alias(id),
+  constructor(private readonly store: SceneStore, private readonly ports: SceneSharePorts) {
+    this.agency = ports.agency ?? null;
+    this.personal = ports.permissions?.().perPlayerVision === true;
+    this.approval = ports.permissions?.().approval === true;
+    const shared: SceneSharePorts = { ...ports, send: (body, to, validity) => this.deliverShared(body, to, undefined, validity),
+      logRoll: roll => ports.logRoll?.(this.personal && roll.token !== null ? { ...roll, origins: this.recipients?.rollOrigins(roll.token) ?? {} } : roll),
+      ...(ports.sendLive === undefined ? {} : { sendLive: (body: GmMessage, key: string, to?: string, validity?: DeliveryValidity): void => this.deliverShared(body, to, key, validity) }),
+    };
+    this.party = new PartyShare(store, shared, { authority: this.agency === null ? undefined : from => this.authority(from), map: () => this.mapSize,
+      tokensChanged: () => this.recipients?.update(),
+      recordGmMeasures: (records, press) => this.recipients?.marks.recordGm(records, press),
+      recordPlayerMeasure: (from, state) => this.recipients?.marks.recordPlayer(from, state),
     });
-    this.layers = new MapLayerShare(store, { ...ports, mapLayers: () => ports.mapLayers?.() ?? null });
-    const cursorsShown = (): boolean => ports.atlasSettings().showCursors;
-    this.rules = new RulesShare(store, { ...ports, cursorsShown });
-    this.moves = new PlayerMoves(store, {
-      ...ports,
-      context: () => ({
-        scene: this.tokens.listedScene,
-        listedToken: (alias) => this.tokens.listedToken(alias),
-        ownerOf,
-        map: this.mapSize,
-        walls: sceneWalls(store.getState().objects.walls, this.scene?.lit === true, this.mapSize),
-      }),
-    });
-    this.marks = new MarkShare({ ...ports, cursorsShown }, () => this.mapSize);
-    this.assets = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, {
-      map: () => {
-        const map = this.scene?.map ?? null;
-        return map !== null && this.mapBytes !== null ? { hash: map.hash, bytes: this.mapBytes, mime: map.mime } : null;
+    this.layers = this.party.layers;
+    this.dice = this.party.dice;
+    this.recipients = this.agency === null ? null : new SceneRecipients(store, ports, this.party.tokens, this.layers, this.agency);
+    this.assets = new AssetAnswers({ send: (body, to, valid) => ports.send(body, to, this.assetValidity(to, valid)), now: () => ports.now(), readImage: path => ports.readImage(path), scaleImage: ports.scaleImage }, {
+      map: from => {
+        const map = this.scene?.map;
+        return map !== undefined && map !== null && this.mapBytes !== null && (this.recipients?.mapAllowed(from, map.hash) ?? true) ? { hash: map.hash, bytes: this.mapBytes, mime: map.mime } : null;
       },
-      explored: (hash) => this.inputs.exploredBytes(hash),
-      artPath: (hash) => this.artPath(hash),
-    });
-    this.dice = new SceneDice(store, ports, {
-      tokens: this.tokens,
-      shownToken: (mapPath, tokenId) => this.shownToken(mapPath, tokenId),
+      explored: hash => this.personal ? undefined : this.party.inputs.exploredBytes(hash),
+      artPath: (hash, from) => this.artPath(hash, from),
+      validity: from => this.assetValidity(from).valid,
     });
   }
 
-  /** The shared scene's rolls and speakers in the log. */
-  readonly dice: SceneDice;
-
   start(): void {
-    this.unsubscribe = this.store.subscribe((state) => void this.update(state));
+    if (this.stopped || this.unsubscribe !== null) return;
+    this.unsubscribe = this.store.subscribe(state => void this.update(state));
     void this.update(this.store.getState());
     this.schedulePoll();
-    this.moves.start();
-    this.dice.start();
+    this.party.start();
   }
 
   stop(): void {
+    if (this.stopped) return;
+    this.stopped = true;
+    this.generation += 1;
+    this.delivery += 1;
     this.unsubscribe?.();
     this.unsubscribe = null;
     if (this.poll !== undefined) this.ports.clearTimer(this.poll);
     this.poll = undefined;
-    this.tokens.stop();
-    this.live?.stop();
-    this.inputs.stop();
-    this.layers.stop();
-    this.moves.stop();
-    this.dice.stop();
-    this.marks.stop();
+    this.assets.forget();
+    this.agency?.stop();
+    this.recipients?.stop();
+    this.party.stop();
+    this.scene = null;
+    this.mapBytes = null;
+    this.mapSize = null;
   }
 
-  /** The scene, its tokens and its inputs again, to one player or to all; sent to all, assets may be asked for again at once. */
   resend(to?: string): void {
+    if (this.stopped) return;
     if (to === undefined) this.assets.forget();
-    this.ports.send({ t: 'scene', scene: this.scene }, to);
-    this.tokens.resend(to);
-    this.inputs.resend(to);
-    this.layers.resend(to);
-    this.rules.resend(to);
-    this.mine?.resend(to);
-    this.marks.resend(to);
+    if (!this.personal) {
+      this.ports.send({ t: 'scene', scene: this.scene }, to, this.assetValidity(to ?? '*'));
+      this.party.resend(to);
+    } else if (this.scene === null) this.ports.send({ t: 'scene', scene: null }, to);
+    this.recipients?.resend(to);
+    if (this.personal) this.party.resend(to);
   }
 
-  /** Who owns which token, which tokens are player tokens, or who is connected changed: players hear which tokens are player tokens and which are theirs now. */
   ownersChanged(): void {
-    this.tokens.update();
-    this.mine?.update();
+    if (this.stopped) return;
+    const personal = this.ports.permissions?.().perPlayerVision === true;
+    const approval = this.ports.permissions?.().approval === true;
+    if (approval && !this.approval) this.party.moves.sceneChanged();
+    this.approval = approval;
+    const modeChanged = personal !== this.personal;
+    const invalidated = this.recipients?.ownersChanged() === true;
+    this.personal = personal;
+    if (modeChanged || invalidated) {
+      this.delivery += 1;
+      this.assets.forget();
+      this.ports.send({ t: 'scene', scene: null });
+      if (this.scene !== null) this.publish({ ...this.scene, id: this.ports.randomId() }, this.mapBytes, this.mapSize);
+      else this.agency?.sceneChanged();
+      return;
+    }
+    this.party.ownersChanged();
+    this.agency?.ownersChanged();
+    this.recipients?.update();
   }
 
-  /** A player left the table: their drags end where their tokens are. */
-  playerLeft(player: string): void {
-    this.moves.playerLeft(player);
-    this.marks.playerLeft(player);
-    // Chunks queued for them are dropped: when they come back, they may ask again at once.
-    this.assets.forget(player);
+  playerLeft(from: string): void {
+    this.party.playerLeft(from);
+    this.agency?.playerLeft(from);
+    this.recipients?.playerLeft(from);
+    this.assets.forget(from);
   }
 
-  /** Withdraws the scene: players see none until a scene is shared again. */
+  authority(from: string): AgencyRecipient | null { return this.recipients?.current(from) ?? null; }
+  readablePin(from: string, scene: string, alias: string): ReadablePin | null { return this.recipients === null ? this.layers.readablePin(scene, alias) : this.recipients.readablePin(from, scene, alias); }
+
+  pinsChanged(): void {
+    this.layers.update();
+    this.recipients?.update();
+  }
+
+  sendTable(body: GmMessage, to?: string): void {
+    if (this.stopped) return;
+    if (this.personal && body.t === 'roll') this.recipients?.sendSide(body, to);
+    else this.ports.send(body, to);
+  }
+
   withdraw(): void {
+    if (this.stopped) return;
+    this.generation += 1;
     this.key = null;
     this.publish(null, null);
   }
 
-  /**
-   * A player's message: a drag, drop or cancelled drag of their own token (`PlayerMoves`), a roll (`PlayerRolls`), a laser,
-   * measurement or cursor (`MarkShare`), a resync (a whole list), or an asset request, answered only for the map, the explored
-   * memory or a token's artwork of the current picture, from the chunk the player asks for on. Players take no token: only
-   * the GM gives one, and a claim an older page sends reads as nothing (`parsePlayerMessage`).
-   */
   receive(from: string, body: unknown): void {
+    if (this.stopped) return;
     const message = parsePlayerMessage(body);
     if (message === null) return;
-    if (message.t === 'move') return this.moves.receive(from, message);
-    if (message.t === 'drag') return this.moves.drag(from, message);
-    if (message.t === 'drag-cancel') return this.moves.dragCancel(from, message);
-    if (message.t === 'roll') return this.dice.receive(from, message);
-    if (message.t === 'laser' || message.t === 'measure' || message.t === 'cursor') return this.marks.receive(from, message);
-    if (message.t === 'resync') return message.of === 'tokens' ? this.tokens.resync(from, message.scene) : this.inputs.resync(from, message.scene, message.of);
-    if (message.t === 'asset-request') this.assets.answer(from, message);
+    if (this.agency?.receive(from, message)) return;
+    if (message.t === 'picture-resync') return this.recipients?.resync(from, message.scene);
+    if (message.t === 'asset-request') { this.assets.answer(from, message); return; }
+    if (this.approval && (message.t === 'move' || message.t === 'drag' || message.t === 'drag-cancel')) {
+      this.ports.movementAllowed(from);
+      return this.party.moves.refuse(from, message);
+    }
+    if (this.personal && message.t === 'resync') return this.recipients?.resync(from, message.scene);
+    if (this.personal && (message.t === 'laser' || message.t === 'measure' || message.t === 'cursor')) {
+      if (this.authority(from)?.scene !== message.scene || this.scene === null) return;
+      this.party.receive(from, { ...message, scene: this.scene.id });
+    } else this.party.receive(from, message);
   }
 
-  /** A token of the scene players were last sent a list of, as their frame shows it now; null when they do not see it. */
-  private shownToken(mapPath: string, tokenId: string): ReturnType<RollSceneLookup['shownToken']> {
-    const state = this.store.getState();
-    if (this.tokens.listedScene === null || state.mapPath !== mapPath) return null;
-    return this.ports.tokenSource()?.playerRollTokens(mapPath, [tokenId]).get(tokenId) ?? null;
+  private deliverShared(body: GmMessage, to?: string, liveKey?: string, validity?: DeliveryValidity): void {
+    if (this.stopped) return;
+    if (body.t === 'move-refused' || body.t === 'roll-refused') {
+      this.ports.send(body, to, body.t === 'move-refused' && body.x !== null ? this.assetValidity(to ?? '*') : undefined);
+      return;
+    }
+    if (this.recipients !== null) this.recipients.deliverShared(body, to, liveKey, validity);
+    else if (liveKey !== undefined && this.ports.sendLive !== undefined) this.ports.sendLive(body, liveKey, to, validity);
+    else this.ports.send(body, to, validity);
   }
 
-  /** The vault path of artwork the players' current picture shows, by hash: a token's or an initiative portrait's. */
-  private artPath(hash: string): string | undefined {
-    return this.tokens.artPath(hash) ?? this.layers.artPath(hash) ?? this.ports.logArt?.(hash);
+  private assetValidity(from: string, authorized?: () => boolean): DeliveryValidity {
+    const generation = this.delivery;
+    const current = this.recipients?.validity(from);
+    return { ...current, recipient: from, scene: current?.scene ?? this.scene?.id ?? '', generation,
+      valid: () => !this.stopped && generation === this.delivery && current?.valid() !== false && authorized?.() !== false,
+    };
   }
 
-  /** Looks again every `TOKEN_POLL_MS`: Atlas's dynamic lighting and the map's measurement may change without a store change. */
+  private artPath(hash: string, from: string): string | undefined {
+    return (this.personal ? this.recipients?.artPath(from, hash) : this.party.artPath(hash)) ?? this.ports.logArt?.(hash, from);
+  }
+
   private schedulePoll(): void {
-    this.poll = this.ports.setTimer(() => {
-      this.poll = undefined;
-      void this.update(this.store.getState());
-      this.rules.update();
-      this.marks.update();
-      this.schedulePoll();
-    }, TOKEN_POLL_MS);
+    if (this.stopped) return;
+    this.poll = this.ports.setTimer(() => { this.poll = undefined; if (!this.stopped) { void this.update(this.store.getState()); this.schedulePoll(); } }, TOKEN_POLL_MS);
   }
 
   private async update(state: SceneState): Promise<void> {
-    if (!state.mapLoaded || state.isMapLoading) return;
+    if (this.stopped) return;
+    if (!state.mapLoaded || state.isMapLoading) {
+      if (this.ports.held?.() === true) { this.agency?.sceneChanged(); return; }
+      if (this.key !== null || this.scene !== null) this.withdraw();
+      else this.agency?.sceneChanged();
+      return;
+    }
     const lit = isLit(state, this.ports.atlasSettings());
     const refusal = lit && this.ports.lightingSource() === null ? LIGHTING_REFUSAL : null;
     if (refusal !== null) {
@@ -235,52 +252,39 @@ export class SceneShare {
     }
     this.refusal = null;
     const key = `${state.mapPath ?? ''}\n${state.background ?? ''}\n${lit}`;
-    if (key === this.key) {
-      this.marks.update();
-      this.tokens.update();
-      this.live?.update();
-      this.layers.update();
-      return this.inputs.update();
-    }
+    if (key === this.key) { this.party.update(); this.recipients?.update(); this.agency?.ownersChanged(); return; }
+    const generation = ++this.generation;
     this.key = key;
-    this.tokens.setScene(null);
-    this.inputs.setScene(null);
-    this.layers.setScene(null);
-    const built = await this.build(state.background);
-    if (this.key !== key) return;
-    if (built === null) {
-      this.ports.notice('Atlas Online cannot send this scene\'s map image.');
-      this.publish(null, null);
-      return;
-    }
+    if (this.personal && this.scene !== null) this.ports.send({ t: 'scene', scene: null });
+    this.delivery += 1;
+    this.party.setScene(null);
+    this.recipients?.setScene(null, null);
+    this.agency?.sceneChanged();
+    const built = await this.build(state.background, generation);
+    if (this.stopped || this.generation !== generation) return;
+    if (built === null) { this.ports.notice('Atlas Online cannot send this scene\'s map image.'); this.publish(null, null); return; }
     this.publish({ id: this.ports.randomId(), map: built.map, lit }, built.bytes, built.size);
   }
 
-  private async build(background: string | null): Promise<{ readonly map: AssetRef | null; readonly bytes: Uint8Array | null; readonly size: MapSize | null } | null> {
+  private async build(background: string | null, generation: number): Promise<BuiltScene | null> {
     if (background === null) return { map: null, bytes: null, size: null };
     const image = await this.ports.readImage(background);
-    if (image === null || image.bytes.length > MAX_ASSET_BYTES) return null;
-    const size = await imageDimensions(new Blob([image.bytes]));
+    if (this.stopped || this.generation !== generation || image === null || image.bytes.length > MAX_ASSET_BYTES) return null;
+    const size = headerOf(new DataView(image.bytes.buffer, image.bytes.byteOffset, image.bytes.byteLength));
     return { map: { hash: await sha256Hex(image.bytes), size: image.bytes.length, mime: image.mime }, bytes: image.bytes, size };
   }
 
-  private publish(scene: SharedScene | null, bytes: Uint8Array | null, size: MapSize | null = null): void {
+  private publish(scene: SharedScene | null, bytes: Uint8Array<ArrayBuffer> | null, size: MapSize | null = null): void {
+    if (this.stopped) return;
+    this.delivery += 1;
     this.scene = scene;
     this.mapBytes = bytes;
     this.mapSize = size;
-    this.moves.sceneChanged();
-    this.tokens.setScene(null);
-    this.inputs.setScene(null);
-    this.layers.setScene(null);
-    this.rules.setScene(null);
-    // Marks of the scene before must not follow the new one: the live lane would let them overtake it.
-    this.marks.setScene(null);
+    this.agency?.sceneChanged();
+    this.party.setScene(null);
+    this.recipients?.setScene(scene, size);
     this.resend();
-    this.tokens.setScene(scene?.id ?? null);
-    this.live?.setScene(scene);
-    this.inputs.setScene(scene);
-    this.layers.setScene(scene);
-    this.rules.setScene(scene?.id ?? null);
-    this.marks.setScene(scene?.id ?? null);
+    this.party.setScene(scene);
+    this.recipients?.update();
   }
 }

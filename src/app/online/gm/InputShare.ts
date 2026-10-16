@@ -15,6 +15,7 @@ export interface InputSharePorts extends PacerClock {
   tokenAlias(tokenId: string): string;
   /** Where the GM's lighting reads its rules and measurement, or null while it cannot be read. */
   lightingSource(): LightingSource | null;
+  doorAlias?(id: string): string;
 }
 
 /** The shortest time between two sends of the scene's inputs, as for the token list. */
@@ -157,7 +158,7 @@ export class InputShare {
     const measurement = source.measurement();
     const key = this.lighting;
     if (key !== null && key.walls === state.objects.walls && key.zones === state.objects.lightZones && key.grid === state.grid && key.rules === rules && key.unitDistance === measurement.unitDistance) return key.scene;
-    const scene = sharedLightingScene(state, rules, measurement);
+    const scene = sharedLightingScene(state, rules, measurement, this.ports.doorAlias);
     this.lighting = { walls: state.objects.walls, zones: state.objects.lightZones, grid: state.grid, rules, unitDistance: measurement.unitDistance, scene, sent: null };
     return scene;
   }

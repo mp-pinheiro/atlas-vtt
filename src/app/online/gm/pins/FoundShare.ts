@@ -6,8 +6,9 @@ import { bookPicture } from '../book/bookAssets.ts';
 import { viewOf } from '../log/logEntries.ts';
 import type { TableLog } from '../log/TableLog.ts';
 import { MoveRate } from '../moveCheck.ts';
-import type { MapLayerShare } from '../MapLayerShare.ts';
+import type { ReadablePin } from './ReadablePins.ts';
 import type { VaultImage } from '../TokenShare.ts';
+import type { QuestAsset } from '../book/questGate.ts';
 import { FoundTexts } from './FoundTexts.ts';
 
 /** Pins a player may open: a burst of `FIND_BURST`, then one a second. */
@@ -16,14 +17,14 @@ export const FINDS_PER_SECOND = 1;
 
 export interface FoundSharePorts {
   readonly app: App;
-  send(body: GmMessage, to?: string): void;
+  send(body: GmMessage, to?: string, valid?: () => boolean): void;
   now(): number;
   /** The name a player goes by at the table, or null when they are not at it. */
   nameOf(player: string): string | null;
   readImage(path: string): Promise<VaultImage | null>;
   scaleImage?: ScaleImage;
-  /** The shared scene's map layers, while one is shared; null otherwise. */
-  layers(): MapLayerShare | null;
+  readablePin(from: string, scene: string, alias: string): ReadablePin | null;
+  changed(): void;
 }
 
 /**
@@ -44,7 +45,7 @@ export class FoundShare {
   constructor(private readonly log: TableLog, private readonly ports: FoundSharePorts) {
     this.texts = new FoundTexts(ports.app, log);
     this.answers = new AssetAnswers(
-      { send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage },
+      { send: (body, to, valid) => ports.send(body, to, valid), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage },
       bookPicture((hash, player) => this.assetOf(hash, player)),
     );
   }
@@ -81,9 +82,8 @@ export class FoundShare {
   }
 
   private async find(from: string, message: PlayerPinFound): Promise<void> {
-    const layers = this.ports.layers();
-    const listed = layers?.readablePin(message.scene, message.pin) ?? null;
-    if (layers === null || listed === null) return;
+    const listed = this.ports.readablePin(from, message.scene, message.pin);
+    if (listed === null) return;
     const { map, pin: { id: pin } } = listed;
     const known = this.entryOf(map, pin);
     if (known !== null) return this.sendEntry(known, from);
@@ -92,13 +92,16 @@ export class FoundShare {
     this.finding.add(key);
     try {
       const read = await this.texts.read(listed.pin.notePath, map);
+      const current = this.ports.readablePin(from, message.scene, message.pin);
+      if (current === null || current.map !== map || current.alias !== listed.alias || current.pin.id !== pin || current.pin.notePath !== listed.pin.notePath || this.ports.nameOf(from) === null) return;
       const raced = this.entryOf(map, pin);
       if (raced !== null) return this.sendEntry(raced, from);
+      if (read === null) return;
       const found = { map, pin, link: listed.pin.notePath };
-      const id = read === null ? null : this.log.pinFound(from, read.handout.note, found);
-      if (id === null || read === null) return;
+      const id = this.log.pinFound(from, read.handout.note, found);
+      if (id === null) return;
       this.texts.keep(id, read, found);
-      layers.update();
+      this.ports.changed();
     } finally {
       this.finding.delete(key);
     }
@@ -111,7 +114,8 @@ export class FoundShare {
     if (view !== null) this.ports.send({ t: 'log-entry', entry: view }, to);
   }
 
-  private assetOf(hash: string, player: string): ReturnType<FoundTexts['asset']> {
-    return this.ports.nameOf(player) === null ? undefined : this.texts.asset(hash);
+  private assetOf(hash: string, player: string): QuestAsset | undefined {
+    if (this.ports.nameOf(player) === null) return undefined;
+    return this.texts.asset(hash);
   }
 }

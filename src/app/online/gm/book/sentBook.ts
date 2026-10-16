@@ -21,7 +21,7 @@ export function sentOf(character: PlayedCharacter | null, worldMap: WorldMapFile
     book: character === null ? '' : `${character.collection}\n${character.key}`,
     map: worldMap === null ? '' : JSON.stringify(worldMap.map),
     quests,
-    sheet: JSON.stringify(character?.sheet ?? null),
+    sheet: JSON.stringify(character === null ? null : [character.tokenId, character.mapPath, character.sheet]),
   };
 }
 

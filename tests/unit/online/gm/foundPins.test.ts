@@ -83,7 +83,8 @@ function setUp(pins: Record<string, NotePin>, lit: boolean): Table {
   log.welcome([{ id: ANA, name: 'Ana' }, { id: BEN, name: 'Ben' }]);
   const found = new FoundShare(log, {
     app: vault.app, send: (body, to) => void sent.push({ body, to }), now: () => 0, nameOf: (player) => NAMES[player] ?? null,
-    readImage: () => Promise.resolve(null), layers: () => harness.share.layers,
+    readImage: () => Promise.resolve(null), readablePin: (from, scene, alias) => harness.share.readablePin(from, scene, alias),
+    changed: () => harness.share.layers.update(),
   });
   harness.foundPin = (mapPath, pinId) => found.entryOf(mapPath, pinId);
   found.start();
@@ -176,6 +177,19 @@ describe('finding a readable pin', () => {
     expect(shown()[0]?.found).toBeNull();
     await open(BEN, alias);
     expect(log.entries().find((logged) => logged.kind === 'found')).toMatchObject({ who: BEN });
+  });
+  it('does not log a pin after the requester loses it while its note is being read', async () => {
+    const { log, shown, found, vault, harness } = await table({ keep: pin('keep', 300) });
+    const alias = shown()[0]?.id ?? '';
+    const scene = ofKind(harness.sent, 'scene').at(-1)?.scene?.id ?? '';
+    const pending = Promise.withResolvers<string>();
+    const read = vi.spyOn(vault.app.vault, 'cachedRead').mockReturnValue(pending.promise);
+    found.receive(ANA, { t: 'pin-found', scene, pin: alias });
+    expect(read).toHaveBeenCalledTimes(1);
+    await harness.set(sceneState({ objects: { ...sceneState().objects, pins: {} } }));
+    pending.resolve(KEEP);
+    await settled();
+    expect(log.entries().filter((entry) => entry.kind === 'found')).toEqual([]);
   });
 });
 

@@ -15,7 +15,7 @@ export const DRAG_IDLE_MS = 3_000;
 
 export interface PlayerDragPorts {
   /** The shared scene, its list, owners and map, with the tokens as the store holds them now. */
-  context(state: MoveState): MoveContext;
+  context(state: MoveState, from: string): MoveContext;
   now(): number;
   setTimer(run: () => void, ms: number): number;
   clearTimer(timer: number): void;
@@ -76,7 +76,7 @@ export class PlayerDrags {
     const state = this.store.getState();
     if (!this.rate.take(from, this.ports.now()) || !loaded(state) || this.gmHolds(state)) return;
     const live = this.find(from, drag.id);
-    const context = this.context(state, live);
+    const context = this.context(state, live, from);
     const verdict = checkMove(from, drag, context);
     if (!verdict.ok) {
       if (verdict.reason !== 'place' && live !== undefined) this.end([live], 'back');
@@ -107,7 +107,7 @@ export class PlayerDrags {
   drop(from: string, move: PlayerMove): Point | false | null {
     const state = this.store.getState();
     const live = this.find(from, move.id);
-    const context = this.context(state, live);
+    const context = this.context(state, live, from);
     const tokenId = context.scene === move.scene ? context.listedToken(move.id) : undefined;
     if (tokenId !== undefined && this.taken.delete(key(from, tokenId))) return false;
     if (live === undefined) return null;
@@ -128,7 +128,7 @@ export class PlayerDrags {
    */
   cancel(from: string, cancel: PlayerDragCancel): void {
     const live = this.find(from, cancel.id);
-    const context = this.context(this.store.getState(), live);
+    const context = this.context(this.store.getState(), live, from);
     if (context.scene !== cancel.scene) return;
     const tokenId = context.listedToken(cancel.id);
     if (tokenId !== undefined) this.taken.delete(key(from, tokenId));
@@ -208,7 +208,7 @@ export class PlayerDrags {
     for (const live of drags) {
       const state = this.store.getState();
       const token = state.objects.tokens[live.tokenId];
-      const context = this.context(state, live);
+      const context = this.context(state, live, live.from);
       const verdict = token === undefined || context.scene === null ? null : checkMove(live.from, { scene: context.scene, id: live.alias, x: token.x, y: token.y }, context);
       this.end([live], verdict?.ok === true ? { x: verdict.x, y: verdict.y } : 'back');
     }
@@ -244,8 +244,8 @@ export class PlayerDrags {
   }
 
   /** What a drag message is checked against: a drag under way keeps its token even should it leave the players' list meanwhile. */
-  private context(state: MoveState, live: LiveDrag | undefined): MoveContext {
-    const context = this.ports.context(state);
+  private context(state: MoveState, live: LiveDrag | undefined, from: string): MoveContext {
+    const context = this.ports.context(state, from);
     return live === undefined ? context : { ...context, listedToken: (alias) => (alias === live.alias ? live.tokenId : context.listedToken(alias)) };
   }
 

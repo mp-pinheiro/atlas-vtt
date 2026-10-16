@@ -223,6 +223,7 @@ export class TokenShare {
   }
 
   private schedulePoll(): void {
+    if (this.scene === null || this.poll !== undefined) return;
     this.poll = this.ports.setTimer(() => {
       this.poll = undefined;
       this.update();

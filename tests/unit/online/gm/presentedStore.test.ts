@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getHistoryStore, runUntracked } from '../../../../src/app/stores/history';
 import type { SceneState, SceneStore } from '../../../../src/app/online/gm/atlasView.ts';
 import { PlayerMoves } from '../../../../src/app/online/gm/playerMoves.ts';
+import { PlayerActionRates } from '../../../../src/app/online/gm/PlayerActionRates.ts';
 import type { PresentedTab, TabSource } from '../../../../src/app/online/gm/presentedScene.ts';
 import { PresentedStore } from '../../../../src/app/online/gm/presentedStore.ts';
 import { ALIAS, ANA, SCENE, STORE_FACTORY, type StoreFactory } from './realStore.ts';
@@ -120,12 +121,14 @@ describe('the shared store while the GM works on another scene tab', () => {
     const holds: number[] = [];
     const gate = new PresentedStore(v.store as unknown as SceneStore, v.presented, () => void holds.push(Object.keys(v.store.getState().heldTokens).length));
     const sent: { body: GmMessage; to: string }[] = [];
+    const rates = new PlayerActionRates();
     const moves = new PlayerMoves(gate, {
       context: () => ({ scene: SCENE, listedToken: (alias) => (alias === ALIAS.ogre ? 'ogre' : undefined), ownerOf: () => ANA, map: { width: 2000, height: 1500 }, walls: null }),
       send: (body, to) => sent.push({ body, to }),
       now: () => Date.now(),
       setTimer: (run, ms) => setTimeout(run, ms) as unknown as number,
       clearTimer: (timer) => clearTimeout(timer),
+      movementAllowed: (from) => rates.movement(from, Date.now()),
     });
     moves.start();
     const drag: PlayerDrag = { t: 'drag', scene: SCENE, id: ALIAS.ogre, x: 300, y: 200 };

@@ -15,6 +15,7 @@ import { tokenEffects, type SightRules } from '../../vision/sightRules';
 import { tokenSenses } from '../../vision/tokenSenses';
 import { wallList } from '../../vision/wallList';
 import type { SceneState } from './atlasView.ts';
+import type { SightPolicy } from '../../vision/tokenSightPolicy';
 import { roundPlace } from './scenePicture.ts';
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
@@ -50,22 +51,23 @@ export function sharedFog(operations: Readonly<Record<string, FogOperation>>, al
  * A wall as players get it. A secret door is a plain wall while closed and an open door once
  * opened (light and sight read only `closed`); no wall says it is locked.
  */
-export function sharedWall(wall: WallSegment): SharedWall {
+export function sharedWall(wall: WallSegment, alias?: (id: string) => string): SharedWall {
   const closed = wall.closed ?? true;
   const door = wall.type === 'door' || (wall.type === 'secret-door' && !closed) ? { door: closed ? 'closed' as const : 'open' as const } : {};
   return {
     p: [wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y], ...door,
     ...(wall.direction && { direction: wall.direction }), ...(wall.blocks && { blocks: wall.blocks }), ...(wall.limited === true && { limited: true as const }),
+    ...(wall.type === 'door' && alias !== undefined && { id: alias(wall.id) }),
   };
 }
 
 /** The parts of a lit scene that change seldom: its scale, walls, light zones and the senses of its collection. */
-export function sharedLightingScene(state: SceneState, rules: SightRules, measurement: MeasurementSettings): SharedLightingScene {
+export function sharedLightingScene(state: SceneState, rules: SightRules, measurement: MeasurementSettings, doorAlias?: (id: string) => string): SharedLightingScene {
   const { unitDistance, cellSize } = unitScaleOf(measurement, state.grid);
   return {
     cellSize,
     unitDistance,
-    walls: wallList(state.objects.walls).map(sharedWall),
+    walls: wallList(state.objects.walls).map(wall => sharedWall(wall, doorAlias)),
     zones: lightZoneList(state.objects.lightZones).map((zone) => ({
       polygon: zone.polygon.flatMap((corner) => [corner.x, corner.y]), ambient: zone.ambient, ...(zone.ambientColor && { colour: zone.ambientColor }),
     })),
@@ -92,6 +94,7 @@ export interface SightInputs {
   /** The random id players know a token or a placed light by. */
   tokenAlias(id: string): string;
   lightAlias(id: string): string;
+  readonly policy?: SightPolicy;
 }
 
 /**
@@ -102,8 +105,9 @@ export interface SightInputs {
 function sightToken(token: TokenEntity, inputs: SightInputs): SightToken | null {
   if (token.isHidden === true || !finite(token.x) || !finite(token.y)) return null;
   const seen = inputs.shown.has(token.id);
-  const vision = token.vision?.enabled === true ? token.vision : undefined;
-  const light = readEmission(token.light);
+  const permitted = inputs.policy?.givesSight(token) ?? true;
+  const vision = permitted && token.vision?.enabled === true ? token.vision : undefined;
+  const light = inputs.policy === undefined ? readEmission(token.light) : null;
   if (!seen && vision === undefined && light === null) return null;
   const effects: SharedEffect[] = [...tokenEffects(token, inputs.rules.conditions)].filter((effect) => seen || effect === 'blinded');
   return {
@@ -113,6 +117,7 @@ function sightToken(token: TokenEntity, inputs: SightInputs): SightToken | null 
     size: finite(token.size) && token.size > 0 ? token.size : 1,
     ...(finite(token.rotation) && { rotation: token.rotation }),
     ...(vision && { vision: sharedVision({ ...token, vision }, inputs.rules) }),
+    ...(inputs.policy !== undefined && seen && inputs.policy.alwaysSeen(token) && !permitted && { alwaysSeen: true as const }),
     ...(light && { light: { ...light } }),
     ...(effects.length > 0 && { effects }),
   };
@@ -131,13 +136,21 @@ export function sharedSight(inputs: SightInputs): SharedSight {
   const held = Object.entries(heldForSight(state)).flatMap(([id, at]) => (sent.has(id) && finite(at.x) && finite(at.y) ? [{ id: inputs.tokenAlias(id), x: roundPlace(at.x), y: roundPlace(at.y) }] : []));
   return {
     lighting: { ...state.lighting },
-    lights: lightList(state.objects.lights).filter((light) => light.hidden !== true).map((light) => ({
-      id: inputs.lightAlias(light.id), x: light.x, y: light.y, emission: { ...light.emission },
-      ...(finite(light.rotation) && { rotation: light.rotation }), ...(finite(light.activeBelowAmbient) && { activeBelowAmbient: light.activeBelowAmbient }),
-    })),
+    lights: [
+      ...lightList(state.objects.lights).filter((light) => light.hidden !== true).map((light) => ({
+        id: inputs.lightAlias(inputs.policy === undefined ? light.id : `placed:${light.id}`), x: light.x, y: light.y, emission: { ...light.emission },
+        ...(finite(light.rotation) && { rotation: light.rotation }), ...(finite(light.activeBelowAmbient) && { activeBelowAmbient: light.activeBelowAmbient }),
+      })),
+      ...(inputs.policy === undefined ? [] : Object.values(state.objects.tokens).flatMap((token) => {
+        const emission = token.isHidden ? null : readEmission(token.light);
+        if (emission === null || !finite(token.x) || !finite(token.y)) return [];
+        const at = heldForSight(state)[token.id] ?? token;
+        return [{ id: inputs.lightAlias(`carried:${token.id}`), x: at.x, y: at.y, emission: { ...emission }, ...(finite(token.rotation) && { rotation: token.rotation }) }];
+      })),
+    ],
     tokens: tokens.map(({ entry }) => entry),
     held,
     // Every vision token hidden: the players' sight is none, not all (`selectSight`).
-    ...(!every.some(({ entry }) => entry.vision) && Object.values(state.objects.tokens).some((token) => token.vision?.enabled === true) && { blind: true as const }),
+    ...((inputs.policy !== undefined ? !Object.values(state.objects.tokens).some(inputs.policy.givesSight) : !every.some(({ entry }) => entry.vision) && Object.values(state.objects.tokens).some((token) => token.vision?.enabled === true)) && state.lighting.tokenVision !== false && { blind: true as const }),
   };
 }

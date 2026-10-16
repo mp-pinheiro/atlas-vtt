@@ -22,9 +22,12 @@ import { checkResourceEdit, type ResourceEdit } from './resourceEdit.ts';
 import type { ResourceAnswer } from './resourceWrites.ts';
 import { bookUpdate, NO_QUESTS, sentOf, type SentBook } from './sentBook.ts';
 import { WorldMaps, type FileStat, type WorldMapFile, type WorldMapTree } from './worldMap.ts';
+import type { TokenEntity } from '../../../types';
+import type { SheetProjection } from './sheetProjection';
+import { BookSheets } from './bookSheets';
 
 export interface BookSharePorts extends Timers {
-  send(body: GmMessage, to: string): void;
+  send(body: GmMessage, to: string, valid?: () => boolean): void;
   /** The GM's clock, which notes and items are stamped with. */
   clock(): number;
   /** A new item's id: 24 hex characters from the cryptographic source. */
@@ -48,6 +51,8 @@ export interface BookSharePorts extends Timers {
   editResource(edit: ResourceEdit, answer: ResourceAnswer): void;
   /** Scales an image for a player who asks for a longest side; without it players get originals only. */
   scaleImage?: ScaleImage | undefined;
+  nativeSheet?(token: TokenEntity): Promise<SheetProjection | null>;
+  nativeSheetContext?(token: TokenEntity): string;
 }
 
 /** How often the scene is read again: a sheet follows its token within this time, however often the store changes. */
@@ -63,6 +68,16 @@ export const REFUSAL_BOOK_MS = 5_000;
 
 /** What a character without a name is called where the GM picks who gets an item. */
 const UNNAMED = 'Unnamed character';
+interface CharacterDelivery {
+  readonly identity: string | null;
+  readonly generation: number;
+  readonly revision: string | null;
+}
+
+function characterIdentity(character: PlayedCharacter | null): string | null {
+  if (character === null) return null;
+  return JSON.stringify([character.collection, character.key]);
+}
 
 /**
  * The players' books: each connected player's own pages besides the table, sent to that player
@@ -102,28 +117,47 @@ export class BookShare implements LootRecipientSource {
   private readonly owed = new Map<string, number>();
   private readonly listeners = new Set<() => void>();
   private told = '[]';
+  private readonly sheets: BookSheets;
   private stopPoll: (() => void) | null = null;
+  private stopped = false;
+  private readonly characterDeliveries = new Map<string, CharacterDelivery>();
+  private readonly recipientDeliveries = new Map<string, number>();
+  private deliveryGeneration = 0;
 
   constructor(ports: BookSharePorts, shelf: BookShelf) {
     this.ports = ports;
     this.shelf = shelf;
+    this.sheets = new BookSheets({
+      read: token => ports.nativeSheet?.(token) ?? Promise.resolve(null),
+      current: (token, scope) => {
+        const scene = ports.scene(), current = scene?.tokens[token.id];
+        return scene !== null && current !== undefined && this.sheetScope(scene, current) === scope && scene.shown([token.id]).has(token.id);
+      },
+      randomId: () => ports.randomId(), changed: () => this.update(),
+    });
     this.art = new ArtRefs((path) => ports.readImage(path), () => this.update());
     this.maps = new WorldMaps({ stat: (path) => ports.stat(path), readImage: (path) => ports.readImage(path), source: () => ports.worldMap(), read: () => this.update() });
     this.questList = new AskedAnswer(() => ports.quests(), NO_QUESTS, () => this.update());
     const picture = bookPicture((hash, player) => this.assetOf(hash, player));
-    this.answers = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, picture);
+    this.answers = new AssetAnswers({ send: (body, to, valid) => ports.send(body, to, valid), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, picture);
   }
 
   start(): void {
+    this.stopped = false;
     this.stopPoll ??= every(this.ports, BOOK_POLL_MS, () => this.update());
     this.update();
   }
 
   stop(): void {
+    this.deliveryGeneration += 1;
+    this.stopped = true;
+
+    this.answers.forget();
     this.stopPoll?.();
     this.stopPoll = null;
     for (const timer of this.owed.values()) this.ports.clearTimer(timer);
     this.owed.clear();
+    this.sheets.stop();
   }
 
   /** The world map may be another now (the campaign played, its world map or that map's artwork changed): it is asked for anew. */
@@ -140,15 +174,17 @@ export class BookShare implements LootRecipientSource {
 
   /** Reads the scene again and sends each connected player what changed for them: the whole book, or the sheet alone. */
   update(): void {
+    if (this.stopped) return;
+    const scene = this.ports.scene();
+    const players = this.ports.players();
+    if (scene !== null) this.read(scene, new Set(players.map((player) => player.id)));
+    this.updateCharacterDeliveries(players);
     const map = this.maps.get();
     const quests = this.questList.get();
     // Being looked up or read: the books go out once both are known, with them.
     if (map === undefined || quests === undefined) return;
     this.worldMap = map;
     this.quests = this.questPlaces.of(quests, map?.questPlaces);
-    const scene = this.ports.scene();
-    const players = this.ports.players();
-    if (scene !== null) this.read(scene, new Set(players.map((player) => player.id)));
     const online = new Set(players.filter((player) => player.online).map((player) => player.id));
     for (const player of [...this.sent.keys()]) if (!online.has(player)) this.sent.delete(player);
     for (const player of online) this.sync(player);
@@ -166,9 +202,21 @@ export class BookShare implements LootRecipientSource {
 
   /** A player left the table: chunks queued for them are dropped, and they get their book anew when they are back. */
   playerLeft(player: string): void {
+    this.recipientDeliveries.set(player, (this.recipientDeliveries.get(player) ?? 0) + 1);
     this.answers.forget(player);
     this.sent.delete(player);
     this.parts.delete(player);
+  }
+
+  characterOf(player: string): PlayedCharacter | null {
+    return this.isOnline(player) ? this.characters.of(player) : null;
+  }
+
+  refreshSheet(player: string): void {
+    if (!this.isOnline(player)) return;
+    this.update();
+    const character = this.characters.of(player);
+    this.ports.send({ t: 'book-sheet', character: character?.sheet ?? null }, player, this.deliveryValidity(player, character, true));
   }
 
   /**
@@ -206,8 +254,40 @@ export class BookShare implements LootRecipientSource {
     const item = character === null ? null : bookItemOf(draw, this.ports.randomId(), this.ports.clock());
     if (character === null || item === null) return false;
     this.shelf.keep(character.collection, character.key, withItem(this.shelf.of(character.collection, character.key), item));
-    this.ports.send({ t: 'book-item', item }, recipientId);
+    this.ports.send({ t: 'book-item', item }, recipientId, this.deliveryValidity(recipientId, character));
     return true;
+  }
+
+  private updateCharacterDeliveries(players: readonly KnownPlayer[]): void {
+    const recipients = new Set([...players.map((player) => player.id), ...this.characterDeliveries.keys()]);
+    for (const player of recipients) {
+      const character = this.characters.of(player);
+      const identity = characterIdentity(character);
+      const revision = character === null ? null : JSON.stringify([character.tokenId, character.mapPath, character.sheet]);
+      const previous = this.characterDeliveries.get(player);
+      const generation = previous === undefined ? 0 : identity === previous.identity ? previous.generation : previous.generation + 1;
+      this.characterDeliveries.set(player, { identity, generation, revision });
+    }
+  }
+
+  private deliveryValidity(player: string, character: PlayedCharacter | null, revisionBound = false): () => boolean {
+    const identity = characterIdentity(character);
+    const delivery = this.characterDeliveries.get(player);
+    if (delivery === undefined || delivery.identity !== identity) return () => false;
+    const generation = delivery.generation;
+    const revision = delivery.revision;
+    const recipient = this.recipientDeliveries.get(player) ?? 0;
+    const table = this.deliveryGeneration;
+    return (): boolean => {
+      const current = this.characterDeliveries.get(player);
+      return !this.stopped
+        && this.deliveryGeneration === table
+        && this.isOnline(player)
+        && (this.recipientDeliveries.get(player) ?? 0) === recipient
+        && current?.identity === identity
+        && current.generation === generation
+        && (!revisionBound || current.revision === revision);
+    };
   }
 
   subscribe(listener: () => void): () => void {
@@ -222,8 +302,15 @@ export class BookShare implements LootRecipientSource {
     this.characters.update(scene, {
       ownerOf: (tokenId) => this.ports.ownerOf(tokenId, scene.tokens[tokenId]),
       isKnown: (player) => known.has(player),
-      sheet: (shown, token) => sheetOf(shown, token, scene.resources, (path) => this.art.get(path)),
+      sheet: (shown, token) => {
+        const character = sheetOf(shown, token, scene.resources, (path) => this.art.get(path));
+        return character === null || this.ports.nativeSheet === undefined ? character : { ...character, statblock: this.sheets.get(token, this.sheetScope(scene, token)) };
+      },
     });
+  }
+
+  private sheetScope(scene: BookScene, token: TokenEntity): string {
+    return JSON.stringify([scene.collection, scene.mapPath, this.ports.ownerOf(token.id, token), token.assetId, token.imagePath, token.resources, this.ports.nativeSheetContext?.(token)]);
   }
 
   /** Sends a player what changed of their book: the whole book for another character (or to a page that reads no parts), else each changed part alone. */
@@ -236,7 +323,7 @@ export class BookShare implements LootRecipientSource {
     this.sent.set(player, now);
     if (update.map) this.ports.send({ t: 'book-map', worldMap: this.worldMap?.map ?? null }, player);
     if (update.quests) this.ports.send({ t: 'book-quests', quests: now.quests }, player);
-    if (update.sheet) this.ports.send({ t: 'book-sheet', character: character?.sheet ?? null }, player);
+    if (update.sheet) this.ports.send({ t: 'book-sheet', character: character?.sheet ?? null }, player, this.deliveryValidity(player, character, true));
   }
 
   private sendBook(player: string): void {
@@ -250,7 +337,7 @@ export class BookShare implements LootRecipientSource {
     const book: PlayerBook = { character: character?.sheet ?? null, worldMap: this.worldMap?.map ?? null, items, notes, pins, quests: sent.quests, purse, slots, equipped };
     this.sent.set(player, sent);
     this.bookAt.set(player, this.ports.now());
-    this.ports.send({ t: 'book', book }, player);
+    this.ports.send({ t: 'book', book }, player, this.deliveryValidity(player, character));
   }
 
   /** The player is owed their whole book (a write of theirs was refused): now, or once `REFUSAL_BOOK_MS` have passed since their last. */
@@ -275,6 +362,7 @@ export class BookShare implements LootRecipientSource {
     const written = applyBookMessage(this.shelf.of(character.collection, character.key), message, this.ports.clock(), quests);
     if (written === null) return false;
     this.shelf.keep(character.collection, character.key, written);
+    this.sendBook(from);
     return true;
   }
 
@@ -298,11 +386,16 @@ export class BookShare implements LootRecipientSource {
   private assetOf(hash: string, player: string): QuestAsset | undefined {
     if (!this.isOnline(player)) return undefined;
     const named = { worldMap: this.worldMap, character: this.characters.of(player), quests: this.sent.get(player)?.quests ?? NO_QUESTS };
+    const sheet = named.character?.sheet.statblock;
+    if (sheet != null && named.character !== null) {
+      const path = this.sheets.asset(named.character.tokenId, sheet, hash);
+      if (path !== undefined) return { path };
+    }
     return bookAssetOf(hash, named, (asked) => this.ports.questAsset(asked));
   }
 
   private isOnline(player: string): boolean {
-    return this.ports.players().some((known) => known.id === player && known.online);
+    return !this.stopped && this.ports.players().some((known) => known.id === player && known.online);
   }
 
   /** Tells who listens when the people an item can be handed to changed. */

@@ -55,7 +55,7 @@ export class MarkOverlay {
     if (shown && this.followCamera()) this.app?.render();
     this.wake();
   };
-  private readonly resized = new ResizeObserver(() => this.wake());
+  private resized: ResizeObserver | null = null;
 
   constructor(rules: () => MeasureRules | null) {
     this.rules = rules;
@@ -81,6 +81,7 @@ export class MarkOverlay {
   dispose(): void {
     this.disposed = true;
     this.detach();
+    this.resized = null;
     this.lasers?.destroy();
     this.measures?.destroy();
     this.app?.destroy({ removeView: true }, { children: true });
@@ -117,13 +118,14 @@ export class MarkOverlay {
     this.host = host;
     const canvas = this.app?.canvas;
     if (canvas !== undefined) host.canvas.after(canvas);
+    this.resized ??= new ResizeObserver(() => this.wake());
     this.resized.observe(host.canvas);
     host.viewport.on('moved', this.onCamera);
     host.viewport.on('zoomed', this.onCamera);
   }
 
   private detach(): void {
-    this.resized.disconnect();
+    this.resized?.disconnect();
     this.host?.viewport.off('moved', this.onCamera);
     this.host?.viewport.off('zoomed', this.onCamera);
     this.host = null;

@@ -1,7 +1,7 @@
 import type { GmMessage, PlayerDrag, PlayerDragCancel, PlayerMove } from '../protocol/index.ts';
 import { placeTokens, type PlacedTokensState } from '../../stores/tokenStacking';
 import type { ViewState } from '../../types/viewState';
-import { checkMove, insideMap, landing, MoveRate, type MoveContext } from './moveCheck.ts';
+import { checkMove, insideMap, landing, type MoveContext } from './moveCheck.ts';
 import { PlayerDrags } from './playerDrags.ts';
 
 /** What player moves read and write of an Atlas tab's store. */
@@ -16,11 +16,12 @@ export interface MoveStore {
 
 export interface PlayerMovePorts {
   /** The shared scene, its list and owners, and the map's size, as they are now. */
-  context(): Omit<MoveContext, 'tokens'>;
+  context(from: string): Omit<MoveContext, 'tokens'>;
   send(body: GmMessage, to: string): void;
   now(): number;
   setTimer(run: () => void, ms: number): number;
   clearTimer(timer: number): void;
+  movementAllowed(from: string): boolean;
 }
 
 /** A move held while the GM drags: who sent it, and where the token stood then. */
@@ -43,7 +44,6 @@ interface Waiting {
 export class PlayerMoves {
   private readonly store: MoveStore;
   private readonly ports: PlayerMovePorts;
-  private readonly rate = new MoveRate();
   /** The last waiting move of each token, by GM id. */
   private readonly waiting = new Map<string, Waiting>();
   private readonly drags: PlayerDrags;
@@ -53,7 +53,7 @@ export class PlayerMoves {
   constructor(store: MoveStore, ports: PlayerMovePorts) {
     this.store = store;
     this.ports = ports;
-    this.drags = new PlayerDrags(store, { ...ports, context: (state) => this.context(state) });
+    this.drags = new PlayerDrags(store, { ...ports, context: (state, from) => this.context(state, from) });
   }
 
   start(): void {
@@ -76,11 +76,16 @@ export class PlayerMoves {
   /** A player left: their drags end with the tokens where they are. */
   playerLeft(player: string): void {
     this.drags.playerLeft(player);
+    for (const [id, waiting] of this.waiting) if (waiting.from === player) this.waiting.delete(id);
   }
 
   /** The shared scene changed: drags of the last one end where their tokens are. */
   sceneChanged(): void {
     this.drags.stop();
+    for (const { from, move } of this.waiting.values()) this.refuse(from, move);
+    this.waiting.clear();
+    if (this.timer !== undefined) this.ports.clearTimer(this.timer);
+    this.timer = undefined;
   }
 
   stop(): void {
@@ -94,10 +99,10 @@ export class PlayerMoves {
 
   receive(from: string, move: PlayerMove): void {
     const state = this.store.getState();
-    if (!this.rate.take(from, this.ports.now()) || !state.mapLoaded || state.isMapLoading) return this.refuse(from, move);
+    if (!this.ports.movementAllowed(from) || !state.mapLoaded || state.isMapLoading) return this.refuse(from, move);
     const dropped = this.drags.drop(from, move);
     if (dropped !== null) return dropped !== false && dropped.x === move.x && dropped.y === move.y ? undefined : this.refuse(from, move);
-    const verdict = checkMove(from, move, this.context(state));
+    const verdict = checkMove(from, move, this.context(state, from));
     if (!verdict.ok) return this.refuse(from, move);
     if (!this.drags.gmHolds(state)) return this.apply(from, verdict.tokenId, move);
     const earlier = this.waiting.get(verdict.tokenId);
@@ -122,7 +127,7 @@ export class PlayerMoves {
     this.waiting.clear();
     for (const { from, move, x, y } of waiting) {
       const now = this.store.getState();
-      const verdict = now.mapLoaded && !now.isMapLoading ? checkMove(from, move, this.context(now)) : null;
+      const verdict = now.mapLoaded && !now.isMapLoading ? checkMove(from, move, this.context(now, from)) : null;
       const token = verdict?.ok === true ? now.objects.tokens[verdict.tokenId] : undefined;
       if (verdict?.ok !== true || token === undefined || token.x !== x || token.y !== y) this.refuse(from, move);
       else this.apply(from, verdict.tokenId, move);
@@ -137,23 +142,23 @@ export class PlayerMoves {
   private apply(from: string, tokenId: string, move: PlayerMove): void {
     const state = this.store.getState();
     const token = state.objects.tokens[tokenId];
-    const at = token === undefined ? move : landing(this.context(state), token, move);
+    const at = token === undefined ? move : landing(this.context(state, from), token, move);
     const stopped = at.x !== move.x || at.y !== move.y;
     if (!stopped || at.x !== token?.x || at.y !== token.y) this.store.setState((draft) => placeTokens(draft, [{ id: tokenId, x: at.x, y: at.y }]));
     if (stopped) this.refuse(from, move);
   }
 
   /** Tells the sender the move was not taken, with the token's place where the players see it. */
-  private refuse(from: string, move: PlayerMove): void {
+  refuse(from: string, move: Pick<PlayerMove, 'scene' | 'id'>): void {
     const state = this.store.getState();
-    const context = this.context(state);
+    const context = this.context(state, from);
     const tokenId = context.scene === move.scene ? context.listedToken(move.id) : undefined;
     const token = tokenId === undefined ? undefined : state.objects.tokens[tokenId];
     const seen = token !== undefined && token.isHidden !== true && insideMap(token.x, token.y, null);
     this.ports.send({ t: 'move-refused', scene: move.scene, id: move.id, x: seen ? token.x : null, y: seen ? token.y : null }, from);
   }
 
-  private context(state: MoveState): MoveContext {
-    return { ...this.ports.context(), tokens: state.objects.tokens };
+  private context(state: MoveState, from: string): MoveContext {
+    return { ...this.ports.context(from), tokens: state.objects.tokens };
   }
 }

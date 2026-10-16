@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { MAX_BATCH_SENDS, MAX_GM_FRAME, parseClientFrame } from '../../../../src/app/online/protocol/index.ts';
 import type { Timers } from '../../../../src/app/online/gm/companionTimers.ts';
 import { BATCH_MS, BULK_BUFFERED, SendQueue } from '../../../../src/app/online/gm/sendQueue.ts';
+import { utf8Length } from '../../../../src/app/online/protocol/shape.ts';
 
 function clock(): Timers & { advance(ms: number): void } {
   let now = 0;
@@ -102,8 +103,20 @@ describe('the send queue towards a relay that takes batches', () => {
     time.advance(BATCH_MS);
     expect(queue.length).toBe(0);
     expect(sent.flatMap(carried)).toHaveLength(1 + 4 + MAX_BATCH_SENDS + 5);
-    expect(sent.every((text) => text.length <= MAX_GM_FRAME)).toBe(true);
+    expect(sent.every((text) => utf8Length(text) <= MAX_GM_FRAME)).toBe(true);
     expect(sent.every((text) => carried(text).length <= MAX_BATCH_SENDS)).toBe(true);
+  });
+  it('budgets batched frames in UTF-8 bytes rather than JavaScript characters', () => {
+    const { queue, sent, time } = batching();
+    for (let index = 0; index < 20; index += 1) {
+      const next = message({ t: 'text', value: '🗺️'.repeat(4_000), index });
+      queue.push(next.frame, '*', next.entry);
+    }
+    time.advance(BATCH_MS);
+    expect(sent).toHaveLength(3);
+    expect(sent.some((text) => utf8Length(text) > text.length)).toBe(true);
+    expect(sent.every((text) => utf8Length(text) <= MAX_GM_FRAME)).toBe(true);
+    expect(sent.every((text) => carried(text).length > 0)).toBe(true);
   });
 
   it('sends the GM\'s own requests to the relay alone, in their place', () => {

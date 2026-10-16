@@ -111,7 +111,7 @@ export interface MarkHarness {
 }
 
 /** A MarkShare over a fake clock, GM measurements and laser; the map is `map` large. */
-export function markHarness(map: MapSize | null = { width: 2000, height: 2000 }): MarkHarness {
+export function markHarness(map: MapSize | null = { width: 2000, height: 2000 }, playerColour?: (player: string) => string): MarkHarness {
   let now = 0;
   let ids = 0;
   const timers = new Map<number, { readonly at: number; readonly run: () => void }>();
@@ -166,6 +166,7 @@ export function markHarness(map: MapSize | null = { width: 2000, height: 2000 })
       },
       cursorsShown: () => harness.cursorsOn,
       nameOf: (player) => names[player] ?? null,
+      ...(playerColour !== undefined && { playerColour }),
       showPlayerCursors: (cursors) => void harness.cursorShows.push(cursors),
       now: () => now,
       setTimer: (run, ms) => {

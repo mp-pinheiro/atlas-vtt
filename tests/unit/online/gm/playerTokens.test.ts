@@ -20,7 +20,7 @@ const mineTo = (table: ShareHarness, player: string): readonly string[] | undefi
 /** A GM token in the last list, found by its place (names are not always sent). */
 const listed = (table: ShareHarness, id: string): SharedToken | undefined => tokenLists(table.sent).at(-1)?.tokens.find((entry) => entry.x === TOKENS.find((gm) => gm.id === id)?.x);
 
-async function table(showNames = false): Promise<{ readonly share: ShareHarness; readonly owners: Ownership; readonly scene: string; readonly send: (from: string, t: 'claim' | 'release', id: string | undefined) => Promise<void> }> {
+async function table(showNames = false): Promise<{ readonly share: ShareHarness; readonly owners: Ownership; readonly scene: string; readonly send: (from: string, t: 'release', id: string | undefined) => Promise<void> }> {
   const owners = new Ownership(readOwnership(undefined), () => undefined);
   owners.welcome([{ id: ANA, name: 'Ana' }, { id: BEN, name: 'Ben' }]);
   const share = shareHarness(withTokens(), ART, owners);
@@ -40,29 +40,15 @@ async function table(showNames = false): Promise<{ readonly share: ShareHarness;
 }
 
 describe('player tokens', () => {
-  it('are named to players even without nameplates, never offered to claim, and never a hidden one', async () => {
+  it('names player tokens and never includes a hidden one', async () => {
     const { share } = await table();
     const tokens = tokenLists(share.sent).at(-1)?.tokens ?? [];
-    expect(tokens.map(({ name, claim }) => [name, claim])).toEqual([['hero', 'taken'], [null, null]]);
+    expect(tokens.map(({ name }) => name)).toEqual(['hero', null]);
     expect(JSON.stringify(share.sent)).not.toContain('spy');
   });
 
-  it('are given by the GM alone: a claim an older page sends changes nothing and is answered with nothing', async () => {
-    const { share, owners, send } = await table();
-    const hero = listed(share, 'hero')?.id;
-    const before = share.sent.length;
-    await send(ANA, 'claim', hero);
-    await send(BEN, 'claim', listed(share, 'ogre')?.id);
-    expect([owners.toData().characters, owners.toData().owners]).toEqual([{}, {}]);
-    expect(share.sent.slice(before)).toEqual([]);
-    owners.give(['hero'], {}, ANA);
-    await share.advance(TOKEN_INTERVAL_MS);
-    expect(mineTo(share, ANA)).toEqual([hero]);
-    await send(BEN, 'claim', hero);
-    expect(owners.ownerOf('hero', undefined)).toBe(ANA);
-  });
 
-  it('let no player give a token back, its owner neither: the GM does', async () => {
+  it('lets no player give a token back; the GM can revoke ownership', async () => {
     const { share, owners, send } = await table();
     const hero = listed(share, 'hero')?.id;
     owners.give(['hero'], {}, ANA);
@@ -73,7 +59,6 @@ describe('player tokens', () => {
     expect(mineTo(share, ANA)).toEqual([hero]);
     owners.give(['hero'], {}, null);
     await share.advance(TOKEN_INTERVAL_MS);
-    expect(listed(share, 'hero')?.claim).toBe('taken');
     expect(mineTo(share, ANA)).toEqual([]);
   });
 
@@ -84,7 +69,7 @@ describe('player tokens', () => {
     owners.markPlayerTokens(MAP, ['ogre'], {}, true);
     await share.advance(TOKEN_INTERVAL_MS);
     const tokens = tokenLists(share.sent).at(-1)?.tokens ?? [];
-    expect(tokens.map(({ name, claim }) => [name, claim])).toEqual([[null, null], ['ogre', 'taken']]);
+    expect(tokens.map(({ name }) => name)).toEqual([null, 'ogre']);
     expect(mineTo(share, ANA)).toEqual([]);
   });
 

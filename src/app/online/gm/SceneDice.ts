@@ -1,5 +1,5 @@
 import type { PlayerRoll, SharedRoll } from '../protocol/index.ts';
-import type { RollSceneLookup } from '../../services/playerRollSource';
+import type { ShownRollToken } from '../../services/playerRollSource';
 import type { DiceSource } from './atlasDice.ts';
 import type { SceneStore } from './atlasView.ts';
 import { rollFaceOf } from './log/logEntries.ts';
@@ -11,12 +11,14 @@ import { RollShare, type RollNotes } from './RollShare.ts';
 import type { SceneSharePorts } from './SceneShare.ts';
 import { ownerIn } from './seatSource.ts';
 import type { TokenShare } from './TokenShare.ts';
+import type { AgencyRecipient } from './sceneAgencyTypes';
 
 /** What the dice read of the rest of the shared scene. */
 export interface SceneDiceParts {
   readonly tokens: TokenShare;
   /** A token of the scene as the players' frame shows it now; null when they do not see it. */
-  shownToken(mapPath: string, tokenId: string): ReturnType<RollSceneLookup['shownToken']>;
+  shownToken(mapPath: string, tokenId: string): ShownRollToken | null;
+  authority?(from: string): AgencyRecipient | null;
 }
 
 /**
@@ -46,13 +48,16 @@ export class SceneDice {
       logged: (roll, source) => ports.logRoll?.({ ...roll, ...rollFaceOf(source, store.getState().objects.tokens) }),
     });
     this.rolls = new PlayerRolls({
-      context: () => ({
-        scene: tokens.listedScene,
-        mapPath: store.getState().mapPath,
-        listedToken: (alias) => tokens.listedToken(alias),
-        ownerOf: ownerIn(seats, store),
-        tokens: store.getState().objects.tokens,
-      }),
+      context: from => {
+        const current = parts.authority?.(from);
+        return {
+          scene: parts.authority === undefined ? tokens.listedScene : current?.scene ?? null,
+          mapPath: store.getState().mapPath,
+          listedToken: alias => parts.authority === undefined ? tokens.listedToken(alias) : current?.listedToken(alias),
+          ownerOf: ownerIn(seats, store),
+          tokens: store.getState().objects.tokens,
+        };
+      },
       dice: () => ports.dice?.() ?? null,
       rollAs: (who, run, notes) => this.share.rollAs(who, run, notes),
       quietRoll: (formula) => this.quietRoll(formula),
@@ -60,7 +65,7 @@ export class SceneDice {
       logged: (roll) => ports.logRoll?.(roll),
       alias: (id) => tokens.alias(id),
       send: (body, to) => ports.send(body, to),
-      now: () => ports.now(),
+      actionAllowed: (from) => ports.actionAllowed(from),
     });
     this.speakers = new LogSpeakers((path) => ports.readImage(path));
   }
@@ -81,12 +86,17 @@ export class SceneDice {
   speaker(who: string, key: string): Promise<SpokenAs | null> {
     const { tokens } = this.parts;
     const seats = this.ports.seats;
+    const current = this.parts.authority?.(who);
     return this.speakers.speaker(who, key, {
       tokens: this.store.getState().objects.tokens,
-      listedToken: (alias) => tokens.listedToken(alias),
-      listedAlias: (tokenId) => tokens.listedAlias(tokenId),
+      listedToken: alias => who === 'gm' || this.parts.authority === undefined ? tokens.listedToken(alias) : current?.listedToken(alias),
+      listedAlias: id => who === 'gm' || this.parts.authority === undefined ? tokens.listedAlias(id) : current?.listedAlias(id),
       ownerOf: ownerIn(seats, this.store),
     });
+  }
+
+  rollAs(from: string, run: () => void, notes: RollNotes): void {
+    this.share.rollAs(from, run, notes);
   }
 
   /** A formula rolled by the shared map's rules without a throw; null where it does not roll or the tab has no dice now. */

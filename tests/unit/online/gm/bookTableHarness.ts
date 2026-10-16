@@ -12,6 +12,7 @@ import { advanceSettled } from './settled.ts';
 import { sceneState } from './shareHarness.ts';
 import { setWorldMapGate, type WorldMapTree } from '../../../../src/app/online/gm/book/worldMapGate.ts';
 import { NO_STRETCH } from '../../../../src/app/grid/mapStretch';
+import { TEST_RELAY_ORIGIN } from './relayFixture.ts';
 
 /*
  * A running table with two heroes in a cave of the collection `Cairn`, for tests of the players'
@@ -67,7 +68,7 @@ export const MIRA_ART = 'atlas-vtt/collections/Cairn/tokens/mira.png';
 export const DOOM = 31337;
 export const MIRA_DOOM = 27182;
 
-const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, mapPath: MAP, gate: { code: '483912', requireCode: false, askToJoin: false } };
+const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, origin: TEST_RELAY_ORIGIN, mapPath: MAP, gate: { code: '483912', requireCode: false, askToJoin: false } };
 
 /** The collection's resources: hit points players see, and a doom track hidden from players: only a character's own player sees theirs. */
 const RESOURCES: readonly ResourceDefinition[] = [

@@ -27,6 +27,7 @@ export class TableLog {
   private readonly presence: LogPresence;
   private readonly listeners = new Set<(entry: LogEntry) => void>();
   /** Messages are taken one after another: one waiting for its speaker's artwork keeps its place, and those after it wait too. */
+  private readonly colourOf: (player: string) => number | undefined;
   private queue: Promise<unknown> = Promise.resolve();
   private waiting = 0;
   private disposed = false;
@@ -34,6 +35,7 @@ export class TableLog {
   constructor(ports: TableLogPorts, saved: unknown = undefined) {
     this.ports = ports;
     const kept = readSavedLog(saved);
+    this.colourOf = ports.colourOf ?? (() => undefined);
     this.list = kept.entries;
     // Who was there is kept beside the entries: their lines may have left the log, or the GM cleared it.
     this.presence = new LogPresence({
@@ -41,7 +43,7 @@ export class TableLog {
       setTimer: (run, ms) => ports.setTimer(run, ms),
       clearTimer: (timer) => ports.clearTimer(timer),
       line: (kind, id, name) => void this.add({ ...this.stamp(id, name), kind }),
-      changed: () => this.ports.send({ t: 'people', people: this.presence.people() }),
+      changed: () => this.publishPeople(),
     }, kept.present, this.list);
   }
 
@@ -57,7 +59,19 @@ export class TableLog {
 
   /** The players at the table, as players are told for whispers. */
   people(): readonly TablePerson[] {
-    return this.presence.people();
+    return this.presence.people().map((person) => {
+      const colour = this.colourOf(person.id);
+      return colour === undefined ? person : { ...person, colour };
+    });
+  }
+
+  publishPeople(): void {
+    this.ports.send({ t: 'people', people: this.people() });
+  }
+
+  action(action: Extract<LogEntry, { kind: 'action' }>['action'], values: Pick<Extract<LogEntry, { kind: 'action' }>, 'player' | 'combatant' | 'count'>, audience: '*' | 'gm' | readonly string[]): boolean {
+    const allowed = action === 'turn-ended' ? '*' : action === 'approval-reminder' ? 'gm' : Array.isArray(audience) ? [...audience] : 'gm';
+    return this.add({ ...this.stamp(GM_AUTHOR, GM_NAME), kind: 'action', action, ...values, audience: allowed });
   }
 
   /** Hears every entry added, as the GM's log has it; returns the way to stop. */
@@ -67,8 +81,8 @@ export class TableLog {
   }
 
   /** The vault path of artwork the log shows, by hash (a speaker's, an image the GM showed): what players may be sent. */
-  artFile(hash: string): string | undefined {
-    return speakerArtIn(this.list, hash) ?? imageFileIn(this.list, hash);
+  artFile(hash: string, viewer: string): string | undefined {
+    return speakerArtIn(this.list, hash, viewer) ?? imageFileIn(this.list, hash, viewer);
   }
 
   /** The GM showed every player an image, from the file at `path` (kept on the GM's side only). */

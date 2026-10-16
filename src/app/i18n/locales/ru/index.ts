@@ -80,6 +80,7 @@ import { migration } from './migration';
 import { wall } from './wall';
 import { sceneLight } from './sceneLight';
 import { vision } from './vision';
+import { onlinePlayer } from './onlinePlayer';
 
 export const ru: Translation = {
   ...align,
@@ -165,4 +166,5 @@ export const ru: Translation = {
   ...wall,
   ...sceneLight,
   ...vision,
+  ...onlinePlayer,
 };

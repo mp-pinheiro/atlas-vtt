@@ -6,6 +6,7 @@ import type { ViewState as AtlasViewState } from '../../../../src/app/types/view
 import type { HeldTokens } from '../../../../src/app/types/viewUIState';
 import type { StoreApi } from 'zustand';
 import { PlayerMoves, type MoveState, type MoveStore } from '../../../../src/app/online/gm/playerMoves.ts';
+import { PlayerActionRates } from '../../../../src/app/online/gm/PlayerActionRates.ts';
 import { token } from './shareHarness.ts';
 
 /** The actions of Atlas's view store these tests use, besides what player moves read. */
@@ -62,12 +63,14 @@ export function table(createViewAtlasStore: StoreFactory, walls: () => MoveWalls
   if (history === null) throw new Error('the store has no history');
   history.getState().clear();
   const sent: Table['sent'] = [];
+  const rates = new PlayerActionRates();
   const moves = new PlayerMoves(store, {
     context: () => ({ scene: SCENE, listedToken: (alias) => LISTED.get(alias), ownerOf: (id) => OWNERS[id], map: { width: 2000, height: 1500 }, walls: walls() }),
     send: (body, to) => sent.push({ body, to }),
     now: () => Date.now(),
     setTimer: (run, ms) => setTimeout(run, ms) as unknown as number,
     clearTimer: (timer) => clearTimeout(timer),
+    movementAllowed: (from) => rates.movement(from, Date.now()),
   });
   moves.start();
   return { store, history, moves, sent };

@@ -1,14 +1,13 @@
-import { renderAccountMenu, type AccountActions } from './accountMenu.ts';
+import { renderHostMenu, type HostMenuActions } from './hostMenu.ts';
+export { hostActions } from './hostMenu.ts';
 
-export { accountActions } from './accountMenu.ts';
-import { renderClosingRow } from './closingRow.ts';
 import { inviteRow, surfaceHeader, textButton } from './controls.ts';
 import { gateEntries, renderCodeRow, renderPausedRow, type GateRowActions } from './gateRows.ts';
 import { renderImageRow, type ImageRowActions } from './imageRow.ts';
 import type { MenuModel } from './panelModel.ts';
 
 /** What the menu's buttons do. */
-export interface MenuActions extends AccountActions, GateRowActions, ImageRowActions {
+export interface MenuActions extends HostMenuActions, GateRowActions, ImageRowActions {
   stop(): void;
   /** Shows this map on Atlas's player view, which players online see too. */
   share(): void;
@@ -43,14 +42,13 @@ export function renderMenu(layer: HTMLElement, model: MenuModel, actions: MenuAc
   layer.empty();
   layer.addClass('atlas-online-menu');
   if (model.kind === 'start') {
-    renderAccountMenu(layer, model.account, model.starting, model.lost, actions);
+    renderHostMenu(layer, model.host, model.hostKeyConfigured, model.starting, model.lost, actions);
     return restore();
   }
   surfaceHeader(layer, 'Online table', model.status, model.status.tone === 'green' ? null : model.status.text, [
     ...gateEntries(model.gate, actions),
     { title: 'Stop table', icon: 'power', warning: true, apart: true, run: () => actions.stop() },
   ], null);
-  renderClosingRow(layer, model.closing, actions);
   renderPausedRow(layer, model.gate, actions);
   renderImageRow(layer, model.imageShown, actions);
   if (model.link !== null) inviteRow(layer, () => actions.copy(), { open: model.qr, toggle: () => actions.toggleQr() });

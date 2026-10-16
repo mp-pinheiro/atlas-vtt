@@ -28,6 +28,7 @@ export interface TableLogPorts {
   randomId(): string;
   /** A known player's name, or null. */
   nameOf(player: string): string | null;
+  colourOf?(player: string): number | undefined;
   setTimer(run: () => void, ms: number): number;
   clearTimer(timer: number): void;
   /** The entries changed: panels draw anew and the log is kept. */
@@ -53,6 +54,7 @@ export interface LoggedRoll {
   readonly flavor?: string;
   readonly speaker?: SpokenAs;
   readonly request?: RollRequestRef;
+  readonly origins?: Readonly<Record<string, string>>;
 }
 
 export type { RollRequest } from './logChat.ts';
@@ -68,5 +70,6 @@ export function rollEntry(stamp: Pick<GmLogEntry, 'id' | 'at' | 'who' | 'name'>,
     ...(roll.speaker !== undefined && { speaker: roll.speaker.speaker }),
     ...(roll.speaker !== undefined && roll.speaker.art !== null && { speakerArt: roll.speaker.art }),
     ...(roll.request !== undefined && { request: roll.request }),
+    ...(roll.origins === undefined ? {} : { origins: roll.origins }),
   };
 }

@@ -34,3 +34,10 @@ export const PLAYER_SIGHT_POLICY: SightPolicy = Object.freeze({ givesSight: play
  * has one), and must stay so: while both pictures have the same sight the GM's view draws the players' footprints.
  */
 export const GM_SIGHT_POLICY: SightPolicy = Object.freeze({ givesSight: visionOn, alwaysSeen: playersSource });
+
+export function ownerSightPolicy(playerId: string, ownerOf: (token: TokenEntity) => string | undefined): SightPolicy {
+  return Object.freeze({
+    givesSight: (token: TokenEntity): boolean => playersSource(token) && ownerOf(token) === playerId,
+    alwaysSeen: PLAYER_SIGHT_POLICY.alwaysSeen,
+  });
+}

@@ -2,7 +2,7 @@
 import type { GmMessage } from '../../../../src/app/online/protocol/index.ts';
 import type { DiceRules } from '../../../../src/app/types/diceRulesTypes';
 import type { TokenEntity } from '../../../../src/app/types';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Ownership, readOwnership } from '../../../../src/app/online/gm/ownership.ts';
 import { rollableFormula } from '../../../../src/app/online/gm/PlayerRolls.ts';
 import { TOKEN_INTERVAL_MS } from '../../../../src/app/online/gm/TokenShare.ts';
@@ -42,22 +42,39 @@ const rollsSent = (sent: ShareHarness['sent']): Extract<GmMessage, { t: 'roll' }
 const refusals = (sent: ShareHarness['sent']): { readonly reason: string; readonly to: string | undefined }[] => sent.flatMap(({ body, to }) => (body.t === 'roll-refused' ? [{ reason: body.reason, to }] : []));
 /** A die face from a fraction: the d20 lands on `face`. */
 const face = (value: number, sides: number): number => (value - 0.5) / sides;
+function withSecureRandom<T>(random: () => number, run: () => T): T {
+  const getRandomValues = vi.spyOn(globalThis.crypto, 'getRandomValues');
+  getRandomValues.mockImplementation(<View extends ArrayBufferView>(array: View): View => {
+    (array as Uint32Array)[0] = Math.floor(random() * 2 ** 32);
+    return array;
+  });
+  try {
+    return run();
+  } finally {
+    getRandomValues.mockRestore();
+  }
+}
 
 describe('players\' rolls', () => {
   it('are rolled once each by Atlas\'s dice tool with the map\'s crit and explode rules, for the player\'s own token', async () => {
     // Every die shows its highest face once, then a 2: 1d20 crits and explodes once (2d6 explode too).
     const faces = [face(20, 20), face(2, 20), face(6, 6), face(2, 6), face(3, 6)];
     let next = 0;
-    const gm = await table({ defaultRoll: '1d20', crit: 'natural', explode: { dice: 'all', repeats: true, highFaces: 1, lowFaces: 0 } }, () => faces[next++ % faces.length] ?? 0);
-    gm.share.receive(ANA, { t: 'roll', scene: gm.scene, formula: '1d20 + 5', token: gm.alias(1) });
+    const random = (): number => faces[next++ % faces.length] ?? 0;
+    const gm = await table({ defaultRoll: '1d20', crit: 'natural', explode: { dice: 'all', repeats: true, highFaces: 1, lowFaces: 0 } }, random);
+    withSecureRandom(random, () => {
+      gm.share.receive(ANA, { t: 'roll', scene: gm.scene, formula: '1d20 + 5', token: gm.alias(1) });
+    });
     expect(gm.rolled).toHaveLength(1);
     const [roll] = gm.rolled;
     expect(roll?.crit).toBe('high');
     expect(roll?.rolls.map(({ value, exploded }) => [value, exploded === true])).toEqual([[20, false], [2, true]]);
     expect(roll?.total).toBe(27);
     expect(roll?.source).toEqual({ type: 'toolbar', tokenId: 'hero', tokenName: 'Hero' });
+    withSecureRandom(random, () => {
+      gm.share.receive(ANA, { t: 'roll', scene: gm.scene, formula: '2d6', token: null });
+    });
 
-    gm.share.receive(ANA, { t: 'roll', scene: gm.scene, formula: '2d6', token: null });
     expect(gm.rolled).toHaveLength(2);
     expect(gm.rolled[1]?.rolls.some((die) => die.exploded === true)).toBe(true);
     expect(gm.rolled[1]?.source).toEqual({ type: 'toolbar' });

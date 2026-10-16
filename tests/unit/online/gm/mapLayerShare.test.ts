@@ -1,5 +1,5 @@
 // @vitest-environment node
-import type { GmMessage, SharedInitiative } from '../../../../src/app/online/protocol/index.ts';
+import type { GmMessage, SharedInitiative, SharedWall } from '../../../../src/app/online/protocol/index.ts';
 import type { CollectionLookup } from '../../../../src/app/gameSystems/mapRules';
 import type { DrawingStroke, TokenEntity } from '../../../../src/app/types';
 import type { CollectionSettings } from '../../../../src/app/types/collectionSettingsTypes';
@@ -112,18 +112,30 @@ describe("the map's layers players are sent", () => {
     expect(last(shared.sent, 'initiative')?.list).toBeNull();
   });
 
-  it('badge the ordinary doors players see in a lit scene, open or closed, never a secret door', async () => {
+  it('badge ordinary doors with aliases shared by lighting walls, never secret doors or ordinary walls', async () => {
     const door = (id: string, type: WallSegment['type'], x: number, closed: boolean): WallSegment => ({ id, kind: 'wall', type, p1: { x, y: 500 }, p2: { x: x + 70, y: 500 }, closed });
     const state = sceneState({
       lighting: { enabled: true, ambient: 1 },
       objects: {
         ...sceneState().objects,
         tokens: { hero: token('hero', { x: 400, y: 400, vision: { enabled: true } }) },
-        walls: { a: door('a', 'door', 300, true), b: door('b', 'door', 450, false), c: door('c', 'secret-door', 600, false) },
+        walls: { a: door('a', 'door', 300, true), b: door('b', 'door', 450, false), c: door('c', 'secret-door', 600, false), d: door('d', 'wall', 700, false) },
       },
     });
     const shared = await table(state);
-    expect(last(shared.sent, 'doors')?.doors).toEqual([{ p: [300, 500, 370, 500], open: false }, { p: [450, 500, 520, 500], open: true }]);
+    const doors = last(shared.sent, 'doors')?.doors ?? [];
+    const walls: readonly SharedWall[] = last(shared.sent, 'lighting')?.walls ?? [];
+    expect(doors.map(({ p, open }) => ({ p, open }))).toEqual([{ p: [300, 500, 370, 500], open: false }, { p: [450, 500, 520, 500], open: true }]);
+    expect(doors).toHaveLength(2);
+    const aliases = doors.flatMap(({ id }) => id === undefined ? [] : [id]);
+    expect(aliases.every((id) => /^[0-9a-f]{24}$/.test(id))).toBe(true);
+    expect(walls.flatMap(({ id }) => id === undefined ? [] : [id]).sort()).toEqual([...aliases].sort());
+    for (const entry of doors) {
+      const wall = walls.find(({ p }) => p.every((coordinate, index) => coordinate === entry.p[index]));
+      expect(wall?.id).toBe(entry.id);
+    }
+    expect(walls.find(({ p }) => p[0] === 600)?.id).toBeUndefined();
+    expect(walls.find(({ p }) => p[0] === 700)?.id).toBeUndefined();
     expect(last(shared.sent, 'sensed')?.tokens).toEqual([]);
   });
 

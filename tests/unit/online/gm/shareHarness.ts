@@ -5,7 +5,7 @@ import type { TokenEntity } from '../../../../src/app/types';
 import type { TokenPerception } from '../../../../src/app/vision/tokenPerception';
 import type { SceneState, SceneStore } from '../../../../src/app/online/gm/atlasView.ts';
 import type { SeatSource } from '../../../../src/app/online/gm/seatSource.ts';
-import { imageMimeType, SceneShare } from '../../../../src/app/online/gm/SceneShare.ts';
+import { imageMimeType, SceneShare, type SceneSharePorts } from '../../../../src/app/online/gm/SceneShare.ts';
 import type { DiceSource } from '../../../../src/app/online/gm/atlasDice.ts';
 import type { AtlasPlayerSettings, LightingSource } from '../../../../src/app/online/gm/atlasLighting.ts';
 import type { MapLayerSource } from '../../../../src/app/online/gm/atlasMapLayers.ts';
@@ -13,6 +13,7 @@ import type { TokenRules } from '../../../../src/app/online/gm/tokenUI.ts';
 import { fakeTokenSource } from './fakeTokenSource.ts';
 import { GENERIC_SOURCE, LIGHTING_ON } from './gmLighting.ts';
 import { settled } from './settled.ts';
+import { PlayerActionRates } from '../../../../src/app/online/gm/PlayerActionRates.ts';
 
 export const GRID_SIZE = 70;
 
@@ -72,7 +73,7 @@ const counterId = (count: number): string => count.toString(16).padStart(24, '0'
  * vault's image files by path; `seats` tells who plays, owns which token and may claim which; `real`
  * (Atlas's own view store) replaces the fake store, and is written through its own actions, not `set`.
  */
-export function shareHarness(initial: SceneState, images: ReadonlyMap<string, Uint8Array<ArrayBuffer>>, seats?: SeatSource, real?: SceneStore): ShareHarness {
+export function shareHarness(initial: SceneState, images: ReadonlyMap<string, Uint8Array<ArrayBuffer>>, seats?: SeatSource, real?: SceneStore, overrides?: Pick<SceneSharePorts, 'readImage'>): ShareHarness {
   let current = initial;
   const listeners: ((next: SceneState) => void)[] = [];
   const store: SceneStore = real ?? {
@@ -86,6 +87,7 @@ export function shareHarness(initial: SceneState, images: ReadonlyMap<string, Ui
   let ids = 0;
   const settle = settled;
   const source = fakeTokenSource(() => store.getState(), () => harness.perception, () => GRID_SIZE);
+  const rates = new PlayerActionRates();
   const harness: ShareHarness = {
     sent: [],
     notices: [],
@@ -100,6 +102,8 @@ export function shareHarness(initial: SceneState, images: ReadonlyMap<string, Ui
     requests: () => null,
     foundPin: () => null,
     share: new SceneShare(store, {
+      actionAllowed: (from) => rates.action(from, now),
+      movementAllowed: (from) => rates.movement(from, now),
       logRoll: (roll) => harness.logged.push(roll),
       rollRequest: (from, answer) => harness.requests(from, answer),
       foundPin: (mapPath, pinId) => harness.foundPin(mapPath, pinId),
@@ -110,11 +114,11 @@ export function shareHarness(initial: SceneState, images: ReadonlyMap<string, Ui
       showNames: () => harness.settings.showNames,
       tokenRules: () => harness.rules,
       tokenSource: () => (harness.rendered ? source : null),
-      readImage: (path) => {
+      readImage: overrides?.readImage ?? ((path) => {
         const bytes = images.get(path);
         const mime = imageMimeType(path);
         return Promise.resolve(bytes === undefined || mime === null ? null : { bytes, mime });
-      },
+      }),
       send: (body, to) => harness.sent.push({ body, to }),
       sendLive: (body) => harness.sent.push({ body, to: undefined }),
       notice: (text) => harness.notices.push(text),
