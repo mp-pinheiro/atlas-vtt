@@ -259,6 +259,8 @@ export class Component {
   register(cb: () => void): void {
     this.cleanups.push(cb);
   }
+  /** Obsidian detaches the event when the component unloads; the tests' workspaces hand out refs they take back themselves. */
+  registerEvent(_ref: unknown): void {}
   registerDomEvent<K extends keyof HTMLElementEventMap>(el: HTMLElement, type: K, callback: (event: HTMLElementEventMap[K]) => unknown): void {
     el.addEventListener(type, callback);
     this.register(() => el.removeEventListener(type, callback));

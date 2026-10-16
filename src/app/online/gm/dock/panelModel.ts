@@ -50,6 +50,8 @@ export interface OnlineSnapshot {
   readonly lost?: LostTable;
   /** When the relay closes the running table because its account may no longer host; absent while it does not. */
   readonly closesAt?: number;
+  /** The GM entered no relay address, so no table can be asked for; absent while one is entered. */
+  readonly relayMissing?: true;
 }
 
 export interface OnlineApi {
@@ -71,7 +73,7 @@ export interface OnlineApi {
 }
 
 /** The part of `OnlineControl` the control uses. */
-export type ControlSource = Pick<OnlineControl, 'onChange' | 'status' | 'link' | 'seats' | 'isStarting' | 'lost' | 'start' | 'stop' | 'share' | 'players' | 'kick' | 'playerTokens' | 'markPlayerTokens' | 'give'> & {
+export type ControlSource = Pick<OnlineControl, 'onChange' | 'status' | 'link' | 'seats' | 'isStarting' | 'hasRelay' | 'lost' | 'start' | 'stop' | 'share' | 'players' | 'kick' | 'playerTokens' | 'markPlayerTokens' | 'give'> & {
   readonly table: {
     readonly sharedTab: WorkspaceLeaf | null;
     readonly sharedStore: { getState(): { readonly objects: { readonly tokens: Readonly<Record<string, SceneToken>> } } } | null;
@@ -109,6 +111,7 @@ export function onlineApi(control: ControlSource, hideImage: () => void): Online
       seats: control.seats(),
       gate: control.table?.gate.view() ?? null,
       ...(control.table?.image.isShown === true && { imageShown: true }),
+      ...(!control.hasRelay() && { relayMissing: true as const }),
     }),
     start: (leaf) => void control.start(leaf),
     stop: () => control.stop(),
@@ -213,12 +216,22 @@ export interface SceneFacts {
 }
 
 export type MenuModel =
+  /** No relay address is entered: the menu says so and leads to the settings, and asks no account or server. */
+  | { readonly kind: 'no-relay'; readonly lost: LostTable | null }
   | { readonly kind: 'start'; readonly account: AccountView; readonly starting: boolean; readonly lost: LostTable | null }
   | { readonly kind: 'waiting'; readonly link: string | null; readonly status: { readonly text: string; readonly tone: Tone }; readonly isShared: boolean; readonly gate: GateRows | null; readonly qr: boolean; readonly imageShown: boolean; readonly closing: string | null };
 
-/** The connection menu: sign in and start a table (after one the server ended: how it ended), or the running table's link while players are awaited (`qr`: its QR card is open). */
+/**
+ * The connection menu: enter a relay address, sign in and start a table (after one the server ended:
+ * how it ended), or the running table's link while players are awaited (`qr`: its QR card is open).
+ * A table being made, or one that runs, lives on the relay it was made on, so an address cleared since changes neither.
+ */
 export function menuModel(snapshot: OnlineSnapshot, scene: SceneFacts, account: AccountView, qr = false): MenuModel {
-  if (!isRunning(snapshot.status) || snapshot.status === 'starting') return { kind: 'start', account, starting: snapshot.status === 'starting', lost: snapshot.status === 'refused' ? snapshot.lost ?? 'refused' : null };
+  if (!isRunning(snapshot.status) || snapshot.status === 'starting') {
+    const lost = snapshot.status === 'refused' ? snapshot.lost ?? 'refused' : null;
+    if (snapshot.relayMissing === true && snapshot.status !== 'starting') return { kind: 'no-relay', lost };
+    return { kind: 'start', account, starting: snapshot.status === 'starting', lost };
+  }
   return { kind: 'waiting', link: snapshot.link, status: statusOf(snapshot), isShared: scene.isShared, gate: gateRowsOf(snapshot.gate), qr, imageShown: snapshot.imageShown === true, closing: closingOf(snapshot) };
 }
 

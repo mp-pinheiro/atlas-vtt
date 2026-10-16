@@ -251,6 +251,7 @@ export class Dock {
     return {
       ...accountActions(this.deps.account),
       ...gateRowActions(this.deps.api, this.root),
+      openSettings: () => this.deps.openSettings(),
       start: () => this.deps.api.start(this.leaf),
       stop: () => this.deps.api.stop(),
       share: () => this.deps.api.share(this.leaf),

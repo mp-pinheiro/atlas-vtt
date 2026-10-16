@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import type { AccountApi } from '../account/AccountControl.ts';
 import { accessText, noticeText, UNREACHABLE_TEXT, type AccountView } from '../account/accountView.ts';
 import type { AccountInfo } from '../account/relayAccount.ts';
@@ -27,6 +28,12 @@ export function accountActions(account: AccountApi): Omit<AccountActions, 'start
     retry: () => void account.refresh(true),
     openAccountPage: () => account.openAccountPage(),
   };
+}
+
+/** What the menu does about the relay address. */
+export interface RelayActions {
+  /** Opens Atlas's settings, where the relay address is entered. */
+  openSettings(): void;
 }
 
 const INTRO = 'Players see this map in their browsers and move their own tokens.';
@@ -119,4 +126,15 @@ export function renderAccountMenu(layer: HTMLElement, account: AccountView, star
     case 'can-host':
       return startButton(signedInFoot(layer, actions), starting, true, actions);
   }
+}
+
+/**
+ * The menu before a table runs while no relay address is entered: it says so and leads to the settings.
+ * Nothing here asks an account or a server. `lost` says how the last table ended when the server ended it.
+ */
+export function renderNoRelayMenu(layer: HTMLElement, lost: LostTable | null, actions: RelayActions): void {
+  const head = intro(layer, lost);
+  help(head, INTRO);
+  statusLine(head, { text: t('onlineHost.dock.noRelay'), tone: 'amber' });
+  button(layer, t('onlineHost.dock.openSettings'), 'open-settings', () => actions.openSettings(), 'cta', true);
 }

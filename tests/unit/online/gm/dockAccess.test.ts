@@ -14,9 +14,9 @@ const CLOSES_AT = Date.UTC(2026, 9, 12, 14, 30);
 
 const snapshot = (over: Partial<OnlineSnapshot> = {}): OnlineSnapshot => ({ status: 'idle', link: null, sharedLeaf: null, sharedName: null, sharedTokens: {}, players: [], playerTokens: [], seats: null, gate: null, ...over });
 
-function actions(): MenuActions & { openAccountPage: ReturnType<typeof vi.fn<() => void>> } {
+function actions(): MenuActions & { openAccountPage: ReturnType<typeof vi.fn<() => void>>; openSettings: ReturnType<typeof vi.fn<() => void>> } {
   return {
-    start: vi.fn(), signIn: vi.fn(), cancelSignIn: vi.fn(), reopenSignIn: vi.fn(), signOut: vi.fn(), retry: vi.fn(), openAccountPage: vi.fn<() => void>(),
+    openSettings: vi.fn<() => void>(), start: vi.fn(), signIn: vi.fn(), cancelSignIn: vi.fn(), reopenSignIn: vi.fn(), signOut: vi.fn(), retry: vi.fn(), openAccountPage: vi.fn<() => void>(),
     newCode: vi.fn(), setRequireCode: vi.fn(), setAskToJoin: vi.fn(), copyCode: () => Promise.resolve(true), hideImage: vi.fn(),
     stop: vi.fn(), share: vi.fn(), copy: () => Promise.resolve(true), toggleQr: vi.fn(),
   };
@@ -38,6 +38,31 @@ function menu(over: Partial<OnlineSnapshot>, account: AccountView): { lines: str
 }
 
 describe('the online menu before a table runs', () => {
+  it('says that no relay address is entered, whatever the account, and leads to the settings instead of asking an account or a server', () => {
+    for (const account of [{ kind: 'signed-out', notice: null }, { kind: 'checking' }, { kind: 'unreachable' }, CAN_HOST] as const) {
+      const shown = menu({ relayMissing: true }, account);
+      expect(shown.lines, account.kind).toEqual([
+        'Online play',
+        'Players see this map in their browsers and move their own tokens.',
+        'No relay address yet. Enter the address of your table server in the settings to host online tables.',
+      ]);
+      expect(shown.buttons, account.kind).toEqual(['Open settings']);
+      expect(shown.layer.querySelector('.atlas-online-handle'), account.kind).toBeNull();
+      expect(shown.layer.querySelector('input, form'), account.kind).toBeNull();
+      shown.press('Open settings');
+      expect(shown.does.openSettings, account.kind).toHaveBeenCalledTimes(1);
+      for (const asked of [shown.does.start, shown.does.signIn, shown.does.retry, shown.does.openAccountPage]) expect(asked, account.kind).not.toHaveBeenCalled();
+    }
+  });
+
+  it('tells how the last table ended above the way to the settings, and shows the account menu again once an address is entered', () => {
+    const shown = menu({ status: 'refused', lost: 'superseded', relayMissing: true }, CAN_HOST);
+    expect(shown.lines[1]).toBe('The online table was closed. This account started another table.');
+    expect(shown.layer.querySelector('[role="alert"]')?.textContent).toBe('The online table was closed. This account started another table.');
+    expect(shown.buttons).toEqual(['Open settings']);
+    expect(menu({}, CAN_HOST).buttons).toEqual(['Sign out', 'Start online table']);
+  });
+
   it('asks a signed-out GM to sign in, and offers nothing that takes a key', () => {
     const shown = menu({}, { kind: 'signed-out', notice: null });
     expect(shown.lines).toEqual(['Online play', 'Players see this map in their browsers and move their own tokens.']);

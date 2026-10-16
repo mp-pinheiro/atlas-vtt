@@ -24,6 +24,14 @@ declare module 'obsidian' {
     };
     /** Renders `![[file]]` embeds and hover previews of non-markdown files, by extension. */
     embedRegistry?: EmbedRegistry;
+    /** Obsidian's settings dialog; absent where Obsidian changed it. */
+    setting?: SettingsDialog;
+  }
+
+  /** The settings dialog: opens, then shows the tab of a plugin, whose id is the plugin's manifest id. */
+  interface SettingsDialog {
+    open(): void;
+    openTabById(id: string): void;
   }
 
   /** What Obsidian hands an embed creator: where to render and which link asked for it. */

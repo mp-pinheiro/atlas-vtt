@@ -64,6 +64,25 @@ describe('the menu', () => {
     expect(menuModel(snapshot({ status: 'starting' }), scene(), CAN_HOST)).toEqual({ kind: 'start', account: CAN_HOST, starting: true, lost: null });
   });
 
+  it('says that no relay address is entered, in place of the account, until one is', () => {
+    expect(menuModel(snapshot({ status: 'idle', relayMissing: true }), scene(), SIGNED_OUT)).toEqual({ kind: 'no-relay', lost: null });
+    // Whatever the account is, no table is asked for without a relay.
+    for (const account of [SIGNED_OUT, CAN_HOST] as const) {
+      expect(menuModel(snapshot({ status: 'idle', relayMissing: true }), scene(), account)).toEqual({ kind: 'no-relay', lost: null });
+    }
+    expect(menuModel(snapshot({ status: 'idle' }), scene(), CAN_HOST)).toMatchObject({ kind: 'start' });
+    // A table the server ended is still told, with the way to the settings below it.
+    expect(menuModel(snapshot({ status: 'refused', lost: 'superseded', relayMissing: true }), scene(), CAN_HOST)).toEqual({ kind: 'no-relay', lost: 'superseded' });
+    expect(menuModel(snapshot({ status: 'stopped', relayMissing: true }), scene(), CAN_HOST)).toEqual({ kind: 'no-relay', lost: null });
+  });
+
+  it('keeps a table that is being made or runs as it is when the address is cleared: it lives on the relay it was made on', () => {
+    expect(menuModel(snapshot({ status: 'starting', relayMissing: true }), scene(), CAN_HOST)).toEqual({ kind: 'start', account: CAN_HOST, starting: true, lost: null });
+    for (const status of ['connecting', 'online', 'reconnecting'] as const) {
+      expect(menuModel(snapshot({ status, relayMissing: true }), scene(), CAN_HOST)).toMatchObject({ kind: 'waiting' });
+    }
+  });
+
   it('says how the last table ended when the server ended it, until the next one starts', () => {
     for (const lost of ['refused', 'no-access', 'superseded'] as const) {
       expect(menuModel(snapshot({ status: 'refused', lost }), scene(), CAN_HOST)).toEqual({ kind: 'start', account: CAN_HOST, starting: false, lost });
@@ -172,8 +191,8 @@ const NO_IMAGE = { isShown: false };
 const hideNothing = (): void => undefined;
 
 describe('the view of OnlineControl', () => {
-  function control(): ControlSource & { state: { status: 'connecting' | 'online' | 'stopped' | 'refused' | null; link: string | null; starting: boolean; lost: LostTable | null }; calls: unknown[][] } {
-    const state = { status: null as 'connecting' | 'online' | 'stopped' | 'refused' | null, link: null as string | null, starting: false, lost: null as LostTable | null };
+  function control(): ControlSource & { state: { status: 'connecting' | 'online' | 'stopped' | 'refused' | null; link: string | null; starting: boolean; lost: LostTable | null; relay: boolean }; calls: unknown[][] } {
+    const state = { status: null as 'connecting' | 'online' | 'stopped' | 'refused' | null, link: null as string | null, starting: false, lost: null as LostTable | null, relay: true };
     const calls: unknown[][] = [];
     return {
       state,
@@ -184,6 +203,7 @@ describe('the view of OnlineControl', () => {
       link: () => state.link,
       seats: () => null,
       isStarting: () => state.starting,
+      hasRelay: () => state.relay,
       lost: () => state.lost,
       start: (leaf) => {
         calls.push(['start', leaf]);
@@ -221,6 +241,17 @@ describe('the view of OnlineControl', () => {
       source.state.lost = lost;
       expect(api.snapshot()).toMatchObject({ status: 'refused', lost });
     }
+  });
+
+  it('reads that no relay address is entered only while none is', () => {
+    const source = control();
+    const api = onlineApi(source, hideNothing);
+    expect(api.snapshot()).not.toHaveProperty('relayMissing');
+    source.state.relay = false;
+    expect(api.snapshot().relayMissing).toBe(true);
+    expect(menuModel(api.snapshot(), scene(), CAN_HOST)).toEqual({ kind: 'no-relay', lost: null });
+    source.state.relay = true;
+    expect(api.snapshot()).not.toHaveProperty('relayMissing');
   });
 
   it('reads when the running table closes for want of access, and nothing while it does not', () => {

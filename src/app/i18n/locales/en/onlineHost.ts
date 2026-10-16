@@ -7,5 +7,8 @@ export const onlineHost = {
   'onlineHost.relay.desc': 'The table server online play connects to. It also serves the page your players open. Nothing is sent anywhere until you enter an address.',
   'onlineHost.relay.placeholder': 'https://relay.example.com',
   'onlineHost.relay.invalid': 'Not saved. Enter the address of the table server, such as https://relay.example.com: https only (http works for localhost), with no path, query or login.',
+  'onlineHost.dock.noRelay': 'No relay address yet. Enter the address of your table server in the settings to host online tables.',
+  'onlineHost.dock.openSettings': 'Open settings',
   'onlineHost.notice.noRelay': 'Enter the relay address in the settings first.',
+  'onlineHost.notice.settingsUnavailable': 'Obsidian could not open the settings. Open Settings, then Atlas VTT, and enter the relay address there.',
 } as const satisfies Record<string, Message>;

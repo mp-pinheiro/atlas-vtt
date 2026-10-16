@@ -22,6 +22,7 @@ import { onlineApi } from './dock/panelModel.ts';
 import type { OnlineCommandId } from './onlineCommands.ts';
 import { OnlineControl } from './OnlineControl.ts';
 import type { OnlineDataFile } from './onlineData.ts';
+import { openPluginSettings } from './openSettings.ts';
 import type { OnlineTable } from './OnlineTable.ts';
 import { Ownership, readOwnership } from './ownership.ts';
 import { normalizeRelayAddress } from './relayAddress.ts';
@@ -152,6 +153,7 @@ export class OnlineFeature extends Component {
     const docks = new DockMounts(this.app.workspace, {
       api: onlineApi(this.online, () => images.hide()),
       account: this.account,
+      openSettings: () => openPluginSettings(this.app, this.plugin.manifest.id),
       imageSrc: (path) => this.app.vault.adapter.getResourcePath(path),
       feedback: diagnostics,
       opened: (leaf) => logs.close(leaf),

@@ -1,4 +1,4 @@
-import { renderAccountMenu, type AccountActions } from './accountMenu.ts';
+import { renderAccountMenu, renderNoRelayMenu, type AccountActions, type RelayActions } from './accountMenu.ts';
 
 export { accountActions } from './accountMenu.ts';
 import { renderClosingRow } from './closingRow.ts';
@@ -8,7 +8,7 @@ import { renderImageRow, type ImageRowActions } from './imageRow.ts';
 import type { MenuModel } from './panelModel.ts';
 
 /** What the menu's buttons do. */
-export interface MenuActions extends AccountActions, GateRowActions, ImageRowActions {
+export interface MenuActions extends AccountActions, RelayActions, GateRowActions, ImageRowActions {
   stop(): void;
   /** Shows this map on Atlas's player view, which players online see too. */
   share(): void;
@@ -33,7 +33,7 @@ function keep(layer: HTMLElement): () => void {
 export const MENU_WIDTH = 300;
 
 /**
- * The short-lived menu of a control without players: start a table, or, once it runs, its header
+ * The short-lived menu of a control without players: enter a relay address, start a table, or, once it runs, its header
  * (status, "…" with the gates and Stop), the line of a table that closes for want of access, the line of a pause, the line of a shown image, Copy invite link, the join
  * code, and Show this map to players while players see another. Nobody is at the table yet, so Stop asks nothing. It turns into the panel when the
  * first player joins.
@@ -42,6 +42,10 @@ export function renderMenu(layer: HTMLElement, model: MenuModel, actions: MenuAc
   const restore = keep(layer);
   layer.empty();
   layer.addClass('atlas-online-menu');
+  if (model.kind === 'no-relay') {
+    renderNoRelayMenu(layer, model.lost, actions);
+    return restore();
+  }
   if (model.kind === 'start') {
     renderAccountMenu(layer, model.account, model.starting, model.lost, actions);
     return restore();
