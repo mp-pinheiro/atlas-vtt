@@ -5,11 +5,20 @@
 // the ones the shared components read, in the app's light and dark default themes, chosen by the
 // browser's `prefers-color-scheme`. The palettes, sizes, radii, fonts and layers are the values
 // obsidian-colors.md lists for Obsidian 1.13. A variable that file only describes (a surface, a
-// border) is built from those palettes and takes its role from the description there; the two
-// shadows are the page's own, since the file gives no values for them.
+// border) is built from those palettes and takes its role from the description there; the four
+// shadows (`--shadow-s`, `--shadow-l`, `--input-shadow`, `--input-shadow-hover`) are the page's
+// own, since the file gives no values for them: three layers each for menus and for modals, as it
+// describes them, and for inputs a border drawn inside the control in the borders' colours, which
+// follow the theme.
 //
-// Variables that are not Obsidian's stay unset on purpose: components that read them carry a
-// fallback (`--corner-shape`, the `--atlas-*` ones the components set themselves or a theme may).
+// Left unset on purpose, because the stylesheets the page mounts either set them themselves or
+// read them with a fallback: `--widget-color` and `--pulse-intensity` (each widget sets them),
+// `--hp-percent` (each token's bar sets it) and `--corner-shape` (a squircle only where Obsidian
+// gives one). The `--atlas-*` variables are Atlas' own, not Obsidian's, and are set by the
+// stylesheets, the components or a theme. Every other Obsidian variable (`--text-success`,
+// `--input-radius`, `--background-modifier-cover`, ...) is read by none of them. The test of this
+// file reads those stylesheets, so a component that starts to read one more variable fails there
+// until it is defined here.
 
 // Written once per theme: only these differ between light and dark.
 $light: (
@@ -125,6 +134,8 @@ $dark: (
   --shadow-s: 0 1px 2px rgb(0 0 0 / 0.12), 0 4px 8px rgb(0 0 0 / 0.12), 0 12px 24px rgb(0 0 0 / 0.16);
   --shadow-l: 0 2px 8px rgb(0 0 0 / 0.16), 0 8px 24px rgb(0 0 0 / 0.2), 0 32px 80px rgb(0 0 0 / 0.28);
   --menu-shadow: var(--shadow-s);
+  --input-shadow: inset 0 0 0 var(--border-width) var(--background-modifier-border);
+  --input-shadow-hover: inset 0 0 0 var(--border-width) var(--background-modifier-border-hover);
   --modal-border-width: var(--border-width);
   --divider-color: var(--background-modifier-border);
   --divider-width: var(--border-width);
