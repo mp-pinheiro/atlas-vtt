@@ -12,6 +12,7 @@ import { app, atlasTab, FakeSocket, png, present, switchScene, workspace } from 
 import { fakeTokenSource } from './fakeTokenSource.ts';
 import { sceneState } from './shareHarness.ts';
 import { advanceSettled as advance } from './settled.ts';
+import { TEST_RELAY } from './testRelay.ts';
 
 const seen = vi.hoisted(() => {
   /** The relay's answer to a table request. */
@@ -61,7 +62,7 @@ vi.mock('../../../../src/app/online/gm/atlasLighting.ts', async (original) => ({
 
 const ANA = 'anaanaanaanaanaanaan';
 const MAP = 'Scenes/Cave.atlasmap';
-const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, mapPath: MAP, gate: { code: '483912', requireCode: true, askToJoin: true } };
+const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), origin: TEST_RELAY, maxPlayers: 12, mapPath: MAP, gate: { code: '483912', requireCode: true, askToJoin: true } };
 const ogre = (x: number): TokenEntity => ({ id: 'gm-ogre', kind: 'character', name: 'Ogre', imagePath: 'art/ogre.png', x, y: 140 });
 
 workspace.files = new Map<string, Uint8Array>([['maps/cave.png', png(700, 700)], ['maps/cave2.png', png(350, 350)], ['art/ogre.png', png(4, 4)]]);
@@ -72,8 +73,10 @@ const sentSince = (socket: FakeSocket, from: number): string[] => socket.bodies(
 
 describe('the online table', () => {
   let saves: (SavedTable | null)[] = [];
-  /** A signed-in GM: tables are asked for with the account's token, and nothing else. */
-  const signedIn = { token: (): string | null => 'account-token', signedOutByServer: vi.fn(), refresh: vi.fn(() => Promise.resolve()) };
+  /** The relay address in the settings, which the GM changes while the control lives. */
+  const settings = { relay: TEST_RELAY as string | null };
+  /** A signed-in GM: tables are asked for with the account's token, and nothing else, of the relay in the settings. */
+  const signedIn = { relay: (): string | null => settings.relay, token: (): string | null => 'account-token', signedOutByServer: vi.fn(), refresh: vi.fn(() => Promise.resolve()) };
   const control = (ownership = new Ownership(readOwnership(undefined), () => undefined)): OnlineControl =>
     new OnlineControl(app, ownership, (table) => saves.push(table), signedIn);
 
@@ -86,6 +89,7 @@ describe('the online table', () => {
     seen.marks.length = 0;
     seen.requests.length = 0;
     signedIn.refresh.mockClear();
+    settings.relay = TEST_RELAY;
     seen.created = { status: 201, json: { code: 'b'.repeat(26), secret: 'n'.repeat(43) } };
     saves = [];
     workspace.leaves = [];
@@ -171,7 +175,7 @@ describe('the online table', () => {
     await online.start(tab.leaf);
     await advance(0);
     const created = saves.at(-1);
-    expect(created).toEqual({ code: 'b'.repeat(26), secret: 'n'.repeat(43), maxPlayers: 12, mapPath: MAP, gate: { code: expect.stringMatching(/^\d{6}$/) as string, requireCode: true, askToJoin: true } });
+    expect(created).toEqual({ code: 'b'.repeat(26), secret: 'n'.repeat(43), origin: TEST_RELAY, maxPlayers: 12, mapPath: MAP, gate: { code: expect.stringMatching(/^\d{6}$/) as string, requireCode: true, askToJoin: true } });
     const link = online.link();
     const socket = FakeSocket.all[0];
     if (socket === undefined || created === null || created === undefined) throw new Error('no table');
@@ -314,7 +318,7 @@ describe('the online table', () => {
     const tab = atlasTab(caveScene());
     workspace.leaves = [tab.leaf];
     let token: string | null = 'account-token';
-    const account = { token: () => token, signedOutByServer: vi.fn(() => (token = null)), refresh: vi.fn(() => Promise.resolve()) };
+    const account = { relay: () => TEST_RELAY, token: () => token, signedOutByServer: vi.fn(() => (token = null)), refresh: vi.fn(() => Promise.resolve()) };
     const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), account);
 
     seen.created = { status: 403, json: { error: 'no-access' } };
@@ -339,26 +343,116 @@ describe('the online table', () => {
     expect(seen.requests).toHaveLength(3);
   });
 
-  it('comes back to a saved table on Atlas\'s table server, with its secret alone', async () => {
+  it('comes back to a saved table on the relay it was made on, with its secret alone', async () => {
     workspace.leaves = [atlasTab(caveScene()).leaf];
     const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), signedIn);
     online.resume(SAVED);
     await advance(0);
-    expect(FakeSocket.all.map((socket) => socket.url)).toEqual([`wss://play.atlas-vtt.dev/api/tables/${SAVED.code}/socket`]);
+    expect(FakeSocket.all.map((socket) => socket.url)).toEqual([`wss://relay.example/api/tables/${SAVED.code}/socket`]);
     expect(FakeSocket.all[0]?.frames()[0]).toMatchObject({ t: 'hello', secret: SAVED.secret });
     // The secret is in the hello to that socket and nowhere else: no request was made at all.
     expect(seen.requests).toEqual([]);
     online.close();
   });
 
-  it('makes tables on Atlas\'s table server', async () => {
+  it('makes tables on the relay of the settings, keeps the table with that relay, and joins players through its address', async () => {
     const tab = atlasTab(caveScene());
     workspace.leaves = [tab.leaf];
-    const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), signedIn);
+    const online = control();
     await online.start(tab.leaf);
-    expect(seen.requests[0]?.url).toBe('https://play.atlas-vtt.dev/api/tables');
-    expect(online.link()).toBe(`https://play.atlas-vtt.dev/#${'b'.repeat(26)}`);
+    expect(seen.requests[0]?.url).toBe(`${TEST_RELAY}/api/tables`);
+    expect(online.link()).toBe(`${TEST_RELAY}/#${'b'.repeat(26)}`);
+    expect(saves.at(-1)?.origin).toBe(TEST_RELAY);
+    expect(FakeSocket.all.map((socket) => socket.url)).toEqual([`wss://relay.example/api/tables/${'b'.repeat(26)}/socket`]);
     online.stop();
+  });
+
+  it('makes tables on a relay under wrangler dev, over http and ws, and nowhere else over http', async () => {
+    const tab = atlasTab(caveScene());
+    workspace.leaves = [tab.leaf];
+    settings.relay = 'http://localhost:8787';
+    const online = control();
+    await online.start(tab.leaf);
+    expect(seen.requests[0]?.url).toBe('http://localhost:8787/api/tables');
+    expect(online.link()).toBe(`http://localhost:8787/#${'b'.repeat(26)}`);
+    expect(FakeSocket.all.map((socket) => socket.url)).toEqual([`ws://localhost:8787/api/tables/${'b'.repeat(26)}/socket`]);
+    online.stop();
+  });
+
+  it('asks for no table, reaches no server and says what is missing while no relay address is entered', async () => {
+    const tab = atlasTab(caveScene());
+    workspace.leaves = [tab.leaf];
+    settings.relay = null;
+    const online = control();
+    expect(online.hasRelay()).toBe(false);
+    expect(await online.start(tab.leaf)).toBeNull();
+    expect(seen.notices).toEqual(['Enter the relay address in the settings first.']);
+    expect(seen.requests).toEqual([]);
+    expect(FakeSocket.all).toEqual([]);
+    expect(online.isStarting()).toBe(false);
+    expect(saves).toEqual([]);
+    // With an address it starts, and the next question reads the settings again.
+    settings.relay = TEST_RELAY;
+    expect(online.hasRelay()).toBe(true);
+    expect(await online.start(tab.leaf)).not.toBeNull();
+    expect(seen.requests).toHaveLength(1);
+    online.stop();
+  });
+
+  it('keeps a table on the relay it was made on when the address is changed or cleared afterwards', async () => {
+    const tab = atlasTab(caveScene());
+    workspace.leaves = [tab.leaf];
+    present(tab);
+    const online = control();
+    await online.start(tab.leaf);
+    const link = online.link();
+    settings.relay = 'https://other.example';
+    online.close();
+    const saved = readSavedTable(JSON.parse(JSON.stringify(saves.at(-1))));
+    if (saved === null) throw new Error('no saved table');
+    expect(saved.origin).toBe(TEST_RELAY);
+    const again = control();
+    again.resume(saved);
+    await advance(0);
+    expect(again.link()).toBe(link);
+    expect(FakeSocket.all.at(-1)?.url).toBe(`wss://relay.example/api/tables/${'b'.repeat(26)}/socket`);
+    again.close();
+    settings.relay = null;
+    const later = control();
+    later.resume(saved);
+    await advance(0);
+    expect(FakeSocket.all.at(-1)?.url).toBe(`wss://relay.example/api/tables/${'b'.repeat(26)}/socket`);
+    expect(seen.requests).toHaveLength(1);
+    later.close();
+  });
+
+  it('resumes a table saved before its relay was kept on the relay of the settings, and keeps it with that one from then on', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    settings.relay = 'https://other.example';
+    const online = control();
+    online.resume({ ...SAVED, origin: null });
+    await advance(0);
+    expect(FakeSocket.all.map((socket) => socket.url)).toEqual([`wss://other.example/api/tables/${SAVED.code}/socket`]);
+    expect(online.link()).toBe(`https://other.example/#${SAVED.code}`);
+    expect(saves.at(-1)).toEqual({ ...SAVED, origin: 'https://other.example' });
+    online.close();
+  });
+
+  it('does not resume a table saved before its relay was kept while no address is entered, and forgets it with its log', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    settings.relay = null;
+    const logs: unknown[] = [];
+    const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), signedIn, { read: () => ({ entries: [] }), write: (log) => void logs.push(log) });
+    expect(online.resume({ ...SAVED, origin: null })).toBeNull();
+    await advance(0);
+    expect(online.table).toBeNull();
+    expect(FakeSocket.all).toEqual([]);
+    expect(seen.requests).toEqual([]);
+    expect(saves).toEqual([null]);
+    expect(logs).toEqual([null]);
+    // A table that knows its relay is resumed without an address in the settings.
+    expect(online.resume(SAVED)).not.toBeNull();
+    online.close();
   });
 
   it('tells the relay its gates first on every welcome, keeps them with the table, and passes on who knocks and the GM\'s answer', async () => {
@@ -439,6 +533,19 @@ describe('the online table', () => {
     expect(readSavedTable({ ...SAVED, maxPlayers: 2 })).toEqual({ ...SAVED, maxPlayers: 2 });
     for (const broken of [undefined, null, 'x', { ...SAVED, code: 'short' }, { ...SAVED, secret: 'a b' }]) {
       expect(readSavedTable(broken)).toBeNull();
+    }
+  });
+
+  it('keeps the relay a table was made on as the origin it names, none for a table saved before, and reads no table of an address it cannot read', () => {
+    expect(readSavedTable({ ...SAVED, origin: 'https://Other.Example/' })?.origin).toBe('https://other.example');
+    expect(readSavedTable({ ...SAVED, origin: 'http://localhost:8787' })?.origin).toBe('http://localhost:8787');
+    expect(readSavedTable({ ...SAVED, origin: undefined })?.origin).toBeNull();
+    expect(readSavedTable({ ...SAVED, origin: null })?.origin).toBeNull();
+    const { origin: _origin, ...before } = SAVED;
+    expect(readSavedTable(before)).toEqual({ ...SAVED, origin: null });
+    // The host secret goes to the relay the table lives on: where that is not a relay address, the table is not read.
+    for (const unreadable of ['', 'x', 'http://relay.example', 'https://user:pw@relay.example', 'https://relay.example/path', 'https://relay.example/?q', 'ftp://relay.example', 42, true, {}, ['https://relay.example']]) {
+      expect(readSavedTable({ ...SAVED, origin: unreadable }), JSON.stringify(unreadable)).toBeNull();
     }
   });
 });

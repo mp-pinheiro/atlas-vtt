@@ -1,0 +1,6 @@
+// Online play's rows in Obsidian's settings, which stand outside Atlas's views.
+
+// The relay address row says why a text is no address in the colour of Obsidian's errors.
+.atlas-online-setting-error {
+  color: var(--text-error);
+}

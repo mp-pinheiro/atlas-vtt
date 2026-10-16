@@ -1,5 +1,5 @@
 import type { Timers } from '../companionTimers.ts';
-import { ACCOUNT_PAGE_URL, ACCOUNTS_ORIGIN, RELAY_ORIGIN } from '../servers.ts';
+import { ACCOUNT_PAGE_URL, ACCOUNTS_ORIGIN } from '../servers.ts';
 import { accountView, SERVER_SIGNED_OUT_TEXT, type AccountFacts, type AccountView, type SignedOutNotice } from './accountView.ts';
 import { DeviceSignIn } from './deviceFlow.ts';
 import type { Http } from './http.ts';
@@ -13,6 +13,8 @@ export interface AccountPorts {
   readonly openUrl: (url: string) => void;
   /** Tells the GM something outside the dock (Obsidian's `Notice`). */
   readonly notify: (text: string) => void;
+  /** The relay address the GM's settings hold now (an origin), or null while there is none. Read at every use, never kept. */
+  readonly relay: () => string | null;
 }
 
 /** The part of the account control the dock uses. */
@@ -33,7 +35,8 @@ export class AccountControl {
   private userCode: string | null = null;
   private me: AccountAnswer | 'unreachable' | null = null;
   private checkedAt = Number.NEGATIVE_INFINITY;
-  private checking: Promise<void> | null = null;
+  /** The check under way, with the relay it asks: an answer of another relay than the current one is of no use. */
+  private checking: { readonly origin: string; readonly done: Promise<void> } | null = null;
   private notice: SignedOutNotice = null;
   private readonly listeners = new Set<() => void>();
 
@@ -55,13 +58,31 @@ export class AccountControl {
     return this.ports.tokens.get();
   }
 
-  /** Asks the relay what the account may host, unless it was asked moments ago (`force` asks anyway). */
+  /** The relay tables are asked of, as the GM's settings name it now; null while no address is entered. */
+  relay(): string | null {
+    return this.ports.relay();
+  }
+
+  /** Asks the relay what the account may host, unless it was asked moments ago (`force` asks anyway). Asks nobody while no relay address is entered. */
   refresh(force = false): Promise<void> {
     const token = this.token();
-    if (token === null) return Promise.resolve();
+    const origin = this.relay();
+    if (token === null || origin === null) return Promise.resolve();
     if (!force && this.me !== null && this.me !== 'unreachable' && this.ports.timers.now() - this.checkedAt < FRESH_MS) return Promise.resolve();
-    this.checking ??= this.check(token).finally(() => (this.checking = null));
-    return this.checking;
+    if (this.checking?.origin === origin) return this.checking.done;
+    const done: Promise<void> = this.check(token, origin).finally(() => {
+      if (this.checking?.done === done) this.checking = null;
+    });
+    this.checking = { origin, done };
+    return done;
+  }
+
+  /** The GM changed the relay address: what the old relay said of the account is no longer known, and the new one is asked. */
+  relayChanged(): void {
+    this.me = null;
+    this.checkedAt = Number.NEGATIVE_INFINITY;
+    this.changed();
+    void this.refresh(true);
   }
 
   /** Starts a device sign-in: the approve page opens in the browser, and the dock shows the code. */
@@ -123,9 +144,9 @@ export class AccountControl {
     this.ports.openUrl(ACCOUNT_PAGE_URL);
   }
 
-  private async check(token: string): Promise<void> {
-    const answer = await new RelayAccount(this.ports.http, RELAY_ORIGIN, token).me();
-    if (this.token() !== token) return;
+  private async check(token: string, origin: string): Promise<void> {
+    const answer = await new RelayAccount(this.ports.http, origin, token).me();
+    if (this.token() !== token || this.relay() !== origin) return;
     if (answer === 'signed-out') return this.signedOutByServer();
     this.me = answer === 'unavailable' ? 'unreachable' : answer;
     this.checkedAt = this.ports.timers.now();

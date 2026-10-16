@@ -4,16 +4,17 @@ import {
 } from '../protocol/index.ts';
 import { apiVersion, Platform, requestUrl } from 'obsidian';
 import type { CompanionFeedback } from './companionReports.ts';
-import { RELAY_ORIGIN } from './servers.ts';
 
 /** Where the companion's own code runs in a stack: Obsidian names a plugin's script by its id. */
 const OWN_FRAMES = 'plugin:atlas-online';
 
-/** What the companion knows: whether to send, and what a report must never carry. */
+/** What the companion knows: whether and where to send, and what a report must never carry. */
 export interface CompanionFacts {
   /** Whether the GM switched error reports on (off by default). */
   reportErrors(): boolean;
   setReportErrors(on: boolean): void;
+  /** The relay address in the GM's settings now (an origin), or null while none is entered: reports and feedback go nowhere then. */
+  relayOrigin(): string | null;
   /** The running table's code, host secret and join code, or null. */
   table(): { readonly code: string; readonly secret: string; readonly gate: { readonly code: string } } | null;
   /** The names of the table's players. */
@@ -29,9 +30,10 @@ async function postJson(url: string, body: unknown): Promise<number> {
 /**
  * The companion's diagnostics: its own uncaught errors and unhandled rejections (those whose stack runs
  * through this plugin; Obsidian's and other plugins' are left alone) are named in the console, and go to
- * the table's server only once the GM switched error reports on (off by default: Obsidian's developer
+ * the relay the GM entered only once they switched error reports on (off by default: Obsidian's developer
  * policy and §25 TDDDG), once each and rate-limited, redacted of the table's code and secret, its join
- * code and the players' names. Feedback from the online panel goes there when the GM sends it.
+ * code and the players' names. Feedback from the online panel goes there when the GM sends it. With no
+ * relay address entered nothing is sent, whatever the switches say.
  */
 export class CompanionDiagnostics implements CompanionFeedback {
   readonly reporter: ErrorReporter;
@@ -53,10 +55,11 @@ export class CompanionDiagnostics implements CompanionFeedback {
         return [table?.code ?? '', table?.secret ?? '', ...this.joinCodes(), ...facts.playerNames()].filter((text) => text !== '');
       },
       post: async (report) => {
-        await postJson(`${RELAY_ORIGIN}${REPORTS_PATH}`, report);
+        const origin = facts.relayOrigin();
+        if (origin !== null) await postJson(`${origin}${REPORTS_PATH}`, report);
       },
       now: () => Date.now(),
-      enabled: () => facts.reportErrors(),
+      enabled: () => this.sendsReports(),
     });
   }
 
@@ -81,13 +84,15 @@ export class CompanionDiagnostics implements CompanionFeedback {
   }
 
   async send(text: string, withDiagnostics: boolean): Promise<FeedbackResult> {
+    const origin = this.facts.relayOrigin();
+    if (origin === null) return 'failed';
     const post: FeedbackPost = {
       // What the GM wrote goes as written, but for the join code: a pasted one stops being one.
       v: 1, source: 'companion', text: withoutKnown(text, this.joinCodes()),
       diagnostics: withDiagnostics ? { ...this.environment(), table: await this.tag(), errors: this.reporter.recentIds(), connection: this.facts.connection() } : null,
     };
     try {
-      return feedbackResultOf(await postJson(`${RELAY_ORIGIN}${FEEDBACK_PATH}`, post));
+      return feedbackResultOf(await postJson(`${origin}${FEEDBACK_PATH}`, post));
     } catch {
       return 'failed';
     }
@@ -97,9 +102,20 @@ export class CompanionDiagnostics implements CompanionFeedback {
     if (!(thrown instanceof Error) || thrown.stack?.includes(OWN_FRAMES) !== true) return;
     void this.reporter.capture(kind, thrown).then((id) => {
       if (id === null) return;
-      const where = this.facts.reportErrors() ? ` reported to ${new URL(RELAY_ORIGIN).host}` : ' (error reports are off, nothing was sent)';
-      console.warn(`Atlas Online: error ${id}${where}`);
+      console.warn(`Atlas Online: error ${id}${this.whereReported()}`);
     });
+  }
+
+  /** Whether a report would leave now: the GM switched them on and entered a relay address to send them to. */
+  private sendsReports(): boolean {
+    return this.facts.reportErrors() && this.facts.relayOrigin() !== null;
+  }
+
+  /** What the console says of where an error went. */
+  private whereReported(): string {
+    if (!this.facts.reportErrors()) return ' (error reports are off, nothing was sent)';
+    const origin = this.facts.relayOrigin();
+    return origin === null ? ' (no relay address is entered, nothing was sent)' : ` reported to ${new URL(origin).host}`;
   }
 
   /** The running table's join code, as kept and as shown. */

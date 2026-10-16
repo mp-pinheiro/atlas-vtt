@@ -61,6 +61,7 @@ import { light } from './light';
 import { mapIcon } from './mapIcon';
 import { pinMenu } from './pinMenu';
 import { resource } from './resource';
+import { onlineHost } from './onlineHost';
 import { token } from './token';
 import { image } from './image';
 import { link } from './link';
@@ -150,6 +151,7 @@ export const en = {
   ...mapIcon,
   ...pinMenu,
   ...resource,
+  ...onlineHost,
   ...token,
   ...image,
   'index.unreadable': 'Atlas VTT could not read its asset index ({path}) and left it untouched. Restart Obsidian to try again.',

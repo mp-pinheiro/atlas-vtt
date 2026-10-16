@@ -1,6 +1,3 @@
-/** Atlas's table server: what a join link names, and where tables are asked for. */
-export const RELAY_ORIGIN = 'https://play.atlas-vtt.dev';
-
 /** The Atlas account service, where the GM signs in. */
 export const ACCOUNTS_ORIGIN = 'https://api.atlas-vtt.dev';
 

@@ -7,6 +7,7 @@ import { Ownership, readOwnership } from '../../../../src/app/online/gm/ownershi
 import type { SavedTable } from '../../../../src/app/online/gm/savedTable.ts';
 import { app, FakeSocket, png, workspace } from './fakeTable.ts';
 import { advanceSettled as advance } from './settled.ts';
+import { TEST_RELAY } from './testRelay.ts';
 
 vi.mock('obsidian', () => ({
   Notice: class {},
@@ -18,7 +19,7 @@ vi.mock('obsidian', () => ({
 
 const ANA = 'anaanaanaanaanaanaan';
 const BEN = 'benbenbenbenbenbenbe';
-const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, mapPath: null, gate: { code: '483912', requireCode: false, askToJoin: false } };
+const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), origin: TEST_RELAY, maxPlayers: 12, mapPath: null, gate: { code: '483912', requireCode: false, askToJoin: false } };
 
 interface Sent {
   readonly to: string | undefined;

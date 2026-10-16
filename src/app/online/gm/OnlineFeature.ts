@@ -24,6 +24,7 @@ import { OnlineControl } from './OnlineControl.ts';
 import type { OnlineDataFile } from './onlineData.ts';
 import type { OnlineTable } from './OnlineTable.ts';
 import { Ownership, readOwnership } from './ownership.ts';
+import { normalizeRelayAddress } from './relayAddress.ts';
 import { readSavedTable, type SavedTable } from './savedTable.ts';
 import { DEFAULT_SETTINGS, onlineSettingsSections, readSettings, type OnlineSettings } from './settings.ts';
 
@@ -72,7 +73,13 @@ export class OnlineFeature extends Component {
       tokens: secretTokenStore(this.app),
       openUrl: (url) => void window.open(url),
       notify: (text) => showNotice(text),
+      relay: () => this.relayOrigin(),
     });
+  }
+
+  /** The relay the GM entered in the settings, as an origin, or null while there is none: no table is asked for and nothing is sent then. */
+  private relayOrigin(): string | null {
+    return normalizeRelayAddress(this.settings.relayAddress);
   }
 
   /** The running table, or null. */
@@ -104,6 +111,7 @@ export class OnlineFeature extends Component {
         this.settings.reportErrors = on;
         void this.saveSettings();
       },
+      relayOrigin: () => this.relayOrigin(),
       table: () => this.savedTable,
       playerNames: () => this.online.players().map((player) => player.name),
       connection: () => this.online.table?.connectionStats() ?? null,

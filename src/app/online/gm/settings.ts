@@ -2,18 +2,23 @@ import type { AtlasSettingSection } from '../../settings/settingSections';
 import type { AccountControl } from './account/AccountControl.ts';
 import { accountSections } from './account/accountSettings.ts';
 import { COMPANION_REPORTS_NOTE } from './companionReports.ts';
+import { normalizeRelayAddress } from './relayAddress.ts';
+import { relayAddressSections } from './relayAddressSettings.ts';
 
 export interface OnlineSettings {
-  /** Whether this plugin's errors are reported to the server; off until the GM switches it on. */
+  /** Whether this plugin's errors are reported to the relay; off until the GM switches it on. */
   reportErrors: boolean;
+  /** The relay online play connects to, as an origin (`normalizeRelayAddress`); empty until the GM enters one, and nothing is sent anywhere before. */
+  relayAddress: string;
 }
 
-export const DEFAULT_SETTINGS: OnlineSettings = { reportErrors: false };
+export const DEFAULT_SETTINGS: OnlineSettings = { reportErrors: false, relayAddress: '' };
 
-/** Settings read from the plugin's data, each field checked. */
+/** Settings read from the plugin's data, each field checked; a relay address is kept only as the origin it normalises to. */
 export function readSettings(data: unknown): OnlineSettings {
   const record = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {};
-  return { reportErrors: record.reportErrors === true };
+  const address = typeof record.relayAddress === 'string' ? normalizeRelayAddress(record.relayAddress) : null;
+  return { reportErrors: record.reportErrors === true, relayAddress: address ?? '' };
 }
 
 /** What online play's settings rows read and change. */
@@ -23,7 +28,7 @@ export interface OnlineSettingsHost {
   saveSettings(): Promise<void>;
 }
 
-/** Online play's sections of Atlas's settings: the account and error reports. */
+/** Online play's sections of Atlas's settings: the relay, the account and error reports. */
 export function onlineSettingsSections(host: OnlineSettingsHost): AtlasSettingSection[] {
   const save = async (change: (settings: OnlineSettings) => void): Promise<void> => {
     change(host.settings);
@@ -31,6 +36,7 @@ export function onlineSettingsSections(host: OnlineSettingsHost): AtlasSettingSe
   };
   const settings = host.settings;
   return [
+    ...relayAddressSections(host),
     ...accountSections(host.account),
     {
       heading: 'Online diagnostics',

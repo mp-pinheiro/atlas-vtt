@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompanionFacts } from '../../../../src/app/online/gm/companionDiagnostics.ts';
+import { TEST_RELAY } from './testRelay.ts';
 
 interface Sent {
   readonly url: string;
@@ -33,6 +34,7 @@ function companion(facts: Partial<CompanionFacts> = {}): { diagnostics: Instance
   const diagnostics = new CompanionDiagnostics({
     reportErrors: () => switched.on,
     setReportErrors: (on) => void (switched.on = on),
+    relayOrigin: () => TEST_RELAY,
     table: () => ({ code: CODE, secret: SECRET, gate: { code: JOIN_CODE } }),
     playerNames: () => ['Alice Liddell'],
     connection: () => ({ status: 'online', reconnects: 1, lastClose: 1006, latencyMs: 40, players: 2 }),
@@ -65,12 +67,12 @@ describe('the companion\'s error reports', () => {
     throwIn(win, ownError(`Alice Liddell lost ${CODE} with ${SECRET} and ${ACCOUNT_TOKEN}`));
     await settle();
     expect(sent).toHaveLength(1);
-    expect(sent[0]?.url).toBe('https://play.atlas-vtt.dev/api/reports');
+    expect(sent[0]?.url).toBe(`${TEST_RELAY}/api/reports`);
     expect(sent[0]?.body).toMatchObject({ source: 'companion', kind: 'error', browser: 'Obsidian 1.14.4', build: '0.0.1+dev atlas 0.6.1', os: 'macOS' });
     expect(sent[0]?.body.table).toMatch(/^[0-9a-f]{12}$/);
     const text = JSON.stringify(sent);
     for (const forbidden of [CODE, SECRET, ACCOUNT_TOKEN, 'Alice', 'Liddell']) expect(text).not.toContain(forbidden);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/^Atlas Online: error [0-9a-f]{10} reported to play\.atlas-vtt\.dev$/));
+    expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/^Atlas Online: error [0-9a-f]{10} reported to relay\.example$/));
   });
 
   it('never carry the join code, as kept or as shown, in a message or a stack', async () => {
@@ -102,6 +104,50 @@ describe('the companion\'s error reports', () => {
     expect(sent).toEqual([]);
     expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/^Atlas Online: error [0-9a-f]{10} \(error reports are off, nothing was sent\)$/));
     expect(diagnostics.reporter.recentIds()).toHaveLength(1);
+  });
+});
+
+describe('the relay address of the companion\'s reports and feedback', () => {
+  it('sends nothing while no relay address is entered, and says so in the console; the errors are still remembered', async () => {
+    const { diagnostics, win } = companion({ relayOrigin: () => null });
+    throwIn(win, ownError('no address'));
+    await settle();
+    expect(sent).toEqual([]);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/^Atlas Online: error [0-9a-f]{10} \(no relay address is entered, nothing was sent\)$/));
+    expect(diagnostics.reporter.recentIds()).toHaveLength(1);
+    expect(await diagnostics.send('Players cannot join.', true)).toBe('failed');
+    expect(sent).toEqual([]);
+  });
+
+  it('reads the address at every use: an error is reported to the relay entered by then, once it is', async () => {
+    const relay = { origin: null as string | null };
+    const { win } = companion({ relayOrigin: () => relay.origin });
+    throwIn(win, ownError('before the address'));
+    await settle();
+    expect(sent).toEqual([]);
+    // The same error again, with an address entered: the first was never sent, so it is now.
+    relay.origin = 'http://localhost:8787';
+    throwIn(win, ownError('before the address'));
+    await settle();
+    expect(sent.map((entry) => entry.url)).toEqual(['http://localhost:8787/api/reports']);
+    relay.origin = 'https://other.example';
+    throwIn(win, ownError('after the address changed'));
+    await settle();
+    expect(sent.map((entry) => entry.url)).toEqual(['http://localhost:8787/api/reports', 'https://other.example/api/reports']);
+  });
+
+  it('sends feedback to the address entered, and to no other server', async () => {
+    const { diagnostics } = companion({ relayOrigin: () => 'https://other.example' });
+    expect(await diagnostics.send('Works.', false)).toBe('sent');
+    expect(sent.map((entry) => entry.url)).toEqual(['https://other.example/api/feedback']);
+  });
+
+  it('sends nothing where the switch for reports is off, address or not', async () => {
+    const { win } = companion({ reportErrors: () => false, relayOrigin: () => null });
+    throwIn(win, ownError('both off'));
+    await settle();
+    expect(sent).toEqual([]);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/\(error reports are off, nothing was sent\)$/));
   });
 });
 

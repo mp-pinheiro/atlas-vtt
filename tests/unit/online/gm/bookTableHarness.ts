@@ -9,6 +9,7 @@ import type { SavedTable } from '../../../../src/app/online/gm/savedTable.ts';
 import { app, atlasTab, FakeSocket, png, present, workspace, type FakeTab } from './fakeTable.ts';
 import { fakeTokenSource } from './fakeTokenSource.ts';
 import { advanceSettled } from './settled.ts';
+import { TEST_RELAY } from './testRelay.ts';
 import { sceneState } from './shareHarness.ts';
 import { setWorldMapGate, type WorldMapTree } from '../../../../src/app/online/gm/book/worldMapGate.ts';
 import { NO_STRETCH } from '../../../../src/app/grid/mapStretch';
@@ -67,7 +68,7 @@ export const MIRA_ART = 'atlas-vtt/collections/Cairn/tokens/mira.png';
 export const DOOM = 31337;
 export const MIRA_DOOM = 27182;
 
-const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, mapPath: MAP, gate: { code: '483912', requireCode: false, askToJoin: false } };
+const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), origin: TEST_RELAY, maxPlayers: 12, mapPath: MAP, gate: { code: '483912', requireCode: false, askToJoin: false } };
 
 /** The collection's resources: hit points players see, and a doom track hidden from players: only a character's own player sees theirs. */
 const RESOURCES: readonly ResourceDefinition[] = [

@@ -1,4 +1,5 @@
 import { type App, type WorkspaceLeaf } from 'obsidian';
+import { t } from '../../i18n';
 import { showNotice } from '../../ui/notice';
 import { activeAtlasLeaf, activeStore, sceneStoreOf, selectedTokenIds, tokenLabel, workScene, type WorkScene } from './atlasView.ts';
 import { obsidianHttp } from './account/obsidianHttp.ts';
@@ -10,8 +11,7 @@ import { OnlineTable } from './OnlineTable.ts';
 import type { KnownPlayer, Ownership } from './ownership.ts';
 import { seeAsPlayers } from './playerTokenVision.ts';
 import { presentOnPlayerView, presentedSceneSource, showPresentedElsewhere, type ShownElsewhere } from './presentedScene.ts';
-import type { SavedTable } from './savedTable.ts';
-import { RELAY_ORIGIN } from './servers.ts';
+import type { SavedTable, TableOnRelay } from './savedTable.ts';
 import type { TableStatus } from './TableConnection.ts';
 import type { LostTable } from './tableEnd.ts';
 
@@ -24,8 +24,10 @@ export interface PlayerTokenRow {
   readonly owner: KnownPlayer | null;
 }
 
-/** The GM's account as starting a table needs it. */
+/** The GM's account as starting a table needs it, and the relay it hosts on. */
 export interface HostAccount {
+  /** The relay address in the GM's settings now (an origin), or null while none is entered. Tables are asked of no other server. */
+  relay(): string | null;
   /** The account's token, or null while signed out. */
   token(): string | null;
   /** The relay refused the token. */
@@ -34,7 +36,7 @@ export interface HostAccount {
   refresh(force: boolean): Promise<void>;
 }
 
-const NO_ACCOUNT: HostAccount = { token: () => null, signedOutByServer: () => undefined, refresh: () => Promise.resolve() };
+const NO_ACCOUNT: HostAccount = { relay: () => null, token: () => null, signedOutByServer: () => undefined, refresh: () => Promise.resolve() };
 
 function refused(text: string): null {
   showNotice(text);
@@ -102,6 +104,11 @@ export class OnlineControl {
     return this.starting;
   }
 
+  /** Whether the GM entered a relay address: without one no table is asked for, and no server is reached. */
+  hasRelay(): boolean {
+    return this.account.relay() !== null;
+  }
+
   /** How the last table ended, if the server ended it and not the GM; null otherwise. Cleared by the next start. */
   lost(): LostTable | null {
     return this.ended;
@@ -116,12 +123,15 @@ export class OnlineControl {
   async start(leaf: WorkspaceLeaf | null = activeAtlasLeaf(this.app)): Promise<OnlineTable | null> {
     if (this.current !== null || this.starting) return this.current;
     if (leaf === null || sceneStoreOf(leaf) === null) return refused('Open an Atlas map tab first.');
+    // Read once: the table is made on this relay and kept with it, whatever the setting says by the time it answers.
+    const origin = this.account.relay();
+    if (origin === null) return refused(t('onlineHost.notice.noRelay'));
     const token = this.account.token();
     if (token === null) return refused('Sign in to host first.');
     this.starting = true;
     this.changed();
     // Whether this account may host is the relay's answer alone: nothing here looks at what the account was last said to hold.
-    const created = await createTable(obsidianHttp, RELAY_ORIGIN, token).finally(() => (this.starting = false));
+    const created = await createTable(obsidianHttp, origin, token).finally(() => (this.starting = false));
     if ('message' in created) {
       this.changed();
       if (created.status === 401) this.account.signedOutByServer();
@@ -132,16 +142,25 @@ export class OnlineControl {
     // A new table's log is empty: the last table's goes.
     this.logs.forget();
     const mapPath = sceneStoreOf(leaf)?.getState().mapPath ?? null;
-    return this.run({ ...created, mapPath, gate: newGate() });
+    return this.run({ ...created, mapPath, gate: newGate(), origin });
   }
 
   /**
    * Comes back to a table saved before a reload: same link, host secret and players (their ids and
-   * tokens are in the ownership kept with it); players see the scene Atlas presents again.
+   * tokens are in the ownership kept with it); players see the scene Atlas presents again. A table
+   * lives on the relay it was made on (`origin`); one saved before that was kept resumes on the relay
+   * of the settings now, and with none entered it is not resumed and forgotten.
    */
   resume(saved: SavedTable): OnlineTable | null {
     if (this.current !== null || this.starting) return this.current;
-    return this.run(saved, this.logs.saved());
+    const origin = saved.origin ?? this.account.relay();
+    if (origin === null) {
+      // Nowhere to come back to: forgotten with its log, as when the GM stops a table.
+      this.save(null);
+      this.logs.forget();
+      return null;
+    }
+    return this.run({ ...saved, origin }, this.logs.saved());
   }
 
   /** Ends the running table for good: the link stops working and the saved table is forgotten. */
@@ -226,10 +245,10 @@ export class OnlineControl {
     return workScene(activeStore(this.app) ?? (shared === null || shared === undefined ? null : sceneStoreOf(shared)));
   }
 
-  private run(saved: SavedTable, savedLog?: unknown): OnlineTable {
+  private run(saved: TableOnRelay, savedLog?: unknown): OnlineTable {
     this.ended = null;
     this.keep(saved);
-    const table = new OnlineTable(this.app, RELAY_ORIGIN, saved, saved.mapPath, this.ownership, saved.gate, {
+    const table = new OnlineTable(this.app, saved.origin, saved, saved.mapPath, this.ownership, saved.gate, {
       status: () => this.changed(),
       gate: (gate) => {
         if (this.current === table && this.saved !== null) this.keep({ ...this.saved, gate });

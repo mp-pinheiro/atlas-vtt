@@ -6,7 +6,8 @@ import { DeviceSignIn } from '../../../../src/app/online/gm/account/deviceFlow.t
 import type { HttpRequest, HttpResponse } from '../../../../src/app/online/gm/account/http.ts';
 import { ACCESS_REFUSALS } from '../../../../src/app/online/gm/account/relayAccount.ts';
 import type { Timers } from '../../../../src/app/online/gm/companionTimers.ts';
-import { ACCOUNTS_ORIGIN as ACCOUNTS, RELAY_ORIGIN as RELAY } from '../../../../src/app/online/gm/servers.ts';
+import { ACCOUNTS_ORIGIN as ACCOUNTS } from '../../../../src/app/online/gm/servers.ts';
+import { TEST_RELAY as RELAY } from './testRelay.ts';
 
 const MARA = { id: 'acc_mara', handle: 'mara', name: 'Mara' };
 
@@ -77,10 +78,12 @@ class FakeServers {
   }
 }
 
-function setup(): { control: AccountControl; servers: FakeServers; timers: FakeTimers; tokens: { value: string | null }; opened: string[]; notices: string[] } {
+function setup(): { control: AccountControl; servers: FakeServers; timers: FakeTimers; tokens: { value: string | null }; relay: { value: string | null }; opened: string[]; notices: string[] } {
   const servers = new FakeServers();
   const timers = new FakeTimers();
   const tokens = { value: null as string | null };
+  /** The relay address in the settings: the GM changes it while the control lives. */
+  const relay = { value: RELAY as string | null };
   const opened: string[] = [];
   const notices: string[] = [];
   const control = new AccountControl({
@@ -89,8 +92,9 @@ function setup(): { control: AccountControl; servers: FakeServers; timers: FakeT
     tokens: { get: () => tokens.value, set: (token) => (tokens.value = token), clear: () => (tokens.value = null) },
     openUrl: (url) => void opened.push(url),
     notify: (text) => void notices.push(text),
+    relay: () => relay.value,
   });
-  return { control, servers, timers, tokens, opened, notices };
+  return { control, servers, timers, tokens, relay, opened, notices };
 }
 
 describe('the device sign-in', () => {
@@ -244,6 +248,66 @@ describe('the signed-in account', () => {
     servers.reachable = false;
     await control.signOut();
     expect(tokens.value).toBeNull();
+  });
+});
+
+describe('the account and the relay address', () => {
+  it('asks no relay while no address is entered, however it is asked', async () => {
+    const { control, servers, tokens, relay } = setup();
+    relay.value = null;
+    tokens.value = 'tok';
+    await control.refresh(true);
+    await control.refresh(false);
+    control.relayChanged();
+    await flush();
+    expect(control.relay()).toBeNull();
+    expect(servers.requests).toEqual([]);
+  });
+
+  it('asks the relay of the settings at every question, and the new one once the GM changed the address', async () => {
+    const { control, servers, tokens, relay } = setup();
+    tokens.value = 'tok';
+    await control.refresh(true);
+    expect(control.view()).toEqual({ kind: 'no-access', account: MARA, reason: 'no-access' });
+    // The old relay's word is dropped at once, and the new relay is asked without waiting for the answer to go stale.
+    relay.value = 'http://localhost:8787';
+    servers.me = { status: 200, json: { account: MARA, access: { plan: 'beta', maxPlayers: 12, endsAt: null } } };
+    control.relayChanged();
+    expect(control.view()).toEqual({ kind: 'checking' });
+    await flush();
+    expect(control.view()).toEqual({ kind: 'can-host', account: MARA, access: { plan: 'beta', maxPlayers: 12, endsAt: null } });
+    expect(servers.requests.map((request) => request.url)).toEqual([`${RELAY}/api/me`, 'http://localhost:8787/api/me']);
+    // Clearing the address asks nobody.
+    relay.value = null;
+    control.relayChanged();
+    await flush();
+    expect(servers.requests).toHaveLength(2);
+  });
+
+  it('drops the answer of a relay the GM has left since, whichever answers last', async () => {
+    const answers = new Map<string, (response: HttpResponse) => void>();
+    const timers = new FakeTimers();
+    const relay = { value: RELAY as string };
+    const control = new AccountControl({
+      http: (request) => new Promise<HttpResponse>((resolve) => answers.set(request.url, resolve)),
+      timers,
+      tokens: { get: () => 'tok', set: () => undefined, clear: () => undefined },
+      openUrl: () => undefined,
+      notify: () => undefined,
+      relay: () => relay.value,
+    });
+    const first = control.refresh(true);
+    relay.value = 'https://other.example';
+    control.relayChanged();
+    await flush();
+    expect([...answers.keys()]).toEqual([`${RELAY}/api/me`, 'https://other.example/api/me']);
+    answers.get('https://other.example/api/me')?.({ status: 200, json: { account: MARA, access: null, reason: 'access-ended' } });
+    await flush();
+    expect(control.view()).toEqual({ kind: 'no-access', account: MARA, reason: 'access-ended' });
+    // The first relay answers late, with another word: it is of no use now.
+    answers.get(`${RELAY}/api/me`)?.({ status: 200, json: { account: MARA, access: { plan: 'beta', maxPlayers: 12, endsAt: null } } });
+    await first;
+    expect(control.view()).toEqual({ kind: 'no-access', account: MARA, reason: 'access-ended' });
   });
 });
 
