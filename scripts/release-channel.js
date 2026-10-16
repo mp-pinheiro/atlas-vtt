@@ -10,7 +10,7 @@ const path = require('path');
 
 const STABLE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const BETA = /^((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))-beta\.(0|[1-9]\d*)$/;
-const CHANNEL_BRANCHES = { main: 'stable', beta: 'beta' };
+const CHANNEL_BRANCHES = { main: 'stable', beta: 'beta', work: 'beta' };
 
 function parseVersion(version) {
   if (typeof version === 'string' && STABLE.test(version)) {

@@ -28,12 +28,18 @@ describe('release channels', () => {
   it('maps release branches to channels and leaves other branches unchecked', () => {
     expect(channelForBranch('main')).toBe('stable');
     expect(channelForBranch('beta')).toBe('beta');
+    expect(channelForBranch('work')).toBe('beta');
     expect(channelForBranch('feature/fog')).toBeNull();
   });
   it('refuses beta versions on the stable channel and vice versa', () => {
     expect(assertChannel(project('0.2.0-beta.1'), 'beta').base).toBe('0.2.0');
     expect(() => assertChannel(project('0.2.0-beta.1'), 'stable')).toThrow(/beta channel/);
     expect(() => assertChannel(project('0.2.0'), 'beta')).toThrow(/stable channel/);
+  });
+  it('requires beta versions on the fork work branch', () => {
+    const channel = channelForBranch('work');
+    expect(assertChannel(project('0.8.1-beta.0'), channel).channel).toBe('beta');
+    expect(() => assertChannel(project('0.8.1'), channel)).toThrow(/stable channel/);
   });
   it('refuses manifest and package versions that drift apart', () => {
     expect(() => assertChannel(project('0.2.0', '0.2.1'), 'stable')).toThrow(/differ/);

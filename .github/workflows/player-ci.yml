@@ -1,0 +1,74 @@
+name: Player CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - work
+
+permissions:
+  contents: read
+
+concurrency:
+  group: player-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_REVISION: ${{ github.sha }}
+  SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}/tree/${{ github.sha }}
+
+jobs:
+  check-player:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release channel
+        env:
+          TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
+        run: node scripts/release-channel.js --branch "$TARGET_BRANCH"
+
+      - name: Typecheck plugin
+        run: npx tsc --noEmit
+
+      - name: Typecheck player
+        run: npm run typecheck:player
+
+      - name: Typecheck relay
+        run: npm run typecheck:relay
+
+      - name: Check dependency boundaries
+        run: npm run check:boundaries
+
+      - name: Test player state, transport and fake table
+        run: npm run test:player -- --exclude player/tests/conformance.test.ts
+
+      - name: Test relay in Workers runtime
+        run: npm run test:relay
+
+      - name: Test plugin, protocol and GM agency
+        run: npx vitest run --project unit
+
+      - name: Build player with corresponding source link
+        run: npm run build:player
+
+      - name: Test real local relay conformance
+        run: npx vitest run --project player player/tests/conformance.test.ts
+
+      - name: Record required workstation privacy acceptance
+        run: |
+          printf '%s\n' 'Required before feature acceptance: run npm run test:player:browser and the targeted GPU privacy suites on a GPU-equipped workstation. Hosted CPU checks do not verify rendering or observed browser smoke.' >> "$GITHUB_STEP_SUMMARY"

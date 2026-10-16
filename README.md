@@ -8,7 +8,7 @@ A game system agnostic virtual tabletop for tabletop RPGs that runs inside [Obsi
 
 The guides, with screenshots and clips of every feature, are on **[atlas-vtt.dev](https://atlas-vtt.dev)**.
 
-I built Atlas as part of my bachelor's thesis to give the TTRPG community a virtual tabletop that's open source, hackable, and free to use. Every file Atlas creates, every token, every map, every world you build, stays yours and stays local. It follows the same philosophy as Obsidian: your work lives on your machine, in formats you control, with no account and no server in between. Atlas VTT also has an online play service, Atlas Online, to share your maps with players over the internet. Atlas Online requires an account and an internet connection.
+Atlas stores maps, characters and campaign data in your Obsidian vault. The GM's vault remains authoritative. Offline tools need no account or server. Optional online play uses a configured relay to pass player-visible data and player actions between the GM and browser players; hosting uses a relay host key rather than an Atlas account.
 
 TTRPG worlds in my opinion are something very personal and players and DMs get attached to them. That attachment deserves better than a subscription and someone else's database. Atlas makes sure your creative output stays yours, just like a sheet of paper would.
 
@@ -28,7 +28,7 @@ Documentation at: [atlas-vtt.dev](https://atlas-vtt.dev/)
 - **Drawing and notes:** Sketch, add text, measure distances, and pin Markdown notes or other Atlas maps to locations.
 - **Dice and initiative:** Roll dice, review the roll log, track turns, and keep counters and timers close at hand.
 - **Music and controls:** Play audio from your vault, customise map hotkeys, and undo or redo map edits.
-- **Online play (closed beta):** Host a table that your players join from their web browsers. It is off until you turn it on, and hosting needs an Atlas account with closed beta access.
+- Online play (self-hosted beta): Host a table that players join in their browsers. Online play is off until enabled; hosting requires a configured relay and a host key in Obsidian's secure storage.
 
 ## Your notes, right on the map
 
@@ -81,11 +81,25 @@ Download `main.js`, `manifest.json`, and `styles.css` from a [GitHub release](ht
 4. Import tokens and place them on your scene.
 5. For a local game, open the player view and move it to your second screen.
 
+## Self-hosted online play
+
+Hosting requires Obsidian 1.11.4 or newer with secure storage. Enable Online play under Experimental features, set the relay origin in Atlas settings, and save the relay's host key. The default origin is `https://atlas.fairfruit.tv`. Changing the origin ends the current table; clearing the key also forgets its saved connection. Neither hosts nor players sign in to an Atlas account.
+
+Start a table from a map view and share its join link. Players connect only after submitting the join form; the GM's join-code and admission controls still apply. The GM assigns characters or accepts player requests. A scene's online controls separately enable approved movement, player conditions, nearby visible doors and personal vision; these switches start off. Initiative changes use the scene's normal undo and redo history.
+
+The browser includes read-only native sheets with GM-indexed rolls, character resources, a book, quests and nested world maps. Public, GM-only, blind and self-only rolls retain their separate audiences. Submitted movement paths stay private to their requester and the GM until approved or cancelled. The local player window remains the GM-driven shared screen.
+
+Install `just` and `fnm` first, then run `just setup` once to install the repository Node version and dependencies. For a browser client smoke test with a temporary relay and GM table, run `just smoke`; it prints the GM URL, player URL and development join code. Open the player link in two separate browser profiles to test Alice and Bob, then stop the fixture with `Ctrl+C`.
+
+To install the plugin into an existing Obsidian test vault, run `just obsidian /path/to/test-vault`. This builds Atlas and copies only into that vault's `.obsidian/plugins/atlas-vtt/` folder, then starts the local relay. The vault must already contain `.obsidian/`; the recipe does not create a vault or modify another one. In Obsidian, enable Online play and use relay origin `http://127.0.0.1:8787` with development-only host key `atlas-vtt-local-test-host-key`. Use separate browser profiles for the players.
+
+The production workflow builds the browser and Worker from one revision and deploys them together to `atlas.fairfruit.tv` on pushes to `work`. Configure `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and a separate `HOST_KEY` in the GitHub `production` environment, restricted to the `work` branch. The token needs Workers Scripts Write on the deployment account and Workers Routes Write plus Zone Read on the `fairfruit.tv` zone. The workflow writes `HOST_KEY` to a temporary file with mode 0600, uploads it as a Worker secret in the same deployment with `--secrets-file`, and removes that file even if deployment fails. Never put the production host key in Wrangler variables, browser assets or plugin data. Store the host key used by the running Obsidian plugin in Obsidian secure storage. The browser's Source link identifies the deployed revision; the build includes the AGPL licence and dependency notices.
+
 ## Privacy and network use
 
 Atlas works offline with files in your vault. It has no telemetry or ads, and you need no account to use it. Scenes are saved as `.atlasmap` files, and the rest of your library (tokens, encounters, collection settings, game system presets) as JSON files in the `atlas-vtt` folder, so it syncs with your vault. With Obsidian Sync, turn on "Sync all other types".
 
-If you use an external image URL for a token or map background, or copy an externally hosted image from a note, Atlas downloads that image from the supplied address. Vault images require no network access. When you explicitly submit an issue report, Atlas sends it to `https://srv1871379.hstgr.cloud/atlas/reports`, which creates a public GitHub issue. Online play (closed beta) is off until you turn it on in the command palette's **Experimental features** page. Hosting a table needs an Atlas account: you sign in at `https://api.atlas-vtt.dev`, and a running table connects to `https://play.atlas-vtt.dev`, which passes the scene your players may see on to their browsers and keeps none of it. Players need no account. See [PRIVACY.md](PRIVACY.md) for details.
+If you use an external image URL for a token or map background, or copy an externally hosted image from a note, Atlas downloads that image from the supplied address. Vault images require no network access. When you explicitly submit an issue report, Atlas sends it to `https://srv1871379.hstgr.cloud/atlas/reports`, which creates a public GitHub issue. Online play is off until enabled in Experimental features. Hosting connects only to the configured relay, whose default origin is `https://atlas.fairfruit.tv`; it routes game data transiently and stores credential hashes, connected or waiting names and table lifecycle records. Browser identities and personal explored memory stay on the player's device. The relay's optional report and feedback endpoints discard submissions instead of filing issues. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Help and contributing
 

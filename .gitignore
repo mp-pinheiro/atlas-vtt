@@ -79,3 +79,8 @@ party/
 # GPU test failure artifacts
 **/__screenshots__/
 .vitest-attachments/
+.wrangler/
+.dev.vars*
+.cloudflare/
+.pi/
+test-results/

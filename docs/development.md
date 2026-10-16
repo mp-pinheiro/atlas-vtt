@@ -1,20 +1,16 @@
 # Development and pull requests
 
-Atlas has two long-lived branches:
+Atlas keeps upstream's `main` and `beta` release lines and this fork's `work` beta line:
 
 | Branch | Channel | Version format | Who gets it |
 | --- | --- | --- | --- |
 | `beta` | Beta builds for QA | `x.y.z-beta.N` | Maintainer and contributors through [BRAT](beta-testing.md) |
 | `main` | Stable releases | `x.y.z` | Everyone through the Obsidian community directory |
+| `work` | Fork beta development and online player deployment | `x.y.z-beta.N` | Fork testers and the hosted browser player |
 
-Work lands on `beta` first. Create a branch from `beta`, make your change and
-open a pull request against `beta`. Only promotion pull requests target `main`.
+For upstream changes, create a branch from `beta` and open a pull request against `beta`; only promotion pull requests target `main`. This fork's player-agency changes target `work`.
 
-CI enforces the channel: a pull request or push to `main` fails if the manifest
-version has a beta suffix, and one to `beta` fails if it does not. Obsidian's
-community directory reads `manifest.json` from `main` and installs the release
-tagged with that version, and GitHub never marks a pre-release as *latest*, so
-beta builds are unreachable from production installs.
+CI enforces the channel: a pull request or push to `main` fails if the manifest version has a beta suffix, and one to `beta` or `work` fails if it does not. Obsidian's community directory reads `manifest.json` from `main` and installs the release tagged with that version, and GitHub never marks a pre-release as *latest*, so beta builds are unreachable from production installs. The existing beta-release workflow still publishes only from `beta`; `work` does not publish plugin releases.
 
 ## Local checks
 
@@ -30,6 +26,31 @@ npm run release:prepare
 
 `build:ci` builds without copying files into a local vault. CI runs these checks
 and every one of them blocks the merge, lint included.
+
+### Browser player and relay
+
+Install `just` and `fnm` first. `just setup` installs the Node version in `.nvmrc` and the root dependencies. `just smoke` builds the browser client and starts a real local GM table with its relay, using temporary local relay storage. To install the Obsidian plugin in a real test vault, run `just obsidian /path/to/test-vault`; it refuses a vault without `.obsidian` and copies only to that vault. Local plugin hosting uses `http://127.0.0.1:8787` and the development-only key `atlas-vtt-local-test-host-key`. These recipes never point at production.
+
+```sh
+just setup
+just smoke
+just obsidian /path/to/test-vault
+```
+```sh
+npx vitest run --project player player/tests/conformance.test.ts
+```
+
+Player CI runs on pull requests and pushes to `work`, alongside Plugin CI. It checks plugin/player/relay types, dependency boundaries, player state/transport/fake-table tests, the real Workers-runtime relay suite, plugin/protocol/GM agency tests, the browser build and local relay conformance without deployment secrets. CI sets `SOURCE_REVISION` to its checked-out SHA and `SOURCE_URL` to the full corresponding commit tree in its own repository; the browser's About/Source link must identify that source, not upstream.
+
+Rendering and privacy acceptance remain required on a GPU-equipped workstation: install Chromium with `npx playwright install chromium`, run `npm run test:player:browser`, then `npm run test:gpu -- sightMask fallbackPicture mapImageSeams mapImageViews unlitGrid`, and perform the real two-player browser smoke with screenshots of the distinct personal pictures and GM approval queue. Hosted CPU checks do not establish pixel privacy, GPU fallback correctness or observed browser interactions, and a successful hosted deploy is not proof of those checks.
+
+### Combined player deployment
+
+The Deploy Player workflow runs only on pushes to `work`, checks out the exact push SHA and repeats the Player CI gates before deploying the static client and relay together with Wrangler 4.151.1. It uses the `production` environment, read-only repository contents permission and the serialized `atlas-player-production` concurrency group. Production is `https://atlas.fairfruit.tv`; the Worker configuration owns that custom-domain route, not the local development command.
+
+The production GitHub environment is configured with `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `HOST_KEY`. The deploy workflow writes `HOST_KEY` to a temporary mode-0600 file and uploads it as a Worker secret with `--secrets-file`. Never put the host key in Wrangler `vars`, tracked files, browser build variables or CI command arguments; never copy a local OAuth session into CI. The fixed key in `dev:relay` is local-test-only and is never passed to deployment.
+
+A green workflow alone does not verify production: confirm the deployed client loads, authenticated `/api/me` reports twelve seats, and a real Obsidian-hosted table admits two browser players over the production custom domain. Publication authority, production secrets and this end-to-end proof are separate prerequisites; local implementation and checks do not imply they are satisfied.
 
 ### Lint
 
