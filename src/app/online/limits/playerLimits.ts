@@ -25,7 +25,7 @@ export const BOOK_LIMIT: RateLimit = { burst: 30, perSecond: 2 };
 /** Readable pins a player may open: a burst of 5, then one a second. */
 export const FIND_LIMIT: RateLimit = { burst: 5, perSecond: 1 };
 
-/** Laser, measure and cursor messages a player may send a second, each kind on its own (the client sends about 30). */
+/** Laser, measure and cursor messages a player may send a second, each kind on its own: a client sends one every `MARKS_INTERVAL_MS`, 10 a second (pages before that sent about 30). */
 export const MARKS_PER_SECOND = 40;
 
 /** How long a player's request for the asset it is being sent is ignored (milliseconds). */

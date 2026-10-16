@@ -12,7 +12,7 @@ export interface MarkContext {
   readonly map: MapSize | null;
 }
 
-/** Laser and measure messages a player may send a second, each: the client sends one every `MARKS_INTERVAL_MS`, about 30. The limit is shared with the client (`limits/`). */
+/** Laser, measure and cursor messages a player may send a second, each kind on its own: a client sends one every `MARKS_INTERVAL_MS`, 10 a second (pages before that sent about 30). The limit is shared with the client (`limits/`). */
 export { MARKS_PER_SECOND };
 
 /** A rate per player for one kind of mark: anything above `MARKS_PER_SECOND` is dropped. */
