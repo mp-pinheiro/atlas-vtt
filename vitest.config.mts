@@ -22,7 +22,19 @@ export default defineConfig({
           environment: 'jsdom',
           globals: true,
           setupFiles: ['./tests/setup/obsidianDom.ts', './tests/setup/domHost.ts'],
-          exclude: ['**/node_modules/**', '**/*.gpu.test.ts'],
+          // The player client and the relay have projects of their own (the relay runs in workerd).
+          exclude: ['**/node_modules/**', '**/*.gpu.test.ts', 'player/**', 'relay/**'],
+        },
+      },
+      {
+        extends: true,
+        // The browser client: no Obsidian helpers on the DOM, an IndexedDB of its own.
+        test: {
+          name: 'player',
+          environment: 'jsdom',
+          globals: true,
+          setupFiles: ['./tests/setup/domHost.ts', './player/tests/setup/player.ts'],
+          include: ['player/tests/unit/**/*.test.{ts,tsx}', 'player/tests/fake/**/*.test.{ts,tsx}'],
         },
       },
       {
@@ -34,6 +46,23 @@ export default defineConfig({
           name: 'gpu',
           setupFiles: ['./tests/setup/domHost.ts'],
           include: ['src/**/*.gpu.test.ts', 'tests/**/*.gpu.test.ts'],
+          testTimeout: 600_000,
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({ launchOptions: { channel: 'chromium', ignoreDefaultArgs: ['--hide-scrollbars'] } }),
+            instances: [{ browser: 'chromium' }],
+          },
+        },
+      },
+      {
+        extends: true,
+        // Like the GPU project: it needs a browser with a GPU, so it runs on the maintainer's machine only.
+        optimizeDeps: { include: ['yaml', 'pixi-viewport', 'eventemitter3', 'react-dom', 'react-dom/client', 'react/jsx-dev-runtime'] },
+        test: {
+          name: 'player-browser',
+          setupFiles: ['./tests/setup/domHost.ts'],
+          include: ['player/tests/browser/**/*.browser.test.{ts,tsx}'],
           testTimeout: 600_000,
           browser: {
             enabled: true,

@@ -1,0 +1,211 @@
+// The Obsidian CSS variables for the player page.
+//
+// Atlas' components colour and size themselves with Obsidian's variables (obsidian-colors.md), which
+// the app supplies from the user's theme. The player page has no Obsidian, so this file supplies
+// the ones the shared components read, in the app's light and dark default themes, chosen by the
+// browser's `prefers-color-scheme`. The palettes, sizes, radii, fonts and layers are the values
+// obsidian-colors.md lists for Obsidian 1.13. A variable that file only describes (a surface, a
+// border) is built from those palettes and takes its role from the description there; the two
+// shadows are the page's own, since the file gives no values for them.
+//
+// Variables that are not Obsidian's stay unset on purpose: components that read them carry a
+// fallback (`--corner-shape`, the `--atlas-*` ones the components set themselves or a theme may).
+
+// Written once per theme: only these differ between light and dark.
+$light: (
+  'color-base-00': #ffffff,
+  'color-base-05': #fcfcfc,
+  'color-base-10': #fafafa,
+  'color-base-20': #f6f6f6,
+  'color-base-25': #e3e3e3,
+  'color-base-30': #e0e0e0,
+  'color-base-35': #d4d4d4,
+  'color-base-40': #bdbdbd,
+  'color-base-50': #ababab,
+  'color-base-60': #707070,
+  'color-base-70': #5a5a5a,
+  'color-base-100': #222222,
+  'color-red': #e93147,
+  'color-orange': #ec7500,
+  'color-yellow': #e0ac00,
+  'color-green': #08b94e,
+  'color-cyan': #00bfbc,
+  'color-blue': #086ddd,
+  'color-purple': #7852ee,
+  'color-pink': #d53984,
+  'mono-0': white,
+  'mono-100': black,
+);
+$dark: (
+  'color-base-00': #1e1e1e,
+  'color-base-05': #212121,
+  'color-base-10': #242424,
+  'color-base-20': #262626,
+  'color-base-25': #2a2a2a,
+  'color-base-30': #363636,
+  'color-base-35': #3f3f3f,
+  'color-base-40': #555555,
+  'color-base-50': #666666,
+  'color-base-60': #999999,
+  'color-base-70': #bababa,
+  'color-base-100': #dadada,
+  'color-red': #fb464c,
+  'color-orange': #e9973f,
+  'color-yellow': #e0de71,
+  'color-green': #44cf6e,
+  'color-cyan': #53dfdd,
+  'color-blue': #027aff,
+  'color-purple': #a882ff,
+  'color-pink': #fa99cd,
+  'mono-0': black,
+  'mono-100': white,
+);
+
+@mixin palette($theme) {
+  @each $name, $value in $theme {
+    --#{$name}: #{$value};
+  }
+}
+
+:root {
+  color-scheme: light;
+
+  @include palette($light);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    @include palette($dark);
+  }
+}
+
+// What follows reads the palette above and does not change with the theme.
+:root {
+  // Accent: the default hue, saturation and lightness of the app.
+  --accent-h: 258;
+  --accent-s: 88%;
+  --accent-l: 66%;
+  --color-accent: hsl(var(--accent-h), var(--accent-s), var(--accent-l));
+  --interactive-accent: var(--color-accent);
+  --interactive-accent-hover: color-mix(in oklch, var(--color-accent) 92%, var(--mono-100));
+
+  // Surfaces and borders.
+  --background-primary: var(--color-base-00);
+  --background-primary-alt: var(--color-base-10);
+  --background-secondary: var(--color-base-20);
+  --background-secondary-alt: var(--color-base-25);
+  --background-modifier-hover: color-mix(in oklch, var(--mono-100) 6.7%, transparent);
+  --background-modifier-active-hover: color-mix(in oklch, var(--interactive-accent) 15%, transparent);
+  --background-modifier-border: var(--color-base-30);
+  --background-modifier-border-hover: var(--color-base-35);
+  --background-modifier-border-focus: var(--color-base-40);
+  --background-modifier-error: var(--color-red);
+  --background-modifier-error-hover: color-mix(in oklch, var(--color-red) 85%, var(--mono-100));
+  --background-modifier-form-field: var(--color-base-25);
+  --interactive-normal: var(--color-base-30);
+  --interactive-hover: var(--color-base-35);
+
+  // Text.
+  --text-normal: var(--color-base-100);
+  --text-muted: var(--color-base-70);
+  --text-faint: var(--color-base-50);
+  --text-on-accent: white;
+  --text-accent: var(--interactive-accent);
+  --text-accent-hover: var(--interactive-accent-hover);
+  --text-error: var(--color-red);
+  --text-warning: var(--color-orange);
+  --link-color: var(--text-accent);
+
+  // Menus, dividers and scrollbars.
+  --menu-background: var(--background-secondary);
+  --menu-border-color: var(--background-modifier-border-hover);
+  --menu-border-width: var(--border-width);
+  --shadow-s: 0 1px 2px rgb(0 0 0 / 0.12), 0 4px 8px rgb(0 0 0 / 0.12), 0 12px 24px rgb(0 0 0 / 0.16);
+  --shadow-l: 0 2px 8px rgb(0 0 0 / 0.16), 0 8px 24px rgb(0 0 0 / 0.2), 0 32px 80px rgb(0 0 0 / 0.28);
+  --menu-shadow: var(--shadow-s);
+  --modal-border-width: var(--border-width);
+  --divider-color: var(--background-modifier-border);
+  --divider-width: var(--border-width);
+  --scrollbar-thumb-bg: color-mix(in oklch, var(--mono-100) 10%, transparent);
+  --scrollbar-active-thumb-bg: color-mix(in oklch, var(--mono-100) 20%, transparent);
+
+  // Type: the system faces, since the page loads nothing from another origin.
+  --font-interface: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-text: var(--font-interface);
+  --font-monospace: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --font-text-size: 16px;
+  --font-ui-smaller: 12px;
+  --font-ui-small: 13px;
+  --font-ui-medium: 15px;
+  --font-ui-large: 20px;
+  --font-thin: 100;
+  --font-extralight: 200;
+  --font-light: 300;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --font-extrabold: 800;
+  --font-black: 900;
+  --line-height-normal: 1.5;
+  --line-height-tight: 1.3;
+
+  // Sizes on the 4px grid, radii, icons, inputs and layers.
+  --size-2-1: 2px;
+  --size-2-2: 4px;
+  --size-2-3: 6px;
+  --size-4-1: 4px;
+  --size-4-2: 8px;
+  --size-4-3: 12px;
+  --size-4-4: 16px;
+  --size-4-5: 20px;
+  --size-4-6: 24px;
+  --size-4-8: 32px;
+  --size-4-9: 36px;
+  --size-4-12: 48px;
+  --size-4-16: 64px;
+  --size-4-18: 72px;
+  --radius-s: 4px;
+  --radius-m: 8px;
+  --radius-l: 12px;
+  --radius-xl: 24px;
+  --modal-radius: var(--radius-xl);
+  --border-width: 1px;
+  --input-height: 30px;
+  --icon-xs: 14px;
+  --icon-s: 16px;
+  --icon-m: 18px;
+  --icon-l: 18px;
+  --icon-xl: 32px;
+  --icon-opacity: 0.85;
+  --icon-opacity-hover: 1;
+  --icon-opacity-active: 1;
+  --layer-cover: 5;
+  --layer-sidedock: 10;
+  --layer-status-bar: 15;
+  --layer-popover: 30;
+  --layer-slides: 45;
+  --layer-modal: 50;
+  --layer-notice: 60;
+  --layer-menu: 65;
+  --layer-tooltip: 70;
+  --layer-dragged-item: 80;
+}
+
+// What Obsidian's workspace gives the page its components sit in.
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+}

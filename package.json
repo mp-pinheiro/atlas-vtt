@@ -15,6 +15,14 @@
     "postbuild": "node scripts/copy-plugin.js",
     "test": "vitest --project unit",
     "test:gpu": "vitest run --project gpu",
+    "dev:player": "vite --config vite.player.config.mts",
+    "build:player": "vite build --config vite.player.config.mts",
+    "typecheck:player": "tsc -p player/tsconfig.json && tsc -p player/tests/tsconfig.json",
+    "typecheck:relay": "tsc -p relay/tsconfig.json && tsc -p relay/conformance/tsconfig.json",
+    "test:player": "vitest run --project player",
+    "test:player:browser": "vitest run --project player-browser",
+    "test:relay": "npm --prefix relay test",
+    "test:conformance": "npm --prefix relay run test:conformance",
     "changelog:generate": "node scripts/changelog.js",
     "changelog:check": "node scripts/changelog.js --check",
     "release:prepare": "node scripts/prepare-release-assets.js",
@@ -24,7 +32,7 @@
     "lint": "eslint . --max-warnings 0 --suppressions-location eslint.suppressions.json",
     "lint:scan": "node scripts/lint-scan.js",
     "preflight": "node scripts/preflight.js",
-    "check:boundaries": "node scripts/check-boundaries.mjs && tsc -p tsconfig.shared.json"
+    "check:boundaries": "node scripts/check-boundaries.mjs && tsc -p tsconfig.shared.json && tsc -p player/tsconfig.json"
   },
   "keywords": [
     "obsidian",
@@ -79,6 +87,7 @@
     "esbuild": "0.25.2",
     "eslint": "^9.39.5",
     "eslint-plugin-obsidianmd": "^0.4.2",
+    "fake-indexeddb": "6.2.5",
     "fast-check": "4.10.2",
     "jsdom": "^26.1.0",
     "obsidian": "^1.13.1",
