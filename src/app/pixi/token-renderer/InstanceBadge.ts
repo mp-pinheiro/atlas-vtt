@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { getTokenRingCenterRadius } from './tokenRingMetrics';
-import type { TokenGroupContainer } from './types';
+import type { TokenGroupContainer } from './spriteTypes';
 import { destroyTree } from '../utils/destroyTree';
 import { BADGE_DISC_LABEL, BADGE_TEXT_LABEL, INSTANCE_BADGE_LABEL } from './instanceBadgeParts';
 

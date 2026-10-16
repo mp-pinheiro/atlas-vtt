@@ -1,5 +1,5 @@
 import { Graphics, Sprite } from 'pixi.js';
-import type { TokenGroupContainer } from './types';
+import type { TokenGroupContainer } from './spriteTypes';
 
 /** Keep full, unframed artwork proportional when a token is placed or resized. */
 export function syncTokenArtwork(container: TokenGroupContainer, size: number): void {

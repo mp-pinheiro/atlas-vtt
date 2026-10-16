@@ -6,7 +6,7 @@ import { syncTokenArtwork } from './tokenArtwork';
  */
 
 import { Container, Graphics, Sprite, Circle, Texture, CanvasSource } from 'pixi.js';
-import type { ITokenSpriteFactory, TokenGroupContainer } from './types';
+import type { ITokenSpriteFactory, TokenGroupContainer } from './spriteTypes';
 import type { TokenEntity } from '../../types';
 import type { GridSystem } from '../../grid/GridSystem';
 import { destroyTree } from '../utils/destroyTree';

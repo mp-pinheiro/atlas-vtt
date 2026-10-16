@@ -5,7 +5,7 @@ import { addFilter, removeFilter } from '../utils/filterList';
 import { animateOnTicker } from '../utils/tickerMotion';
 import { EASE_OUT_CONTROL_POINTS } from '../../utils/motion';
 import { createDownedEmblemTexture, DOWNED_EMBLEM_TEXTURE_SIZE } from './downedEmblemTexture';
-import type { TokenGroupContainer } from './types';
+import type { TokenGroupContainer } from './spriteTypes';
 
 const MARKER_LABEL = 'downedMarker';
 /** Above the art, ring and glass; below the hidden-token marker and the instance badge. */
