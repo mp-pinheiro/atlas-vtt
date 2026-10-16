@@ -62,6 +62,11 @@ export function removeEvent(sql: SqlStorage, event: StoredEvent): void {
   sql.exec('DELETE FROM events WHERE kind = ? AND subject = ? AND due = ?', event.kind, event.subject, event.due);
 }
 
+/** Moves an event whose handler failed to a later moment, unless it was cancelled or scheduled again meanwhile. */
+export function postponeEvent(sql: SqlStorage, event: StoredEvent, due: number): void {
+  sql.exec('UPDATE events SET due = ? WHERE kind = ? AND subject = ? AND due = ?', due, event.kind, event.subject, event.due);
+}
+
 /** The events due at `now` or before, in the order they run. */
 export function dueEvents(sql: SqlStorage, now: number): StoredEvent[] {
   return sql.exec<{ kind: string; subject: string; due: number }>('SELECT kind, subject, due FROM events WHERE due <= ? ORDER BY due, kind, subject', now).toArray();

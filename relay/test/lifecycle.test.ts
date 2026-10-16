@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CLOSE } from '../../src/app/online/protocol/relay.ts';
 import { randomBase32, sha256Hex } from '../src/table/codec.ts';
 import { cleanup, supersede, teardown } from '../src/table/lifecycle.ts';
-import { GM_AWAY_MS } from '../src/table/limits.ts';
+import { EVENT_RETRY_MS, GM_AWAY_MS } from '../src/table/limits.ts';
 import type { TableObject } from '../src/table/TableObject.ts';
 import { acceptSockets, createTable, sqlRows, tableNames, tableStub } from './helpers.ts';
 
@@ -139,6 +139,25 @@ describe('a table whose GM never connects', () => {
     await setClock(stub, createdAt + GM_AWAY_MS);
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     expect(await stub.isInitialised()).toBe(false);
+  });
+
+  it('is not left without a cleanup when its teardown fails: the cleanup is tried again and the next alarm ends it', async () => {
+    const { stub, createdAt } = await tableWithClock();
+    const failedAt = createdAt + GM_AWAY_MS;
+    await setClock(stub, failedAt);
+    await runInDurableObject(stub, (_table, state) => {
+      vi.spyOn(state.storage, 'deleteAll').mockRejectedValueOnce(new Error('A transient storage failure.'));
+    });
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    // The table is still there, with its cleanup due again shortly and the alarm set for it.
+    expect(await stub.isInitialised()).toBe(true);
+    expect(await sqlRows(stub, 'SELECT kind, subject, due FROM events')).toEqual([{ kind: 'cleanup', subject: 'table', due: failedAt + EVENT_RETRY_MS }]);
+    expect(await runInDurableObject(stub, (_table, state) => state.storage.getAlarm())).toBe(failedAt + EVENT_RETRY_MS);
+    await setClock(stub, failedAt + EVENT_RETRY_MS);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await stub.isInitialised()).toBe(false);
+    expect(await tableNames(stub)).toEqual([]);
+    expect(await runInDurableObject(stub, (_table, state) => state.storage.getAlarm())).toBeNull();
   });
 
   it('closes the sockets it has with ended when it goes', async () => {

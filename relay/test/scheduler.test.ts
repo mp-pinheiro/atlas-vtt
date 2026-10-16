@@ -1,36 +1,16 @@
 import { evictDurableObject, reset, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
-import { env } from 'cloudflare:workers';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GM_AWAY_MS } from '../src/table/limits.ts';
-import { randomBase32, sha256Hex } from '../src/table/codec.ts';
-import { Scheduler, type EventHandlers } from '../src/table/scheduler.ts';
-import { createSchema, dueEvents, upsertEvent } from '../src/table/store.ts';
+import { sha256Hex } from '../src/table/codec.ts';
+import { Scheduler } from '../src/table/scheduler.ts';
+import { dueEvents, upsertEvent } from '../src/table/store.ts';
 import type { TableObject } from '../src/table/TableObject.ts';
 import { tableNames } from './helpers.ts';
+import { at, untouchedStub, withScheduler } from './schedulerHarness.ts';
 
 afterEach(async () => {
   await reset();
 });
-
-/**
- * The tests schedule at moments an hour or more from now on the real clock, because the runtime
- * moves an alarm set in the past to the present. The scheduler's own clock is passed to it and
- * stands wherever a test puts it.
- */
-const BASE = Date.now() + 60 * 60 * 1000;
-const at = (offset: number): number => BASE + offset;
-
-function untouchedStub(): DurableObjectStub<TableObject> {
-  return env.TABLES.get(env.TABLES.idFromName(randomBase32(16)));
-}
-
-/** Runs `check` with a scheduler over a schema that holds no event yet, on a clock that stands at `now`. */
-function withScheduler<T>(now: number, check: (scheduler: Scheduler, state: DurableObjectState) => Promise<T>): Promise<T> {
-  return runInDurableObject(untouchedStub(), (_table, state) => {
-    createSchema(state.storage.sql);
-    return check(new Scheduler(state.storage, () => now), state);
-  });
-}
 
 describe('schedule', () => {
   it('sets the alarm for the first event', async () => {
@@ -130,105 +110,6 @@ describe('the constructor of a table object', () => {
     const { stub, due } = await madeStub();
     await evictDurableObject(stub);
     expect(await runInDurableObject(stub, (_table, state) => state.storage.getAlarm())).toBe(due);
-  });
-});
-
-describe('runDue', () => {
-  const recording = (ran: string[]): EventHandlers => ({ cleanup: (subject) => { ran.push(subject); return Promise.resolve(); } });
-
-  /** The alarm that is running is consumed: inside the handler `getAlarm()` is null until something sets one. */
-  const consumed = (state: DurableObjectState): Promise<void> => state.storage.deleteAlarm();
-
-  it('runs what is due in the order of the moments, then of the subjects, and not what is not', async () => {
-    const seen = await withScheduler(at(500), async (scheduler, state) => {
-      const ran: string[] = [];
-      for (const [subject, due] of [['c', 300], ['b', 200], ['a', 200], ['late', 501]] as const) await scheduler.schedule('cleanup', subject, at(due));
-      await consumed(state);
-      await scheduler.runDue(recording(ran));
-      return { ran, left: dueEvents(state.storage.sql, at(10_000)), alarm: await state.storage.getAlarm() };
-    });
-    expect(seen.ran).toEqual(['a', 'b', 'c']);
-    expect(seen.left).toEqual([{ kind: 'cleanup', subject: 'late', due: at(501) }]);
-    expect(seen.alarm).toBe(at(501));
-  });
-
-  it('runs an event at the very moment it is due, and not a moment before', async () => {
-    const ran = await withScheduler(at(1_000), async (scheduler) => {
-      const ran: string[] = [];
-      await scheduler.schedule('cleanup', 'due', at(1_000));
-      await scheduler.schedule('cleanup', 'next', at(1_001));
-      await scheduler.runDue(recording(ran));
-      return ran;
-    });
-    expect(ran).toEqual(['due']);
-  });
-
-  it('sets no alarm when nothing is left', async () => {
-    const alarm = await withScheduler(at(5_000), async (scheduler, state) => {
-      await scheduler.schedule('cleanup', 'a', at(1_000));
-      await consumed(state);
-      await scheduler.runDue(recording([]));
-      return state.storage.getAlarm();
-    });
-    expect(alarm).toBeNull();
-  });
-
-  it('drops an event whose handler throws, and runs the others, without throwing', async () => {
-    const seen = await withScheduler(at(1_000), async (scheduler, state) => {
-      const ran: string[] = [];
-      await scheduler.schedule('cleanup', 'a', at(100));
-      await scheduler.schedule('cleanup', 'bad', at(200));
-      await scheduler.schedule('cleanup', 'c', at(300));
-      await scheduler.runDue({ cleanup: (subject) => (subject === 'bad' ? Promise.reject(new Error('A bad row.')) : recording(ran).cleanup(subject)) });
-      return { ran, left: dueEvents(state.storage.sql, at(10_000)) };
-    });
-    expect(seen.ran).toEqual(['a', 'c']);
-    expect(seen.left).toEqual([]);
-  });
-
-  it('drops an event of a kind it has no handler for, also one named like a property of every object', async () => {
-    const seen = await withScheduler(at(1_000), async (scheduler, state) => {
-      const ran: string[] = [];
-      upsertEvent(state.storage.sql, { kind: 'a-kind-of-a-newer-version', subject: 'x', due: at(100) });
-      upsertEvent(state.storage.sql, { kind: 'toString', subject: 'x', due: at(100) });
-      await scheduler.schedule('cleanup', 'a', at(200));
-      await scheduler.runDue(recording(ran));
-      return { ran, left: dueEvents(state.storage.sql, at(10_000)) };
-    });
-    expect(seen.ran).toEqual(['a']);
-    expect(seen.left).toEqual([]);
-  });
-
-  it('keeps an event its handler scheduled again, and sets the alarm for it', async () => {
-    const seen = await withScheduler(at(1_000), async (scheduler, state) => {
-      await scheduler.schedule('cleanup', 'again', at(100));
-      await consumed(state);
-      await scheduler.runDue({ cleanup: (subject) => scheduler.schedule('cleanup', subject, at(4_000)) });
-      return { left: dueEvents(state.storage.sql, at(10_000)), alarm: await state.storage.getAlarm() };
-    });
-    expect(seen.left).toEqual([{ kind: 'cleanup', subject: 'again', due: at(4_000) }]);
-    expect(seen.alarm).toBe(at(4_000));
-  });
-
-  it('stops when a handler ends the table: nothing is read or set afterwards', async () => {
-    const stub = untouchedStub();
-    const seen = await runInDurableObject(stub, async (_table, state) => {
-      createSchema(state.storage.sql);
-      const scheduler = new Scheduler(state.storage, () => at(1_000));
-      const ran: string[] = [];
-      await scheduler.schedule('cleanup', 'first', at(100));
-      await scheduler.schedule('cleanup', 'second', at(200));
-      await scheduler.runDue({ cleanup: async (subject) => { ran.push(subject); await state.storage.deleteAll(); } });
-      return { ran, alarm: await state.storage.getAlarm() };
-    });
-    expect(seen).toEqual({ ran: ['first'], alarm: null });
-    expect(await tableNames(stub)).toEqual([]);
-  });
-
-  it('does nothing in an object that holds no table', async () => {
-    const stub = untouchedStub();
-    await runInDurableObject(stub, (_table, state) => new Scheduler(state.storage, () => at(1_000)).runDue(recording([])));
-    expect(await tableNames(stub)).toEqual([]);
   });
 });
 

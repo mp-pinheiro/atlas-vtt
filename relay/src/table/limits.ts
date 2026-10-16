@@ -11,3 +11,10 @@ export const TABLE_CODE_BYTES = 16;
 
 /** A host secret is 256 random bits: 32 bytes, 43 base64url characters (the protocol asks for 16 to 128). */
 export const SECRET_BYTES = 32;
+
+/**
+ * How long an event waits after its handler failed before it runs again. Fixed, since the one thing
+ * that fails in practice is a storage call that a moment later works; at most one alarm a minute
+ * for a table whose handler keeps failing.
+ */
+export const EVENT_RETRY_MS = 60 * 1000;

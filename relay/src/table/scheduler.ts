@@ -1,4 +1,5 @@
-import { cancelEvent, dueEvents, earliestDue, isInitialised, removeEvent, upsertEvent, type EventKind } from './store.ts';
+import { EVENT_RETRY_MS } from './limits.ts';
+import { cancelEvent, dueEvents, earliestDue, isInitialised, postponeEvent, removeEvent, upsertEvent, type EventKind } from './store.ts';
 
 /** What runs when an event of a kind falls due; `subject` is what the event was scheduled for. */
 export type EventHandlers = Readonly<Record<EventKind, (subject: string) => Promise<void>>>;
@@ -47,22 +48,29 @@ export class Scheduler {
   }
 
   /**
-   * Runs the events that are due, in order, and sets the alarm for the earliest one left. An event
-   * whose handler throws is dropped like one that ran: one bad row must neither stop the others nor
-   * make the alarm throw, which the runtime would retry. A handler that ends the table (it deletes
-   * the storage) ends the run; there is nothing left to run or to arm.
+   * Runs the events that are due, in order, and sets the alarm for the earliest one left. The
+   * alarm handler never throws for one bad row, which the runtime would retry only six times
+   * ("up to 6 retries allowed"): an event whose handler throws stays, `EVENT_RETRY_MS` later, so a
+   * cleanup whose teardown failed is tried again for as long as the table exists. A handler that
+   * scheduled or cancelled its own event before it threw keeps that choice. An event of a kind with
+   * no handler (one a newer version scheduled) is dropped. A handler that ends the table (it
+   * deletes the storage) ends the run; there is nothing left to run or to arm.
    */
   async runDue(handlers: EventHandlers): Promise<void> {
     const sql = this.storage.sql;
     if (!isInitialised(sql)) return;
-    for (const event of dueEvents(sql, this.now())) {
+    const now = this.now();
+    for (const event of dueEvents(sql, now)) {
+      let completed = true;
       try {
         if (isHandled(handlers, event.kind)) await handlers[event.kind](event.subject);
       } catch {
-        // Dropped with the rows that ran: see above. Nothing is logged, since a subject may name a person.
+        // Nothing is logged, since a subject may name a person.
+        completed = false;
       }
       if (!isInitialised(sql)) return;
-      removeEvent(sql, event);
+      if (completed) removeEvent(sql, event);
+      else postponeEvent(sql, event, now + EVENT_RETRY_MS);
     }
     await this.arm();
   }
