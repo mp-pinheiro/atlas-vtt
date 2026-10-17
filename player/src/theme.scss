@@ -1,4 +1,6 @@
+@use './styles/fonts';
 @use './styles/palette';
+@use '../../src/app/react/components/dice/dice-dropdown';
 @use '../../src/app/react/components/dice/dice-toast';
 @use '../../src/app/react/components/dice/rolled-dice';
 @use '../../src/app/packages/components/primitives/skeleton';

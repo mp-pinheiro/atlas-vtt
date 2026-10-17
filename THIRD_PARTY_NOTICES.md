@@ -12,13 +12,14 @@
 - The dice toast knotwork corners are cropped from "Celtic knot border" by pitr on [ClipSafari](https://www.clipsafari.com/clips/o213700-celtic-knot-border), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - The numerals of the 3D dice panel are set in Fantaisie Artistique by George Williams, released under the SIL Open Font License by its author ([FontForge font archive](https://fontforge.org/archive/sfds/toyfonts.html)). The licence text is in [`src/app/assets/fonts/fantaisie-artistique-OFL.txt`](src/app/assets/fonts/fantaisie-artistique-OFL.txt). The font is bundled unmodified in `styles.css`. The browser player also uses this unmodified font for headings and includes its licence as `font-licences/fantaisie-artistique-OFL.txt`.
 - The sci-fi dice numerals are set in [Oxanium](https://github.com/sevmeyer/oxanium) by Severin Meyer, Copyright 2019 The Oxanium Project Authors, licensed under the [SIL Open Font License 1.1](https://openfontlicense.org). The licence text is in [`src/app/assets/fonts/oxanium-OFL.txt`](src/app/assets/fonts/oxanium-OFL.txt). The font is bundled unmodified in `styles.css`.
+- The browser player's body text is set in Libron by Nico Verbruggen, Copyright (c) 2026 Nico Verbruggen, with Reserved Font Name Libron, licensed under the [SIL Open Font License 1.1](https://openfontlicense.org) ([source](https://github.com/nicoverbruggen/libron)). The licence text is in [`player/src/assets/fonts/libron-OFL.txt`](player/src/assets/fonts/libron-OFL.txt) and is served beside the player as `font-licences/libron-OFL.txt`. The four web font files are the author's release, unmodified.
 - The 3D dice face artwork (numeral sheet and card stock) is an original work by the Atlas VTT author and is covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
 - Interface icons are [Lucide](https://lucide.dev) (ISC), provided by Obsidian and the bundled lucide-react package.
 - The token ring and the timer sound are original works by the Atlas VTT author and are covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
 
 ## Atlas VTT theme
 
-The browser player's parchment and candlelight colour palettes are adapted from the [Atlas VTT Obsidian theme](https://github.com/ByteMirror/atlas-vtt-theme), under the MIT licence.
+The browser player's parchment and candlelight colour palettes, its heading and text type settings, and the ivy drawings on its panels and dialogs (`player/src/assets/ivy/`, the theme's `art/` files, unmodified) are taken from the [Atlas VTT Obsidian theme](https://github.com/ByteMirror/atlas-vtt-theme), under the MIT licence.
 
 ```text
 MIT License

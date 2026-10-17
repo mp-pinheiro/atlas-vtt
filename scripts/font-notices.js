@@ -22,6 +22,18 @@ const BUNDLED_FONTS = [
   },
 ];
 
+const LIBRON_CREDIT = 'Libron by Nico Verbruggen, Copyright (c) 2026 Nico Verbruggen, with Reserved Font Name Libron';
+const LIBRON_SOURCE = 'https://github.com/nicoverbruggen/libron';
+const LIBRON_LICENCE = 'player/src/assets/fonts/libron-OFL.txt';
+
+const PLAYER_FONTS = [
+  BUNDLED_FONTS[0],
+  { font: 'player/src/assets/fonts/libron-regular.woff2', licence: LIBRON_LICENCE, credit: LIBRON_CREDIT, source: LIBRON_SOURCE },
+  { font: 'player/src/assets/fonts/libron-italic.woff2', licence: LIBRON_LICENCE, credit: LIBRON_CREDIT, source: LIBRON_SOURCE },
+  { font: 'player/src/assets/fonts/libron-bold.woff2', licence: LIBRON_LICENCE, credit: LIBRON_CREDIT, source: LIBRON_SOURCE },
+  { font: 'player/src/assets/fonts/libron-bold-italic.woff2', licence: LIBRON_LICENCE, credit: LIBRON_CREDIT, source: LIBRON_SOURCE },
+];
+
 /** Where the notice links the licence text, once for every font. */
 const LICENCE_REFERENCE = 'https://openfontlicense.org';
 
@@ -38,9 +50,9 @@ function normalise(text) {
 }
 
 /** One problem per sentence that names an author who published no copyright line beside a copyright mark or a year. */
-function copyrightClaimProblems(text) {
+function copyrightClaimProblems(text, fonts = BUNDLED_FONTS) {
   const sentences = normalise(text).split(/\.(?:\s|$)/);
-  return BUNDLED_FONTS.flatMap(({ authorWithoutCopyright: author }) => {
+  return fonts.flatMap(({ authorWithoutCopyright: author }) => {
     if (!author) return [];
     return sentences
       .filter((sentence) => sentence.includes(author) && COPYRIGHT_MARK.test(sentence))
@@ -49,26 +61,26 @@ function copyrightClaimProblems(text) {
 }
 
 /** Problems with the preserved comment that credits the fonts of a stylesheet, built or source. */
-function fontNoticeProblems(css) {
+function fontNoticeProblems(css, fonts = BUNDLED_FONTS) {
   const notice = [...css.matchAll(PRESERVED_COMMENTS)].find((match) => normalise(match[1]).includes(NOTICE_MARK));
   if (!notice) return ['no preserved font licence notice'];
   const text = normalise(notice[1]);
   const problems = [];
-  for (const { credit, source } of BUNDLED_FONTS) {
+  for (const { credit, source } of fonts) {
     if (!text.includes(credit)) problems.push(`the font licence notice lacks the credit "${credit}"`);
     if (!text.includes(source)) problems.push(`the font licence notice lacks the source ${source}`);
   }
   if (!text.includes(LICENCE_REFERENCE)) problems.push(`the font licence notice does not link the licence text ${LICENCE_REFERENCE}`);
   const firstFont = css.search(FONT_FACE_RULES);
   if (firstFont !== -1 && notice.index > firstFont) problems.push('the font licence notice comes after the first @font-face rule');
-  return [...problems, ...copyrightClaimProblems(notice[1])];
+  return [...problems, ...copyrightClaimProblems(notice[1], fonts)];
 }
 
 /** A built stylesheet must declare exactly the fonts the list names. */
-function fontFaceCountProblems(css) {
+function fontFaceCountProblems(css, fonts = BUNDLED_FONTS) {
   const declared = (css.match(FONT_FACE_RULES) || []).length;
-  if (declared === BUNDLED_FONTS.length) return [];
-  return [`declares ${declared} @font-face rules, but scripts/font-notices.js lists ${BUNDLED_FONTS.length} fonts`];
+  if (declared === fonts.length) return [];
+  return [`declares ${declared} @font-face rules, but scripts/font-notices.js lists ${fonts.length} fonts`];
 }
 
 /** The built script must inline no font, since its notice lives in styles.css. */
@@ -78,6 +90,7 @@ function scriptFontProblems(js) {
 
 module.exports = {
   BUNDLED_FONTS,
+  PLAYER_FONTS,
   LICENCE_REFERENCE,
   copyrightClaimProblems,
   fontNoticeProblems,

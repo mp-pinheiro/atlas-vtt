@@ -17,15 +17,17 @@ interface BundledFont {
 
 interface FontNotices {
   BUNDLED_FONTS: readonly BundledFont[];
+  PLAYER_FONTS: readonly BundledFont[];
   LICENCE_REFERENCE: string;
-  copyrightClaimProblems: (text: string) => string[];
-  fontNoticeProblems: (css: string) => string[];
-  fontFaceCountProblems: (css: string) => string[];
+  copyrightClaimProblems: (text: string, fonts?: readonly BundledFont[]) => string[];
+  fontNoticeProblems: (css: string, fonts?: readonly BundledFont[]) => string[];
+  fontFaceCountProblems: (css: string, fonts?: readonly BundledFont[]) => string[];
   scriptFontProblems: (js: string) => string[];
 }
 
 const {
   BUNDLED_FONTS,
+  PLAYER_FONTS,
   LICENCE_REFERENCE,
   copyrightClaimProblems,
   fontNoticeProblems,
@@ -41,13 +43,19 @@ const MISSING_NOTICE = 'no preserved font licence notice';
 const FONT_HASHES: Record<string, string> = {
   'src/app/assets/fonts/fantaisie-artistique.ttf': '59339564e6efe55b0403fc14744d0f6a5a31478c87e28dcf67ce27a1494b7f95',
   'src/app/assets/fonts/oxanium.ttf': '2ce01d946e1e1ffc8d7eecfffbda8623bedd63eaf811a20488c4b69af45babb0',
+  'player/src/assets/fonts/libron-regular.woff2': 'a74c3f7aa745bbb843df5dd30095337514222541eed27c360e345d7104d5c09b',
+  'player/src/assets/fonts/libron-italic.woff2': 'e672e73ee5da9ede5962a41898b14f0db3315787809181dfdf733fbb736a8528',
+  'player/src/assets/fonts/libron-bold.woff2': '91e50622740c75de134d443dcd6360226274c44222c3fc40cb7826e4eaa2a9e4',
+  'player/src/assets/fonts/libron-bold-italic.woff2': '98839ed681308d90c9b0840514dc730a56cff382766a8a5646f85dbaa079ff27',
 };
 /** SHA-256 of the SIL Open Font License 1.1 from "This Font Software is licensed under" to its end. */
 const OFL_BODY_HASH = 'fb755fa3280d1d215a20df2e64fe6a0f75f8208439b11671978214aae60d2997';
 /** SHA-256 of licence files copied whole from the font's own repository. */
 const UPSTREAM_LICENCE_HASHES: Record<string, string> = {
   'src/app/assets/fonts/oxanium-OFL.txt': 'fe17c0f2581d71b4e1ea7e636e7f4877c29223e11bb1dd1a871e8c3f2a86336b',
+  'player/src/assets/fonts/libron-OFL.txt': 'bc596e272be47691f70c090bca17a8b6e58bd021baada8be18510beceed6cfbd',
 };
+const REPOSITORY_FONTS = [...BUNDLED_FONTS, ...PLAYER_FONTS.filter(font => !BUNDLED_FONTS.includes(font))];
 
 function readText(file: string): string {
   return fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n/g, '\n');
@@ -144,18 +152,18 @@ describe('bundled font notices', () => {
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     }).split('\0').filter(file => FONT_FILE.test(file));
-    expect(files.sort()).toEqual(BUNDLED_FONTS.map(font => font.font).sort());
+    expect(files.sort()).toEqual(REPOSITORY_FONTS.map(font => font.font).sort());
   });
 
   it('keeps the bundled fonts unmodified', () => {
-    expect(Object.keys(FONT_HASHES).sort()).toEqual(BUNDLED_FONTS.map(font => font.font).sort());
-    for (const font of BUNDLED_FONTS) {
+    expect(Object.keys(FONT_HASHES).sort()).toEqual(REPOSITORY_FONTS.map(font => font.font).sort());
+    for (const font of REPOSITORY_FONTS) {
       expect(sha256(fs.readFileSync(path.join(root, font.font))), font.font).toBe(FONT_HASHES[font.font]);
     }
   });
 
   it('keeps each licence text verbatim', () => {
-    for (const font of BUNDLED_FONTS) {
+    for (const font of REPOSITORY_FONTS) {
       expect(fs.existsSync(path.join(root, font.licence)), font.licence).toBe(true);
       const text = readText(font.licence);
       const upstream = UPSTREAM_LICENCE_HASHES[font.licence];
@@ -167,17 +175,19 @@ describe('bundled font notices', () => {
       expect([credit, source, blank], font.licence).toEqual([`${font.credit}.`, `Source: ${font.source}`, '']);
       expect(sha256(body.join('\n')), font.licence).toBe(OFL_BODY_HASH);
     }
-    expect(Object.keys(UPSTREAM_LICENCE_HASHES).every(file => BUNDLED_FONTS.some(font => font.licence === file))).toBe(true);
+    expect(Object.keys(UPSTREAM_LICENCE_HASHES).every(file => REPOSITORY_FONTS.some(font => font.licence === file))).toBe(true);
     expect(UPSTREAM_LICENCE_HASHES[authorWithoutCopyright().font.licence]).toBeUndefined();
   });
 
   it('credits every font in the stylesheet source', () => {
     expect(fontNoticeProblems(readText('styles/main.scss'))).toEqual([]);
+    expect(fontNoticeProblems(readText('player/src/styles/_fonts.scss'), PLAYER_FONTS)).toEqual([]);
+    expect(fontFaceCountProblems(readText('player/src/styles/_fonts.scss'), PLAYER_FONTS)).toEqual([]);
   });
 
   it('credits every font in the third-party notices', () => {
     const notices = readText('THIRD_PARTY_NOTICES.md');
-    for (const font of BUNDLED_FONTS) {
+    for (const font of REPOSITORY_FONTS) {
       for (const part of [font.credit, font.source, font.licence]) expect(notices, part).toContain(part);
     }
     expect(copyrightClaimProblems(notices)).toEqual([]);

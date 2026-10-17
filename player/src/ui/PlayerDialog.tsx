@@ -36,10 +36,12 @@ export function PlayerDialog({ title, onClose, children, className = '' }: Playe
       onClose();
     }
   }}>
-    <header className="atlas-player__dialog-header">
-      <h2 id={titleId}>{title}</h2>
-      <CloseButton aria-label={playerText('close')} onClick={onClose} />
-    </header>
-    <div className="atlas-player__dialog-body" tabIndex={-1}>{children}</div>
+    <div className="atlas-player__dialog-frame">
+      <header className="atlas-player__dialog-header">
+        <h2 id={titleId}>{title}</h2>
+        <CloseButton aria-label={playerText('close')} onClick={onClose} />
+      </header>
+      <div className="atlas-player__dialog-body" tabIndex={-1}>{children}</div>
+    </div>
   </dialog>;
 }

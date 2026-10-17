@@ -1,0 +1,47 @@
+/*! Fonts bundled with the browser player, unmodified:
+ *  Fantaisie Artistique by George Williams, released under the SIL Open Font License by its author
+ *  (https://fontforge.org/archive/sfds/toyfonts.html).
+ *  Libron by Nico Verbruggen, Copyright (c) 2026 Nico Verbruggen, with Reserved Font Name Libron
+ *  (https://github.com/nicoverbruggen/libron).
+ *  Both under the SIL Open Font License 1.1 (https://openfontlicense.org); the licence texts are served beside this
+ *  stylesheet under font-licences/ and listed in THIRD_PARTY_NOTICES.md.
+ */
+@font-face {
+  font-family: 'Atlas Fantaisie Artistique';
+  src: url('../../src/app/assets/fonts/fantaisie-artistique.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atlas Libron';
+  src: url('./assets/fonts/libron-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atlas Libron';
+  src: url('./assets/fonts/libron-italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atlas Libron';
+  src: url('./assets/fonts/libron-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atlas Libron';
+  src: url('./assets/fonts/libron-bold-italic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}

@@ -1,0 +1,56 @@
+@mixin ivy-host {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+}
+
+@mixin ivy-piece {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  transform-origin: 0 0;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-size: 100% 100%;
+  pointer-events: none;
+}
+
+@mixin ivy-corner($scale) {
+  @include ivy-host;
+
+  &::before,
+  &::after {
+    @include ivy-piece;
+    top: calc(-132px * #{$scale});
+    left: calc(-142px * #{$scale});
+    width: calc(100% / #{$scale} + 284px);
+    height: calc(100% / #{$scale} + 264px);
+    scale: $scale;
+    background-image: url('./assets/ivy/ivy-corner-front.svg');
+  }
+
+  &::before {
+    z-index: -1;
+    background-image: url('./assets/ivy/ivy-corner-back.svg');
+  }
+}
+
+@mixin ivy-garland($scale, $inset: 8px) {
+  @include ivy-host;
+
+  &::before,
+  &::after {
+    @include ivy-piece;
+    top: calc(#{$inset} - 144px * #{$scale});
+    left: calc(#{$inset} - 30px * #{$scale});
+    width: calc((100% - #{$inset * 2}) / #{$scale} + 60px);
+    height: calc((100% - #{$inset * 2}) / #{$scale} + 288px);
+    scale: $scale;
+    background-image: url('./assets/ivy/ivy-garland-front.svg');
+  }
+
+  &::before {
+    z-index: -1;
+    background-image: url('./assets/ivy/ivy-garland-back.svg');
+  }
+}

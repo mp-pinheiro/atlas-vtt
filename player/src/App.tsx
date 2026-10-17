@@ -120,7 +120,7 @@ function ConnectedApp({ runtime, theme, onThemeChange }: ConnectedAppProps): Rea
   }, [runtime]);
   if (state.playerId === null) return <div className="atlas-player atlas-player--joining">
     <div className="atlas-player__join-stage">
-      <JoinPanel table={runtime.table} hasIdentity={runtime.identity.get().key !== undefined || runtime.identity.get().wait !== undefined} notice={state.notice} status={state.status} onJoin={(input) => runtime.join(input)} onForgetIdentity={() => { void runtime.leave().then(() => runtime.store.getState().setStatus('joining')); }} onTableLink={(table) => { location.hash = table; location.reload(); }} />
+      <div className="atlas-player__join-card"><JoinPanel table={runtime.table} hasIdentity={runtime.identity.get().key !== undefined || runtime.identity.get().wait !== undefined} notice={state.notice} status={state.status} onJoin={(input) => runtime.join(input)} onForgetIdentity={() => { void runtime.leave().then(() => runtime.store.getState().setStatus('joining')); }} onTableLink={(table) => { location.hash = table; location.reload(); }} /></div>
       {state.status !== 'joining' && <Status status={state.status} notice={null} gmOnline={state.gmOnline} busy={state.busy} identityPersistent={runtime.identity.persistent} playerName={null} />}
     </div>
     {sourceFooter}
@@ -154,17 +154,19 @@ function ConnectedApp({ runtime, theme, onThemeChange }: ConnectedAppProps): Rea
         {state.notice && <p className="atlas-player__canvas-notice" role="status">{state.notice}</p>}
       </section>
       <aside id="atlas-player-panel" className="atlas-player__panel" hidden={panel === null} aria-label={panel === null ? undefined : playerText(panel)}>
-        <header className="atlas-player__panel-header"><h1>{panel === null ? '' : playerText(panel)}</h1><CloseButton aria-label={playerText('close')} onClick={closePanel} /></header>
-        <div className="atlas-player__panel-content">
-          {visited.includes('tabDice') && <div className="atlas-player__panel-page" hidden={panel !== 'tabDice'}><DicePanel scene={scene?.scene.id ?? null} entries={state.log} gmOnline={state.gmOnline} busy={state.busy} send={runtime.send} /></div>}
-          {visited.includes('tabInitiative') && <div className="atlas-player__panel-page" hidden={panel !== 'tabInitiative'}><InitiativePanel scene={scene?.scene.id ?? null} initiative={scene?.initiative ?? null} assets={runtime.assets} gmOnline={state.gmOnline} busy={state.busy} send={runtime.send} /></div>}
-          {visited.includes('tabBook') && <div className="atlas-player__panel-page" hidden={panel !== 'tabBook'}><BookPanel key={`${state.book?.character?.name ?? ''}:${state.book?.character?.art?.hash ?? ''}`} book={state.book} assets={runtime.assets} send={runtime.send} disabled={!state.gmOnline || state.busy} characterControls={<AgencyPanel state={state} send={runtime.send} />} renderSheet={(sheet, onRoll) => <NativeSheet sheet={sheet} resources={state.book?.character?.resources ?? []} assets={runtime.assets} onRoll={(index, mode) => state.gmOnline && !state.busy && onRoll(index, mode)} />} /></div>}
-          {panel === 'tabLog' && <div className="atlas-player__panel-page atlas-player__panel-page--log"><TableLog state={runtime.log} entries={state.log} people={people} refusal={null} self={state.playerId} scene={scene?.scene.id ?? null} tokens={scene?.tokens ?? null} mine={scene?.mine?.tokens ?? NO_TOKEN_IDS} gmOnline={state.gmOnline} busy={state.busy} assets={runtime.assets} send={runtime.send} onClose={closePanel} onSendRejected={() => runtime.store.getState().setStatus(state.status, playerText('busy'))} /></div>}
-          {visited.includes('tabSettings') && <div className="atlas-player__panel-page" hidden={panel !== 'tabSettings'}>
-            <PlayerSettings playerId={state.playerId} people={people} gmOnline={state.gmOnline} busy={state.busy} send={runtime.send} theme={theme} onThemeChange={onThemeChange} />
-            <section className="atlas-player__section"><h2>{playerText('tableSession')}</h2><p className="atlas-player__muted">{playerText('forgetHelp')}</p><Button type="button" variant="outline" className="atlas-player__leave" onClick={() => setLeaving(true)}><LogOut aria-hidden="true" />{playerText('leaveTable')}</Button></section>
-            <section className="atlas-player__section atlas-player__about"><h2>{playerText('about')}</h2><a href="https://github.com/ByteMirror/atlas-vtt-theme" target="_blank" rel="noopener noreferrer">{playerText('themeCredit')}</a>{sourceFooter}</section>
-          </div>}
+        <div className="atlas-player__panel-frame">
+          <header className="atlas-player__panel-header"><h1>{panel === null ? '' : playerText(panel)}</h1><CloseButton aria-label={playerText('close')} onClick={closePanel} /></header>
+          <div className="atlas-player__panel-content">
+            {visited.includes('tabDice') && <div className="atlas-player__panel-page" hidden={panel !== 'tabDice'}><DicePanel scene={scene?.scene.id ?? null} entries={state.log} gmOnline={state.gmOnline} busy={state.busy} send={runtime.send} /></div>}
+            {visited.includes('tabInitiative') && <div className="atlas-player__panel-page" hidden={panel !== 'tabInitiative'}><InitiativePanel scene={scene?.scene.id ?? null} initiative={scene?.initiative ?? null} assets={runtime.assets} gmOnline={state.gmOnline} busy={state.busy} send={runtime.send} /></div>}
+            {visited.includes('tabBook') && <div className="atlas-player__panel-page" hidden={panel !== 'tabBook'}><BookPanel key={`${state.book?.character?.name ?? ''}:${state.book?.character?.art?.hash ?? ''}`} book={state.book} assets={runtime.assets} send={runtime.send} disabled={!state.gmOnline || state.busy} characterControls={<AgencyPanel state={state} send={runtime.send} />} renderSheet={(sheet, onRoll) => <NativeSheet sheet={sheet} resources={state.book?.character?.resources ?? []} assets={runtime.assets} onRoll={(index, mode) => state.gmOnline && !state.busy && onRoll(index, mode)} />} /></div>}
+            {panel === 'tabLog' && <div className="atlas-player__panel-page atlas-player__panel-page--log"><TableLog state={runtime.log} entries={state.log} people={people} refusal={null} self={state.playerId} scene={scene?.scene.id ?? null} tokens={scene?.tokens ?? null} mine={scene?.mine?.tokens ?? NO_TOKEN_IDS} gmOnline={state.gmOnline} busy={state.busy} assets={runtime.assets} send={runtime.send} onClose={closePanel} onSendRejected={() => runtime.store.getState().setStatus(state.status, playerText('busy'))} /></div>}
+            {visited.includes('tabSettings') && <div className="atlas-player__panel-page" hidden={panel !== 'tabSettings'}>
+              <PlayerSettings playerId={state.playerId} people={people} gmOnline={state.gmOnline} busy={state.busy} send={runtime.send} theme={theme} onThemeChange={onThemeChange} />
+              <section className="atlas-player__section"><h2>{playerText('tableSession')}</h2><p className="atlas-player__muted">{playerText('forgetHelp')}</p><Button type="button" variant="outline" className="atlas-player__leave" onClick={() => setLeaving(true)}><LogOut aria-hidden="true" />{playerText('leaveTable')}</Button></section>
+              <section className="atlas-player__section atlas-player__about"><h2>{playerText('about')}</h2><a href="https://github.com/ByteMirror/atlas-vtt-theme" target="_blank" rel="noopener noreferrer">{playerText('themeCredit')}</a>{sourceFooter}</section>
+            </div>}
+          </div>
         </div>
       </aside>
     </main>
@@ -179,6 +181,6 @@ export function App(): ReactElement {
   const code = new URLSearchParams(fragment).get('table') ?? fragment;
   const runtime = useMemo(() => TABLE_CODE_PATTERN.test(code) ? createPlayerRuntime(code, location.origin) : null, [code]);
   const [theme, onThemeChange] = usePlayerTheme();
-  if (runtime === null) return <div className="atlas-player atlas-player--joining"><div className="atlas-player__join-stage"><JoinPanel table={null} hasIdentity={false} notice={null} onJoin={() => { throw new Error('A table link is required'); }} onForgetIdentity={() => { location.hash = ''; }} onTableLink={(table) => { if (TABLE_CODE_PATTERN.test(table)) { location.hash = table; location.reload(); } }} /></div>{sourceFooter}</div>;
+  if (runtime === null) return <div className="atlas-player atlas-player--joining"><div className="atlas-player__join-stage"><div className="atlas-player__join-card"><JoinPanel table={null} hasIdentity={false} notice={null} onJoin={() => { throw new Error('A table link is required'); }} onForgetIdentity={() => { location.hash = ''; }} onTableLink={(table) => { if (TABLE_CODE_PATTERN.test(table)) { location.hash = table; location.reload(); } }} /></div></div>{sourceFooter}</div>;
   return <ConnectedApp runtime={runtime} theme={theme} onThemeChange={onThemeChange} />;
 }

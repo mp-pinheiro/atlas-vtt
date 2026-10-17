@@ -13,18 +13,27 @@
   flex-wrap: wrap;
   gap: var(--atlas-player-gap, #{$spacing-xs});
   padding-bottom: var(--atlas-player-gap, #{$spacing-s});
-  border-bottom: 1px solid var(--background-modifier-border);
+  border-bottom: 3px double var(--atlas-theme-rule);
 }
 
-.atlas-player__book-tab {
+.atlas-player .atlas-player__book-tab {
   flex: 0 0 auto;
   white-space: nowrap;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
 }
 
-.atlas-player__book-tab[aria-selected='true'] {
-  background: var(--interactive-accent);
-  border-color: var(--interactive-accent);
-  color: var(--text-on-accent, #fff);
+.atlas-player .atlas-player__book-tab:not(:disabled):hover {
+  border-color: transparent;
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.atlas-player .atlas-player__book-tab[aria-selected='true'] {
+  background: var(--background-modifier-active-hover);
+  color: var(--atlas-theme-red);
 }
 
 .atlas-player__book-content {
@@ -65,13 +74,16 @@
 .atlas-player__book-panel h3 {
   margin: 0;
   color: var(--atlas-theme-red);
-  font-family: $font-atlas-display;
+  font-family: var(--atlas-theme-heading-font);
   font-weight: 400;
   line-height: 1.15;
+  letter-spacing: var(--atlas-theme-heading-tracking);
 }
 
 .atlas-player__book-character-name {
-  font-size: 1.5rem;
+  padding-bottom: $spacing-xs;
+  border-bottom: 3px double var(--atlas-theme-rule);
+  font-size: calc(var(--font-ui-large) * 1.3);
 }
 
 .atlas-player__book-resources {
@@ -106,7 +118,7 @@
 .atlas-player__book-item h3,
 .atlas-player__book-note h3,
 .atlas-player__book-pin h3 {
-  font-size: 1.15rem;
+  font-size: calc(var(--font-ui-medium) * 1.15);
 }
 
 .atlas-player__book-equip,
@@ -163,8 +175,10 @@
 }
 
 .atlas-player__book-quest-details dt {
-  color: var(--text-muted);
-  font-size: 0.875rem;
+  color: var(--atlas-theme-red);
+  font-family: var(--atlas-theme-heading-font);
+  font-size: var(--font-ui-medium);
+  letter-spacing: var(--atlas-theme-heading-tracking);
 }
 
 .atlas-player__book-quest-details dd {
@@ -177,8 +191,7 @@
   margin: 0 auto;
   overflow-wrap: anywhere;
   color: var(--text-normal);
-  font-family: var(--font-text, Georgia, 'Times New Roman', serif);
-  line-height: 1.65;
+  font: var(--font-text-size) / 1.65 var(--font-text);
 }
 
 .atlas-player__book-document .atlas-player__markdown {
@@ -249,8 +262,7 @@
 }
 
 .atlas-player__image-dialog {
-  width: min(1100px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
+  width: min(1100px, calc(100vw - 48px));
 }
 
 .atlas-player__shown-image-content {
@@ -272,8 +284,7 @@
 }
 
 .atlas-player__book-reader-dialog {
-  width: min(680px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
+  width: min(680px, calc(100vw - 48px));
 }
 
 .atlas-player__sheet-roll {

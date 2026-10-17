@@ -46,6 +46,8 @@ Rendering and privacy acceptance remain required on a GPU-equipped workstation: 
 
 The browser suites run serially. Their two-player acceptance fixture runs in a separate Node process with temporary relay storage and allocated local ports, so its JSDOM globals do not enter the test runner and it does not take over an existing `just smoke` session.
 
+`player/src/theme.scss` is the player's root stylesheet under both the production build (Vite root `player/`) and the smoke server (Vite root at the repository), and Vite resolves `url()` references in Sass partials against that root file, not against the partial. Write asset paths in `player/src/styles/` partials relative to `player/src/` (`./assets/fonts/libron-regular.woff2`, `../../src/app/assets/fonts/fantaisie-artistique.ttf`); a path relative to the partial itself is left unresolved in the build.
+
 ### Combined player deployment
 
 The Deploy Player workflow runs only on pushes to `work`, checks out the exact push SHA and repeats the Player CI gates before deploying the static client and relay together with Wrangler 4.151.1. It uses the `production` environment, read-only repository contents permission and the serialized `atlas-player-production` concurrency group. Production is `https://atlas.fairfruit.tv`; the Worker configuration owns that custom-domain route, not the local development command.
