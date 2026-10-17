@@ -311,7 +311,7 @@ export const TYPE_PROJECTS = {
   },
   "player/tsconfig.json": {
     include: ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vite.config.mts"],
-    exclude: ["tests/conformance.test.ts", "tests/smokeTable.ts", "tests/obsidianHost.ts", "tests/acceptanceCommands.ts"]
+    exclude: ["tests/conformance.test.ts", "tests/smokeTable.ts", "tests/obsidianHost.ts", "tests/acceptanceCommands.ts", "tests/acceptanceHost.ts"]
   }
 };
 

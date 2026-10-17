@@ -49,8 +49,11 @@ export default defineConfig({
         },
       },
       {
+        resolve: { dedupe: ['react', 'react-dom'] },
+        optimizeDeps: { include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime', 'react/jsx-dev-runtime', '@testing-library/react', '@radix-ui/react-dropdown-menu'] },
         test: {
           name: 'player-browser',
+          fileParallelism: false,
           include: ['player/tests/**/*.browser.test.ts', 'player/tests/**/*.browser.test.tsx'],
           browser: {
             commands: { atlasAcceptance },

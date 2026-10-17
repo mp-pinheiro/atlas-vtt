@@ -90,7 +90,13 @@ export async function startSmoke({ relayPort = 8787, port = 8790 } = {}) {
           response.writeHead(404).end();
         } catch (error) { response.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: String(error) })); }
       });
-    } }], });
+    } }], optimizeDeps: { include: [
+      'react', 'react-dom', 'react-dom/client', 'react/jsx-runtime', 'react/jsx-dev-runtime',
+      '@radix-ui/react-dropdown-menu', '@radix-ui/react-tooltip', '@radix-ui/react-slot',
+      'lucide-react', 'zustand', 'zustand/vanilla', 'zustand/vanilla/shallow',
+      'pixi.js', 'pixi-viewport', 'markdown-it', 'framer-motion', 'clsx', 'tailwind-merge',
+      'three', 'three/examples/jsm/environments/RoomEnvironment.js', 'clipper2-ts',
+    ] }, });
     await vite.listen();
     await vite.ssrLoadModule('/tests/setup/obsidianDom.ts');
     await vite.ssrLoadModule('/tests/setup/domHost.ts');

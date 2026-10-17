@@ -2,18 +2,13 @@ import type { BrowserCommand } from 'vitest/node';
 import type {} from '@vitest/browser-playwright';
 import type { BrowserContext, Page } from 'playwright';
 import { mkdir } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { resolve } from 'node:path';
-import { startSmoke } from '../scripts/smoke.mjs';
+import { startAcceptanceHost, type AcceptanceHost } from './acceptanceHost.ts';
 import { expect } from 'playwright/test';
-import type { SmokeTable } from './smokeTable.ts';
 import { parseGmMessage } from '../../src/app/online/protocol';
 
 interface AcceptanceResult { readonly scenarios: readonly string[]; readonly screenshots: readonly string[] }
-interface SmokeProcess {
-  readonly url: string;
-  readonly fixture: SmokeTable;
-  stop(): Promise<void>;
-}
 interface CancelObservation { seen: boolean; readonly observer: MutationObserver }
 interface CancellationWindow extends Window { __atlasCancelObservation?: CancelObservation }
 
@@ -58,10 +53,24 @@ async function pictureLuminance(page: Page): Promise<{ left: number; right: numb
   }, { bytes: Array.from(screenshot), width: box.width, height: box.height });
 }
 
+async function availablePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  if (address === null || typeof address === 'string') throw new Error('Could not allocate an isolated acceptance port');
+  return address.port;
+}
+
 export const atlasAcceptance: BrowserCommand<[], AcceptanceResult> = async ({ context }) => {
   const browser = context.browser();
   if (!browser) throw new Error('Acceptance requires the configured Playwright browser provider');
-  const smoke: SmokeProcess = await startSmoke();
+  const [relayPort, port] = await Promise.all([availablePort(), availablePort()]);
+  const smoke: AcceptanceHost = await startAcceptanceHost(relayPort, port);
+  const origin = new URL(smoke.url).origin;
   const contexts: BrowserContext[] = [];
   const scenarios: string[] = [];
   const screenshots: string[] = [];
@@ -89,13 +98,13 @@ export const atlasAcceptance: BrowserCommand<[], AcceptanceResult> = async ({ co
       }));
     }
     for (const [page, name] of [[alice, 'Alice'], [bob, 'Bob']] as const) {
-      await page.goto(`http://127.0.0.1:8790/player/index.html#${smoke.fixture.connection.table}`);
+      await page.goto(`${origin}/player/index.html#${smoke.fixture.connection.table}`);
       await page.getByLabel('Your name', { exact: true }).fill(name);
       await page.getByLabel('Join code', { exact: true }).fill(smoke.fixture.connection.code);
       await page.getByRole('button', { name: 'Connect', exact: true }).click();
       await expect.poll(() => smoke.fixture.snapshot().gate.waiting.some((person) => person.name === name && person.armed)).toBe(true);
       await gm.getByRole('button', { name: `Admit ${name}`, exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Leave and forget', exact: true })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Controls', exact: true })).toBeVisible();
       await gm.getByRole('button', { name: `Give ${name.toLowerCase()} to ${name}`, exact: true }).click();
     }
     scenarios.push('Two real browser identities admitted by the real OnlineTable gate');
@@ -156,6 +165,7 @@ export const atlasAcceptance: BrowserCommand<[], AcceptanceResult> = async ({ co
     await gm.getByRole('button', { name: 'Approve', exact: true }).click();
     await expect.poll(() => smoke.fixture.snapshot().state.objects.tokens.alice?.x).toBe(455);
     await expect.poll(() => smoke.fixture.snapshot().paths.length).toBe(0);
+    await expect(alice.getByRole('button', { name: 'Propose movement', exact: true })).toHaveCount(0);
     scenarios.push('Actual pending-path queue and overlay edit then approve without optimistic token movement');
     const cancelFrom = await worldPoint(alice, 455, 385); const cancelTo = await worldPoint(alice, 525, 455);
     await alice.mouse.move(cancelFrom.x, cancelFrom.y); await alice.mouse.down(); await alice.mouse.move(cancelTo.x, cancelTo.y, { steps: 8 }); await alice.mouse.up();

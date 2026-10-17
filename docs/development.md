@@ -44,6 +44,8 @@ Player CI runs on pull requests and pushes to `work`, alongside Plugin CI. It ch
 
 Rendering and privacy acceptance remain required on a GPU-equipped workstation: install Chromium with `npx playwright install chromium`, run `npm run test:player:browser`, then `npm run test:gpu -- sightMask fallbackPicture mapImageSeams mapImageViews unlitGrid`, and perform the real two-player browser smoke with screenshots of the distinct personal pictures and GM approval queue. Hosted CPU checks do not establish pixel privacy, GPU fallback correctness or observed browser interactions, and a successful hosted deploy is not proof of those checks.
 
+The browser suites run serially. Their two-player acceptance fixture runs in a separate Node process with temporary relay storage and allocated local ports, so its JSDOM globals do not enter the test runner and it does not take over an existing `just smoke` session.
+
 ### Combined player deployment
 
 The Deploy Player workflow runs only on pushes to `work`, checks out the exact push SHA and repeats the Player CI gates before deploying the static client and relay together with Wrangler 4.151.1. It uses the `production` environment, read-only repository contents permission and the serialized `atlas-player-production` concurrency group. Production is `https://atlas.fairfruit.tv`; the Worker configuration owns that custom-domain route, not the local development command.
