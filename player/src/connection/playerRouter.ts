@@ -112,8 +112,6 @@ export class PlayerRouter {
         state.setPrediction(message.id, null);
         state.appendFeedback({ scene: message.scene, request: message.id, status: 'refused', reason: 'move' });
       }
-    } else if (message.t === 'roll-refused' && state.scene !== null) {
-      state.appendFeedback({ scene: state.scene.scene.id, request: 'roll', status: 'refused', reason: message.reason });
     }
     this.options.onMessage?.(message);
   }
