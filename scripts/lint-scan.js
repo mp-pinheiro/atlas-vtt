@@ -17,9 +17,9 @@ if (require('fs').existsSync(path.join(root, 'eslint-suppressions.json'))) {
   console.error('eslint-suppressions.json must not exist at the repository root; use eslint.suppressions.json with --suppressions-location.');
   process.exit(1);
 }
-const eslint = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'eslint.cmd' : 'eslint');
-const result = spawnSync(eslint, ['--no-config-lookup', '--config', 'eslint.scanner.mjs', '--format', 'json', '.'], {
-  cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, shell: process.platform === 'win32',
+const eslint = path.join(root, 'node_modules', 'eslint', 'bin', 'eslint.js');
+const result = spawnSync(process.execPath, ['--max-old-space-size=8192', eslint, '--no-config-lookup', '--config', 'eslint.scanner.mjs', '--format', 'json', '.'], {
+  cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
 });
 if (result.error || !result.stdout.trim().startsWith('[')) {
   console.error(result.stderr || result.error?.message || 'ESLint produced no report');
