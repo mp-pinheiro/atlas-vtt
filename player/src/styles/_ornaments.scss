@@ -35,16 +35,16 @@
   }
 }
 
-@mixin ivy-garland($scale, $inset: 8px) {
+@mixin ivy-garland($scale, $lift: 0px, $reach: 8px) {
   @include ivy-host;
 
   &::before,
   &::after {
     @include ivy-piece;
-    top: calc(#{$inset} - 144px * #{$scale});
-    left: calc(#{$inset} - 30px * #{$scale});
-    width: calc((100% - #{$inset * 2}) / #{$scale} + 60px);
-    height: calc((100% - #{$inset * 2}) / #{$scale} + 288px);
+    top: calc(-144px * #{$scale} - #{$lift});
+    left: calc(-30px * #{$scale} - #{$reach});
+    width: calc((100% + #{$reach * 2}) / #{$scale} + 60px);
+    height: calc((100% + #{$lift * 2}) / #{$scale} + 288px);
     scale: $scale;
     background-image: url('./assets/ivy/ivy-garland-front.svg');
   }

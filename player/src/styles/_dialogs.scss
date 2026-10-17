@@ -18,8 +18,8 @@
 .atlas-player__dialog[open] { display: flex; @include ivy-garland(0.6); }
 .atlas-player__dialog::backdrop { background: var(--background-modifier-cover); backdrop-filter: blur(2px); }
 .atlas-player__dialog-frame { @include atlas-elevated-surface; @include atlas-panel-radius($radius-2xl); display: flex; flex: 1; flex-direction: column; min-width: 0; max-height: calc(100dvh - 48px); overflow: hidden; background: var(--background-primary); }
-.atlas-player__dialog-header { @include atlas-close-header; display: flex; align-items: center; justify-content: space-between; gap: $spacing-s; flex: none; padding-bottom: $spacing-xs; }
-.atlas-player__dialog-header h2 { padding-bottom: 2px; border-bottom: 3px double var(--atlas-theme-rule); font-size: calc(var(--font-ui-large) * 1.25); }
+.atlas-player__dialog-header { @include atlas-close-header; display: flex; align-items: flex-start; justify-content: space-between; gap: $spacing-s; flex: none; padding-bottom: $spacing-xs; }
+.atlas-player__dialog-header h2 { margin: $spacing-m 0 0 $spacing-l; padding-bottom: 2px; border-bottom: 3px double var(--atlas-theme-rule); font-size: calc(var(--font-ui-large) * 1.25); }
 .atlas-player__dialog-body { display: flex; flex-direction: column; min-height: 0; padding: $spacing-m $spacing-xl $spacing-xl; gap: $spacing-l; overflow: auto; overscroll-behavior: contain; font: var(--font-text-size) / 1.6 var(--font-text); }
 .atlas-player__dialog-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: $spacing-s; font-family: var(--font-interface); }
 .atlas-player__dialog-body > .atlas-player__surface { border: 0; padding: 0; border-radius: 0; box-shadow: none; background: transparent; }
