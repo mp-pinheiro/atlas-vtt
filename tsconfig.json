@@ -37,7 +37,9 @@
     "vite/**/*.mts",
     "scripts/**/*.js",
     "scripts/**/*.mjs",
-    "scripts/**/*.d.ts"
+    "scripts/**/*.d.ts",
+    "player/scripts/*.mjs",
+    "relay/vitest.config.mts"
   ],
-  "exclude": ["player/**", "relay/**"]
+  "exclude": ["player/src/**", "player/tests/**", "player/dist/**", "player/vite.config.mts", "relay/src/**", "relay/tests/**", "relay/.wrangler/**"]
 }

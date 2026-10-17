@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   plugins: [cloudflareTest({
-    wrangler: { configPath: fileURLToPath(new URL('./wrangler.jsonc', import.meta.url)) },
+    wrangler: { configPath: fileURLToPath(new URL('./wrangler.jsonc', import.meta.url).href) },
     miniflare: { bindings: { HOST_KEY: 'atlas-vtt-local-test-host-key' } },
   })],
   test: {

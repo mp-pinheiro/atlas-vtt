@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "allowJs": true, "types": ["vite/client", "node", "vitest/globals"] },
+  "include": ["./**/*.ts", "./**/*.tsx", "./**/*.mjs", "../scripts/*.mjs"],
+  "exclude": []
+}
