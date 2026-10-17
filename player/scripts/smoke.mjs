@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { once } from 'node:events';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { createServer } from 'vite';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -61,7 +61,10 @@ export async function startSmoke({ relayPort = 8787, port = 8790 } = {}) {
   const originals = new Map();
   const restoreGlobals = () => { for (const [key, descriptor] of originals) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } };
   try {
-    dom = new JSDOM('<!doctype html><html><body></body></html>', { url: relay.origin, pretendToBeVisual: true });
+    const virtualConsole = new VirtualConsole();
+    virtualConsole.sendTo(console, { omitJSDOMErrors: true });
+    virtualConsole.on('jsdomError', (error) => { if (error.type !== 'not implemented') console.error(error); });
+    dom = new JSDOM('<!doctype html><html><body></body></html>', { url: relay.origin, pretendToBeVisual: true, virtualConsole });
     for (const name of ['window', 'document', 'navigator', 'HTMLElement', 'HTMLDivElement', 'HTMLInputElement', 'HTMLImageElement', 'HTMLCanvasElement', 'SVGElement', 'Element', 'Node', 'Document', 'Image', 'DOMRect', 'MouseEvent', 'KeyboardEvent', 'CustomEvent', 'MutationObserver', 'DOMParser', 'localStorage', 'getComputedStyle']) {
       originals.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
       Object.defineProperty(globalThis, name, { configurable: true, value: name === 'getComputedStyle' ? dom.window.getComputedStyle.bind(dom.window) : dom.window[name] });
