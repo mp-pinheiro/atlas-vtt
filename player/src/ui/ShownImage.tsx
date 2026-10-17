@@ -1,8 +1,8 @@
-import { CloseButton } from '../../../src/app/packages/components/primitives/CloseButton.tsx';
 import { useEffect, useState, type ReactElement } from 'react';
 import type { ImageMessage } from '../../../src/app/online/protocol/image.ts';
 import type { AssetDownloads } from '../state/interfaces.ts';
 import { playerText } from '../i18n.ts';
+import { PlayerDialog } from './PlayerDialog.tsx';
 
 export interface ShownImageProps {
   readonly message: ImageMessage | null;
@@ -47,8 +47,13 @@ export function ShownImage({ message, assets, onClose }: ShownImageProps): React
     };
   }, [assets, shown, visible]);
   if (!visible || shown === null) return null;
-  return <div className="atlas-player__shown-image" role="dialog" aria-modal="true" aria-label={playerText('shownImage')}>
-    <CloseButton className="atlas-player__shown-image-close" onClick={() => { setClosedId(shown.id); onClose?.(); }} aria-label={playerText('close')} />
-    {imageUrl ? <img src={imageUrl} alt={playerText('shownImage')} style={{ aspectRatio: `${shown.width} / ${shown.height}` }} /> : unavailable ? <p role="status">{playerText('imageUnavailable')}</p> : <p role="status">{playerText('loading')}</p>}
-  </div>;
+  const close = (): void => {
+    setClosedId(shown.id);
+    onClose?.();
+  };
+  return <PlayerDialog title={playerText('shownImage')} onClose={close} className="atlas-player__image-dialog">
+    <figure className="atlas-player__shown-image-content">
+      {imageUrl ? <img src={imageUrl} alt={playerText('shownImage')} width={shown.width} height={shown.height} decoding="async" /> : unavailable ? <p role="status">{playerText('imageUnavailable')}</p> : <p role="status">{playerText('loading')}</p>}
+    </figure>
+  </PlayerDialog>;
 }

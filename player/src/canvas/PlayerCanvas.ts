@@ -175,6 +175,12 @@ export class PlayerCanvas {
   setTool(tool: PlayerTool): void { this.input.cancel(); this.input.tool = tool; }
   proposalAction(action: 'submit' | 'remove-last' | 'cancel'): void { this.input.proposalAction(action); }
   get proposalRequest(): string | null { return this.input.proposalRequest; }
+  fitMap(): void {
+    if (this.destroyed || this.width <= 0 || this.height <= 0) return;
+    this.viewport.fitWorld();
+    this.viewport.moveCenter(this.width / 2, this.height / 2);
+    this.changed();
+  }
   private async openMap(ref: AssetRef, sceneGeneration: number, transportGeneration: number, requestedSide?: number): Promise<void> {
     const attempt = ++this.mapAttempt;
     this.pendingMap?.destroy();

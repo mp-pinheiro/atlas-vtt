@@ -10,11 +10,39 @@
 - The toolbar editor's screenshots show a map generated with watabou's [One Page Dungeon](https://watabou.itch.io/one-page-dungeon) and creature tokens cropped from Oozejar's Illustrated Bestiary (Gourdin Konbo Club), licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 - Dice result sounds are built from the "Impact Sounds" and "Casino Audio" packs by [Kenney](https://kenney.nl), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) and converted from OGG to MP3.
 - The dice toast knotwork corners are cropped from "Celtic knot border" by pitr on [ClipSafari](https://www.clipsafari.com/clips/o213700-celtic-knot-border), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
-- The numerals of the 3D dice panel are set in Fantaisie Artistique by George Williams, released under the SIL Open Font License by its author ([FontForge font archive](https://fontforge.org/archive/sfds/toyfonts.html)). The licence text is in [`src/app/assets/fonts/fantaisie-artistique-OFL.txt`](src/app/assets/fonts/fantaisie-artistique-OFL.txt). The font is bundled unmodified in `styles.css`.
+- The numerals of the 3D dice panel are set in Fantaisie Artistique by George Williams, released under the SIL Open Font License by its author ([FontForge font archive](https://fontforge.org/archive/sfds/toyfonts.html)). The licence text is in [`src/app/assets/fonts/fantaisie-artistique-OFL.txt`](src/app/assets/fonts/fantaisie-artistique-OFL.txt). The font is bundled unmodified in `styles.css`. The browser player also uses this unmodified font for headings and includes its licence as `font-licences/fantaisie-artistique-OFL.txt`.
 - The sci-fi dice numerals are set in [Oxanium](https://github.com/sevmeyer/oxanium) by Severin Meyer, Copyright 2019 The Oxanium Project Authors, licensed under the [SIL Open Font License 1.1](https://openfontlicense.org). The licence text is in [`src/app/assets/fonts/oxanium-OFL.txt`](src/app/assets/fonts/oxanium-OFL.txt). The font is bundled unmodified in `styles.css`.
 - The 3D dice face artwork (numeral sheet and card stock) is an original work by the Atlas VTT author and is covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
 - Interface icons are [Lucide](https://lucide.dev) (ISC), provided by Obsidian and the bundled lucide-react package.
 - The token ring and the timer sound are original works by the Atlas VTT author and are covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
+
+## Atlas VTT theme
+
+The browser player's parchment and candlelight colour palettes are adapted from the [Atlas VTT Obsidian theme](https://github.com/ByteMirror/atlas-vtt-theme), under the MIT licence.
+
+```text
+MIT License
+
+Copyright (c) 2026 Fabian Urbanek
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ## Game system templates
 

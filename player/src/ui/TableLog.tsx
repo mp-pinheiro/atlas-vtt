@@ -1,4 +1,3 @@
-import { CloseButton } from '../../../src/app/packages/components/primitives/CloseButton.tsx';
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { TableLogPanel } from '../../../src/app/online/tableLog/TableLogPanel.tsx';
 import { LogState } from '../../../src/app/online/tableLog/LogState.ts';
@@ -12,6 +11,7 @@ import type { AssetRef } from '../../../src/app/online/protocol/asset.ts';
 import type { SharedToken } from '../../../src/app/online/protocol/tokens.ts';
 import { BookTextReader } from './BookTextReader.tsx';
 import { ShownImage } from './ShownImage.tsx';
+import { PlayerDialog } from './PlayerDialog.tsx';
 import { playerText } from '../i18n.ts';
 import '../../../src/app/online/tableLog/styles/table-log.scss';
 
@@ -139,6 +139,8 @@ export function TableLog({ state, entries, people, refusal, self, scene, tokens,
   return <>
     {view}
     {openImage && <ShownImage message={{ t: 'shown-image', shown: { id: openImage.id, image: openImage.image, width: openImage.width, height: openImage.height } }} assets={assets} onClose={() => setOpenImage(null)} />}
-    {openFound && <div className="atlas-player__found-reader" role="dialog" aria-modal="true"><CloseButton onClick={() => setOpenFound(null)} aria-label={playerText('close')} /><BookTextReader title={openFound.title} opening={openFound.body} text={openFound.text} images={openFound.images} assets={assets} /></div>}
+    {openFound && <PlayerDialog title={openFound.title} onClose={() => setOpenFound(null)} className="atlas-player__book-reader-dialog">
+      <BookTextReader title={openFound.title} opening={openFound.body} text={openFound.text} images={openFound.images} assets={assets} />
+    </PlayerDialog>}
   </>;
 }

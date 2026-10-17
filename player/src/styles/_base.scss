@@ -1,0 +1,96 @@
+@use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
+
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; }
+body { overflow: hidden; background: var(--background-primary); color: var(--text-normal); font: 14px/1.5 var(--font-interface); }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:disabled, button[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; }
+a { color: var(--text-accent); text-underline-offset: 3px; }
+a:hover { color: var(--text-accent-hover); }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 3px; }
+input, select, textarea { min-width: 0; color: var(--text-normal); accent-color: var(--interactive-accent); }
+:where(.atlas-player, .atlas-gm) :where(button:not(.atlas-close-btn)) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-s;
+  min-height: var(--input-height);
+  padding: $spacing-s;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: $radius-l;
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  line-height: 1.2;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+:where(.atlas-player, .atlas-gm) button:not(:disabled):hover { background: var(--interactive-hover); border-color: var(--background-modifier-border-hover); }
+:where(.atlas-player, .atlas-gm) button svg { width: 18px; height: 18px; flex: none; }
+:where(.atlas-player, .atlas-gm) .btn--default,
+:where(.atlas-player, .atlas-gm) .btn--destructive {
+  border-color: transparent;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+:where(.atlas-player, .atlas-gm) .btn--default:not(:disabled):hover,
+:where(.atlas-player, .atlas-gm) .btn--destructive:not(:disabled):hover { background: var(--interactive-accent-hover); border-color: transparent; }
+:where(.atlas-player, .atlas-gm) .btn--ghost { background: transparent; border-color: transparent; }
+:where(.atlas-player, .atlas-gm) .btn--outline { background: transparent; }
+:where(.atlas-player, .atlas-gm) .atlas-close-btn.btn { @include atlas-close-button; }
+:where(.atlas-player, .atlas-gm) h1,
+:where(.atlas-player, .atlas-gm) h2,
+:where(.atlas-player, .atlas-gm) h3 { margin: 0; line-height: 1.25; font-weight: 400; font-family: var(--atlas-theme-heading-font); color: var(--atlas-theme-red); letter-spacing: 0.02em; }
+:where(.atlas-player, .atlas-gm) h1 { font-size: 28px; }
+:where(.atlas-player, .atlas-gm) h2 { font-size: 23px; }
+:where(.atlas-player, .atlas-gm) h3 { font-size: 20px; }
+:where(.atlas-player, .atlas-gm) p { margin: 0; }
+.atlas-player [hidden] { display: none; }
+.atlas-player__section, .atlas-player__list { display: flex; flex-direction: column; gap: $spacing-l; min-width: 0; }
+.atlas-player__row { display: flex; align-items: center; gap: $spacing-s; min-width: 0; }
+.atlas-player__muted { color: var(--text-muted); font-size: var(--font-ui-small); }
+.atlas-player__empty { display: flex; flex-direction: column; gap: $spacing-l; align-items: center; padding: $spacing-xl; color: var(--text-muted); text-align: center; }
+.atlas-player__empty svg { width: 32px; height: 32px; opacity: 0.6; }
+.atlas-player__item { display: flex; flex-direction: column; gap: $spacing-m; padding: $spacing-m; border-radius: $radius-xl; background: var(--background-modifier-form-field); }
+.atlas-player__surface { @include atlas-elevated-surface; @include atlas-panel-radius($radius-2xl); display: flex; flex-direction: column; gap: $spacing-l; padding: $spacing-l; }
+.atlas-player label { display: flex; flex-direction: column; gap: $spacing-s; color: var(--text-muted); font-size: var(--font-ui-small); }
+.atlas-player :is(input:not([type='checkbox']):not([type='radio']), textarea, select), .atlas-player__field {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: $spacing-s;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: $radius-l;
+  background: var(--background-modifier-form-field);
+  color: var(--text-normal);
+}
+.atlas-player textarea { min-height: 96px; resize: vertical; }
+.atlas-player input[type='checkbox'] { width: 18px; height: 18px; margin: 0; }
+.atlas-player fieldset { margin: 0; padding: 0; min-width: 0; border: 0; }
+.atlas-player fieldset legend { margin-bottom: $spacing-s; }
+.atlas-player__notice { padding: $spacing-m; border-radius: $radius-xl; background: var(--background-modifier-active-hover); font-size: var(--font-ui-small); }
+.atlas-player__source { display: flex; flex-wrap: wrap; gap: $spacing-m; font-size: 11px; color: var(--text-muted); }
+.atlas-player__source a { color: inherit; }
+.atlas-player__about { font-size: var(--font-ui-small); }
+.atlas-player__leave { align-self: flex-start; }
+.atlas-player .sr-only { @include atlas-visually-hidden; }
+.atlas-player { scrollbar-color: var(--color-base-40) transparent; scrollbar-width: thin; }
+.atlas-player .atlas-sb-heading, .atlas-player .atlas-sb-section-heading, .atlas-player .atlas-dice-toast__ability { font-family: var(--atlas-theme-heading-font); font-weight: 400; letter-spacing: 0.02em; text-transform: none; }
+.atlas-player .atlas-sb-heading { font-size: 24px; color: var(--atlas-theme-red); }
+.atlas-player .atlas-sb-section-heading { font-size: 19px; color: var(--atlas-theme-red); }
+.atlas-player__markdown { font: 17px/1.75 var(--font-text); overflow-wrap: anywhere; }
+.atlas-player__markdown > * + * { margin-top: $spacing-l; }
+.atlas-player__markdown img { max-width: 100%; height: auto; border-radius: $radius-l; }
+.atlas-player__markdown h1, .atlas-player__markdown h2 { padding-bottom: $spacing-s; border-bottom: 3px double var(--atlas-theme-rule); }
+.atlas-player__markdown blockquote { margin: 0; padding: $spacing-l; border: 1px solid var(--background-modifier-border); border-left: 3px solid var(--atlas-theme-red); background: var(--background-secondary); }
+.atlas-player__markdown table { border-collapse: collapse; width: 100%; }
+.atlas-player__markdown th, .atlas-player__markdown td { padding: $spacing-s; border-bottom: 1px solid var(--background-modifier-border); text-align: start; }
+.atlas-player__markdown th { color: var(--atlas-theme-red); background: var(--background-secondary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-player *, .atlas-gm * { animation-duration: 0ms; transition-duration: 0ms; }
+}
+
+.atlas-player .atlas-player__row { flex-direction: row; }

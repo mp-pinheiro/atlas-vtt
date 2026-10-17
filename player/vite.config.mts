@@ -10,6 +10,7 @@ function legalAssets(): Plugin {
     generateBundle() {
       this.emitFile({ type: 'asset', fileName: 'LICENSE', source: readFileSync(new URL('LICENSE', root)) });
       this.emitFile({ type: 'asset', fileName: 'THIRD_PARTY_NOTICES.md', source: readFileSync(new URL('THIRD_PARTY_NOTICES.md', root)) });
+      this.emitFile({ type: 'asset', fileName: 'font-licences/fantaisie-artistique-OFL.txt', source: readFileSync(new URL('src/app/assets/fonts/fantaisie-artistique-OFL.txt', root)) });
     },
   };
 }

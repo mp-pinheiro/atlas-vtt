@@ -5,6 +5,7 @@ import { movementWalls } from '../../../src/app/online/movement/movementWalls.ts
 import { stopAtWalls } from '../../../src/app/online/movement/wallCollision.ts';
 import { readWall } from '../../../src/app/lighting/lightingObjects.ts';
 import type { PlayerMessage } from '../../../src/app/online/protocol/game.ts';
+import { handledByAnotherControl } from '../../../src/app/keyboard/tooltipEscape.ts';
 import type { PlayerState } from '../state/playerStore.ts';
 
 export type PlayerTool = 'select' | 'pan' | 'measure' | 'laser';
@@ -216,7 +217,8 @@ export class PlayerInput {
   };
 
   private readonly key = (event: KeyboardEvent): void => {
-    if ((event.target as HTMLElement | null)?.closest('input,textarea,button,[contenteditable=true]')) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (handledByAnotherControl(event) || target?.closest('input,textarea,select,button,summary,[contenteditable=true],[role=menu],[role=listbox],[role=dialog],dialog')) return;
     this.ports.proposal?.key(event);
     if (event.key === 'Escape') { this.cancel(); this.requestProposalCancellation(); this.ports.changed(); }
     if (this.proposal && !this.proposal.submitted && !this.proposal.cancelInFlight && event.key === 'Backspace') { if (this.proposal.points.length > 1) this.proposal.points.pop(); event.preventDefault(); this.notify(); }

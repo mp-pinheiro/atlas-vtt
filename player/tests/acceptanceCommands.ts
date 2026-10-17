@@ -13,6 +13,19 @@ interface CancelObservation { seen: boolean; readonly observer: MutationObserver
 interface CancellationWindow extends Window { __atlasCancelObservation?: CancelObservation }
 
 async function worldPoint(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
+  await page.bringToFront();
+  await expect.poll(async () => {
+    const [canvas, host] = await Promise.all([
+      page.locator('.atlas-player__canvas canvas').boundingBox(),
+      page.locator('.atlas-player__canvas').boundingBox(),
+    ]);
+    return canvas !== null && host !== null && Math.abs(canvas.width - host.width) < 1 && Math.abs(canvas.height - host.height) < 1;
+  }).toBe(true);
+  await page.getByRole('button', { name: 'Fit map', exact: true }).click();
+  await expect.poll(async () => {
+    const picture = await pictureLuminance(page);
+    return Math.max(picture.left, picture.right);
+  }).toBeGreaterThan(40);
   const box = await page.locator('.atlas-player__canvas canvas').boundingBox();
   if (!box) throw new Error('The actual player canvas is not visible');
   const scale = Math.min(box.width, box.height) / 1400;
@@ -157,7 +170,7 @@ export const atlasAcceptance: BrowserCommand<[], AcceptanceResult> = async ({ co
     expect(smoke.fixture.snapshot().state.objects.tokens.alice?.x).toBe(385);
     await gm.getByRole('button', { name: 'Edit', exact: true }).click();
     const gmCanvas = await gm.locator('#map canvas').boundingBox(); if (!gmCanvas) throw new Error('GM overlay canvas unavailable');
-    await gm.mouse.move(gmCanvas.x + 525 / 2, gmCanvas.y + 315 / 2); await gm.mouse.down(); await gm.mouse.move(gmCanvas.x + 455 / 2, gmCanvas.y + 385 / 2, { steps: 8 }); await gm.mouse.up();
+    await gm.mouse.move(gmCanvas.x + 525 / 1400 * gmCanvas.width, gmCanvas.y + 315 / 1400 * gmCanvas.height); await gm.mouse.down(); await gm.mouse.move(gmCanvas.x + 455 / 1400 * gmCanvas.width, gmCanvas.y + 385 / 1400 * gmCanvas.height, { steps: 8 }); await gm.mouse.up();
     await expect.poll(() => smoke.fixture.snapshot().paths[0]?.points[0]?.x).toBe(455);
     await gm.getByRole('button', { name: 'Done', exact: true }).click();
     const directory = resolve('test-results/player-agency'); await mkdir(directory, { recursive: true });
@@ -177,20 +190,22 @@ export const atlasAcceptance: BrowserCommand<[], AcceptanceResult> = async ({ co
     scenarios.push('Cancelling a real path leaves the token unchanged');
     await gm.locator('[data-permission="playerConditions"]').check();
     await gm.locator('[data-permission="playerDoors"]').check();
-    await alice.getByRole('button', { name: 'Settings', exact: true }).click();
+    await alice.getByRole('navigation', { name: 'Controls', exact: true }).getByRole('button', { name: 'Settings', exact: true }).click();
     await alice.getByRole('button', { name: 'Colour 4', exact: true }).click();
     await expect.poll(() => smoke.fixture.snapshot().ownership.players[aliceId]?.colour).toBe(3);
     scenarios.push('Player colour is persisted by GM authority');
+    await alice.getByRole('navigation', { name: 'Controls', exact: true }).getByRole('button', { name: 'Book', exact: true }).click();
     const fright = alice.getByRole('group', { name: 'Alice', exact: true }).getByRole('group', { name: 'Frightened', exact: true });
-    await fright.getByRole('button', { name: '+', exact: true }).click();
+    await fright.getByRole('button', { name: '+ Frightened', exact: true }).click();
     await expect(fright.locator('output')).toHaveText('1');
-    await fright.getByRole('button', { name: '+', exact: true }).click();
+    await fright.getByRole('button', { name: '+ Frightened', exact: true }).click();
     await expect.poll(() => smoke.fixture.snapshot().state.objects.tokens.alice?.conditionValues?.frightened).toBe(2);
-    await fright.getByRole('button', { name: '−', exact: true }).click();
+    await fright.getByRole('button', { name: '− Frightened', exact: true }).click();
     await expect(fright.locator('output')).toHaveText('1');
-    await fright.getByRole('button', { name: '−', exact: true }).click();
+    await fright.getByRole('button', { name: '− Frightened', exact: true }).click();
     await expect.poll(() => smoke.fixture.snapshot().state.objects.tokens.alice?.conditions?.includes('frightened') ?? false).toBe(false);
     scenarios.push('Allowed valued conditions set and clear through authoritative steppers');
+    await alice.locator('.atlas-player__panel-header').getByRole('button', { name: 'Close', exact: true }).click();
     const playerCancelFrom = await worldPoint(alice, 455, 385); const playerCancelTo = await worldPoint(alice, 525, 455);
     await alice.mouse.move(playerCancelFrom.x, playerCancelFrom.y); await alice.mouse.down(); await alice.mouse.move(playerCancelTo.x, playerCancelTo.y, { steps: 8 }); await alice.mouse.up();
     await alice.getByRole('button', { name: 'Propose movement', exact: true }).click();
@@ -219,19 +234,21 @@ export const atlasAcceptance: BrowserCommand<[], AcceptanceResult> = async ({ co
     expect(smoke.fixture.snapshot().state.objects.tokens.alice?.x).toBe(455);
     await expect(alice.getByText('Cancellation requested; waiting for confirmation from the table.', { exact: true })).toHaveCount(0);
     scenarios.push('Player cancellation remains queued and visible until the real GM returns a matching path result');
-    const scout = alice.locator('.atlas-player__row').filter({ hasText: 'Unclaimed scout' });
+    await alice.getByRole('navigation', { name: 'Controls', exact: true }).getByRole('button', { name: 'Book', exact: true }).click();
+    await alice.locator('.atlas-player__agency-requests > summary').click();
+    const scout = alice.locator('.atlas-player__agency-request').filter({ hasText: 'Unclaimed scout' });
     await scout.getByRole('button', { name: 'Request character', exact: true }).click();
     await gm.getByRole('button', { name: 'Accept Unclaimed scout', exact: true }).click();
     await expect.poll(() => smoke.fixture.snapshot().ownership.owners.unclaimed).toBe(aliceId);
     scenarios.push('A real transient claim is accepted by the GM without automatic assignment');
-    await alice.getByRole('button', { name: 'Initiative', exact: true }).click();
+    await alice.getByRole('navigation', { name: 'Controls', exact: true }).getByRole('button', { name: 'Initiative', exact: true }).click();
     await alice.getByRole('button', { name: 'Roll initiative', exact: true }).click();
     await expect(alice.getByRole('button', { name: 'Roll initiative', exact: true })).toHaveCount(0);
     const endTurn = alice.getByRole('button', { name: 'End turn', exact: true });
     await expect(endTurn).toBeVisible(); await endTurn.click();
     await expect(endTurn).toHaveCount(0);
     scenarios.push('Owned initiative roll and guarded End turn run through the actual controls');
-    await alice.getByRole('button', { name: 'Book', exact: true }).click();
+    await alice.getByRole('navigation', { name: 'Controls', exact: true }).getByRole('button', { name: 'Book', exact: true }).click();
     await expect(alice.getByText('Alice', { exact: true }).first()).toBeVisible();
     const resource = alice.getByRole('spinbutton', { name: 'Hit points', exact: true });
     await resource.fill('7'); await resource.blur();
@@ -243,27 +260,27 @@ export const atlasAcceptance: BrowserCommand<[], AcceptanceResult> = async ({ co
     await alice.locator('.atlas-player__sheet-roll > button:first-child').first().click();
     await expect.poll(() => smoke.fixture.snapshot().log.filter((entry) => entry.kind === 'roll').length).toBe(beforeSheetRolls + 1);
     scenarios.push('Native indexed ability rolls and editable book resources use the real sheet projection');
-    await alice.getByRole('button', { name: 'Notes', exact: true }).click();
+    await alice.getByRole('tab', { name: 'Notes', exact: true }).click();
     await alice.getByRole('button', { name: 'New note', exact: true }).click();
     await alice.getByLabel('Title', { exact: true }).fill('Acceptance note');
     await alice.getByLabel('Text', { exact: true }).fill('Written through the real browser book.');
     await alice.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(alice.getByText('Acceptance note', { exact: true })).toBeVisible();
     scenarios.push('Book note write is refreshed by OnlineTable book authority');
-    await alice.getByRole('button', { name: 'Quests', exact: true }).click();
+    await alice.getByRole('tab', { name: 'Quests', exact: true }).click();
     await alice.getByRole('button', { name: 'The lost lantern', exact: false }).click();
     await expect(alice.getByText(/The old road is safe only by daylight/)).toBeVisible();
-    await alice.getByRole('button', { name: 'World map', exact: true }).click();
+    await alice.getByRole('tab', { name: 'World map', exact: true }).click();
     await alice.getByRole('button', { name: 'Open world map', exact: true }).click();
     await alice.getByRole('button', { name: 'Region', exact: true }).click();
     await alice.getByRole('button', { name: 'Town', exact: true }).click();
-    await expect(alice.locator('.atlas-player__surface > header strong').filter({ hasText: 'Town' })).toBeVisible();
+    await expect(alice.getByRole('region', { name: 'World map', exact: true }).getByText('Town', { exact: true })).toBeVisible();
     await alice.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(alice.getByRole('button', { name: 'Town', exact: true })).toBeVisible();
     await alice.getByRole('button', { name: 'Back', exact: true }).click();
     scenarios.push('Full-text quest assets and two nested world maps are read through the real book');
-    await alice.getByRole('button', { name: 'Table log', exact: true }).click();
-    await bob.getByRole('button', { name: 'Table log', exact: true }).click();
+    await alice.getByRole('navigation', { name: 'Controls', exact: true }).getByRole('button', { name: 'Table log', exact: true }).click();
+    await bob.getByRole('navigation', { name: 'Controls', exact: true }).getByRole('button', { name: 'Table log', exact: true }).click();
     const composer = alice.getByRole('combobox', { name: 'Message', exact: true });
     await composer.fill('The lantern is ours.'); await composer.press('Enter');
     await expect(bob.getByText('The lantern is ours.', { exact: true })).toBeVisible();
@@ -292,7 +309,7 @@ export const atlasAcceptance: BrowserCommand<[], AcceptanceResult> = async ({ co
     await alice.getByLabel('Your name', { exact: true }).fill('Alice');
     await expect(alice.getByLabel('Join code', { exact: true })).toHaveCount(0);
     await alice.getByRole('button', { name: 'Connect', exact: true }).click();
-    await expect(alice.getByRole('button', { name: 'Leave and forget', exact: true })).toBeVisible();
+    await expect(alice.getByRole('navigation', { name: 'Controls', exact: true })).toBeVisible();
     scenarios.push('Browser key survives reload without a second knock');
     await expect.poll(async () => (await browserCache(alice)).rows.some((row) => memoryBefore.rows.some((before) => before.key === row.key))).toBe(true);
     scenarios.push('Personal explored PNG rows survive reload and never appear in the other player context');
@@ -303,6 +320,8 @@ export const atlasAcceptance: BrowserCommand<[], AcceptanceResult> = async ({ co
     await expect(torch).not.toHaveText(initialTorch ?? '');
     scenarios.push('The received running widget timer advances without another widget edit');
     const assetsBeforeForget = (await browserCache(alice)).assets;
+    await alice.getByRole('navigation', { name: 'Controls', exact: true }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await alice.getByRole('button', { name: 'Leave table', exact: true }).click();
     await alice.getByRole('button', { name: 'Leave and forget', exact: true }).click();
     await expect(alice.getByLabel('Table link', { exact: true })).toBeVisible();
     expect(await alice.evaluate((table) => localStorage.getItem(`atlas-player:${table}`), smoke.fixture.connection.table)).toBeNull();

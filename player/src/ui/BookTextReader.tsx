@@ -111,9 +111,8 @@ export function BookTextReader({ title, opening, text: textRef, images = EMPTY_I
       for (const hash of acquired) assets.release(hash);
     };
   }, [assets, prepared]);
-  return <article className="atlas-player__surface" aria-label={title}>
-    <header className="atlas-player__row"><h2>{title}</h2></header>
-    {unavailable && <p role="status">{playerText('unavailable')}</p>}
+  return <article className="atlas-player__book-document" aria-label={title} role="document">
+    {unavailable && <p className="atlas-player__notice" role="status">{playerText('unavailable')}</p>}
     <SafeMarkdown text={prepared.text} images={imageUrls} />
   </article>;
 }

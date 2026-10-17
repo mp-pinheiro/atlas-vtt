@@ -1,4 +1,7 @@
 import { Fragment, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { ChevronDown } from 'lucide-react';
+import { Button } from '../../../src/app/packages/components/primitives/button.tsx';
 import type { SharedSheet } from '../../../src/app/online/protocol/sheet.ts';
 import type { SheetResource } from '../../../src/app/online/protocol/bookCharacter.ts';
 import { ROLL_MODES, type RollMode } from '../../../src/app/online/protocol/chat.ts';
@@ -12,7 +15,19 @@ import { playerText } from '../i18n.ts';
 
 function RollButton({ text, label, index, onRoll }: { readonly text: string; readonly label: string; readonly index: number; readonly onRoll: (index: number, mode: RollMode) => boolean }): ReactElement {
   const [open, setOpen] = useState(false);
-  return <span className="atlas-player__sheet-roll"><button type="button" aria-label={label} aria-expanded={open} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onRoll(index, 'public'); }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setOpen((current) => !current); }}>{text}</button><button type="button" aria-label={playerText('rollModes')} aria-expanded={open} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setOpen((current) => !current); }}>▾</button>{open && <span role="group" aria-label={playerText('rollModes')}>{ROLL_MODES.map((mode) => <button key={mode} type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); if (onRoll(index, mode)) setOpen(false); }}>{playerText(mode)}</button>)}</span>}</span>;
+  return <span className="atlas-player__sheet-roll">
+    <Button type="button" size="sm" variant="link" className="atlas-player__sheet-roll-action" aria-label={label} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onRoll(index, 'public'); }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setOpen(true); }}>{text}</Button>
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+      <DropdownMenu.Trigger asChild>
+        <Button type="button" size="icon" variant="ghost" className="atlas-player__sheet-roll-menu-trigger" aria-label={playerText('rollModes')}><ChevronDown aria-hidden="true" /></Button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className="atlas-player-sheet-menu" align="end" sideOffset={8} collisionPadding={12} aria-label={playerText('rollModes')}>
+          {ROLL_MODES.map((mode) => <DropdownMenu.Item key={mode} className="atlas-player-sheet-menu__item" onSelect={(event) => { if (!onRoll(index, mode)) event.preventDefault(); }}>{playerText(mode)}</DropdownMenu.Item>)}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  </span>;
 }
 
 export function NativeSheet({ sheet, assets, onRoll, resources }: { readonly sheet: SharedSheet; readonly assets: AssetDownloads; readonly onRoll: (index: number, mode: RollMode) => boolean; readonly resources: readonly SheetResource[] }): ReactElement {

@@ -1,0 +1,31 @@
+@use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
+
+.atlas-player__dialog {
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  position: fixed;
+  width: min(680px, calc(100vw - 48px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 0;
+  color: var(--text-normal);
+  overflow: hidden;
+}
+.atlas-player__dialog[open] { display: flex; flex-direction: column; }
+.atlas-player__dialog::backdrop { background: var(--background-modifier-cover, rgb(10 8 5 / 68%)); }
+.atlas-player__dialog-header { @include atlas-close-header; display: flex; justify-content: space-between; gap: $spacing-s; flex: none; border-bottom: 1px solid var(--background-modifier-border); }
+.atlas-player__dialog-header h2 { font-size: 25px; }
+.atlas-player__dialog-body { display: flex; flex-direction: column; min-height: 0; padding: $spacing-xl; gap: $spacing-xl; overflow: auto; overscroll-behavior: contain; }
+.atlas-player__dialog-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: $spacing-s; }
+.atlas-player__dialog-body > .atlas-player__surface { border: 0; padding: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.atlas-player__dialog-body > .atlas-player__surface > header { display: none; }
+.atlas-player__image-dialog { width: min(1100px, calc(100vw - 48px)); }
+.atlas-player__image-dialog .atlas-player__dialog-body { align-items: center; }
+.atlas-player__image-dialog img { display: block; max-width: 100%; max-height: calc(100dvh - 170px); object-fit: contain; }
+.atlas-player__dialog .atlas-player__markdown { max-width: 65ch; }
+@media (max-width: 820px) {
+  .atlas-player__dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+  .atlas-player__dialog-body { padding: $spacing-l; gap: $spacing-l; }
+}

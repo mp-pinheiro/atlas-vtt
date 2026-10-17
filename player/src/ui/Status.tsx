@@ -21,11 +21,12 @@ function statusLabel(status: PlayerStatus): string {
 }
 
 export function Status({ status, notice, gmOnline, busy, identityPersistent, playerName }: StatusProps): ReactElement {
-  return <div className="atlas-player__status" role="status" aria-live="polite">
-    <strong>{playerName ?? statusLabel(status)}</strong>
-    {!gmOnline && status === 'connected' && <span>{playerText('gmOffline')}</span>}
-    {busy && <span>{playerText('busy')}</span>}
-    {!identityPersistent && <span>{playerText('storageLost')}</span>}
+  return <div className="atlas-player__status" data-connected={status === 'connected' && gmOnline} role="status" aria-live="polite">
+    <span className="atlas-player__status-dot" aria-hidden="true" />
+    <span className="atlas-player__identity">{playerName && <strong>{playerName}</strong>}<span>{statusLabel(status)}</span></span>
+    {!gmOnline && status === 'connected' && <span className="atlas-player__status-warning">{playerText('gmOffline')}</span>}
+    {busy && <span className="atlas-player__status-warning">{playerText('busy')}</span>}
+    {!identityPersistent && <span className="atlas-player__status-warning">{playerText('storageLost')}</span>}
     {notice && <span>{notice}</span>}
   </div>;
 }

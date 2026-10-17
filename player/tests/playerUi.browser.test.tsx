@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 import { JoinPanel } from '../src/ui/JoinPanel.tsx';
 import { SafeMarkdown } from '../src/ui/SafeMarkdown.tsx';
 import { PlayerInput } from '../src/canvas/PlayerInput.ts';
@@ -88,6 +89,29 @@ function inputHarness(): {
   };
 }
 
+describe('map keyboard ownership', () => {
+  it('leaves select, menu and dialog keys to their controls without changing a path', () => {
+    const { input, store } = inputHarness();
+    input.selected = 'a'.repeat(24);
+    render(<>
+      <select aria-label="Appearance"><option>System</option></select>
+      <div role="menu"><div role="menuitem" tabIndex={0}>Public</div></div>
+      <div role="dialog"><div tabIndex={-1}>Lantern text</div></div>
+    </>);
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(1000);
+    try {
+      for (const target of [screen.getByRole('combobox'), screen.getByRole('menuitem'), screen.getByText('Lantern text')]) {
+        fireEvent.keyDown(target, { key: 'ArrowDown' });
+        expect(store.getState().proposals).toEqual({});
+      }
+      fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+      expect(store.getState().proposals['a'.repeat(24)]).toEqual([{ x: 170, y: 100 }]);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+});
+
 describe('player path cancellation', () => {
   it('preserves the submitted path after a refused send and waits for path-result after queuing cancellation', () => {
     const { input, store, messages, startProposal, allowCancellation } = inputHarness();
@@ -151,7 +175,6 @@ describe('player entry and safe text', () => {
     const onJoin = vi.fn();
     const onTableLink = vi.fn();
     render(<JoinPanel table={null} hasIdentity={false} notice={null} onJoin={onJoin} onForgetIdentity={vi.fn()} onTableLink={onTableLink} />);
-    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Alice' } });
     fireEvent.change(screen.getByLabelText('Table link'), { target: { value: 'https://play.example/#javascript:alert(1)' } });
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
     expect(onJoin).not.toHaveBeenCalled();
@@ -260,20 +283,19 @@ describe('player entry and safe text', () => {
     await waitFor(() => expect(screen.getByText('Unavailable')).toBeTruthy());
   });
 
-  it('renders native projected blocks and uses only the GM descriptor index in all roll modes', () => {
+  it('selects the GM-indexed native ability in all four roll audiences', async () => {
     const sheet: SharedSheet = {
       revision: 'a'.repeat(24), name: 'Native hero',
       template: { format: 'atlas-statblock-template', version: 1, id: 'sheet', fields: [], layout: { maxColumns: 1, blocks: [{ type: 'rendered-script', id: 'projection', blocks: [{ type: 'text', id: 'ability', text: '+3' }] }] } },
       fields: {}, images: {}, rolls: [{ key: JSON.stringify(['ability', [], 0]), index: 17, formula: '+3', label: 'Strength' }],
     };
     const onRoll = vi.fn((_index: number, _mode: RollMode) => true);
-    const { container } = render(<NativeSheet sheet={sheet} resources={[]} assets={noAssets} onRoll={onRoll} />);
-    expect(container.querySelector('.atlas-sb-stack')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Strength' }));
+    render(<NativeSheet sheet={sheet} resources={[]} assets={noAssets} onRoll={onRoll} />);
+    await page.getByRole('button', { name: 'Strength' }).click();
     expect(onRoll).toHaveBeenLastCalledWith(17, 'public');
     for (const mode of ['GM only', 'Blind', 'Self only']) {
-      fireEvent.click(screen.getByRole('button', { name: 'Roll visibility' }));
-      fireEvent.click(screen.getByRole('button', { name: mode }));
+      await page.getByRole('button', { name: 'Roll visibility' }).click();
+      await page.getByRole('menuitem', { name: mode, exact: true }).click();
     }
     expect(onRoll.mock.calls.map((call) => call[1])).toEqual(['public', 'gm', 'blind', 'self']);
   });

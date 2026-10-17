@@ -1,0 +1,45 @@
+@use '../../../styles/mixins' as *;
+@use '../../../styles/tokens' as *;
+.atlas-player__dice-overlay {
+  position: absolute;
+  top: $spacing-m;
+  right: $spacing-m;
+  z-index: $z-atlas-dice-rolls;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-s;
+  width: min(320px, calc(100% - #{$spacing-m * 2}));
+  max-height: min(44vh, 380px);
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.atlas-player__dice-overlay > svg { position: absolute; width: 0; height: 0; }
+.atlas-player__roll {
+  position: relative;
+  min-width: 0;
+  padding: $spacing-s;
+  pointer-events: auto;
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+}
+
+.atlas-player__roll--active { display: flex; flex-direction: column; gap: $spacing-s; overflow: hidden; }
+.atlas-player__roll--compact { display: flex; }
+.atlas-player__roll-summary { display: flex; align-items: center; gap: $spacing-s; min-width: 0; }
+.atlas-player__roll-summary-copy { display: flex; flex: 1 1 auto; flex-direction: column; gap: $spacing-xs; min-width: 0; overflow: hidden; }
+.atlas-player__roll-summary-copy strong,
+.atlas-player__roll-summary-copy code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atlas-player__roll-summary-copy code { color: var(--text-muted); font-family: var(--font-monospace); font-size: $font-ui-small; }
+.atlas-player__roll-total { flex: 0 0 auto; }
+.atlas-player__roll-dismiss { position: static; flex: 0 0 40px; width: 40px; height: 40px; padding: $spacing-s; }
+.atlas-player__dice-stage { position: relative; height: clamp(112px, 17vh, 156px); flex: 0 0 auto; overflow: hidden; border-radius: $radius-l; }
+.atlas-player__dice-stage canvas { position: absolute; bottom: 0; left: 0; }
+.atlas-player__roll .atlas-dice-toast { width: 100%; min-width: 0; max-width: 100%; padding: $spacing-s; gap: $spacing-s; }
+.atlas-player__roll .atlas-dice-toast:not([class*='--crit-']) { --atlas-dice-accent: var(--text-accent); }
+
+.atlas-player__roll-summary .atlas-close-btn { @include atlas-panel-inset-radius($spacing-s); align-self: center; }
+@media (max-width: 820px) {
+  .atlas-player__dice-overlay[data-compact='true'] { position: fixed; top: auto; left: $spacing-l; right: $spacing-l; bottom: 84px; width: auto; max-height: 68px; overflow: hidden; }
+  .atlas-player__dice-overlay[data-compact='true'] .atlas-player__roll + .atlas-player__roll { display: none; }
+}

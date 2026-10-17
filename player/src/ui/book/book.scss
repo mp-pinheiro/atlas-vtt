@@ -1,0 +1,306 @@
+@use '../../../../styles/tokens' as *;
+@use '../../../../styles/mixins' as *;
+
+.atlas-player__book-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--atlas-player-gap, #{$spacing-s});
+}
+
+.atlas-player__book-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--atlas-player-gap, #{$spacing-xs});
+  padding-bottom: var(--atlas-player-gap, #{$spacing-s});
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.atlas-player__book-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.atlas-player__book-tab[aria-selected='true'] {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent, #fff);
+}
+
+.atlas-player__book-content {
+  min-width: 0;
+  outline: none;
+}
+
+.atlas-player__book-content:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.atlas-player__book-panel .atlas-player__section,
+.atlas-player__book-panel .atlas-player__list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--atlas-player-gap, #{$spacing-s});
+}
+
+.atlas-player__book-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--atlas-player-gap, #{$spacing-s});
+  min-width: 0;
+}
+
+.atlas-player__book-controls,
+.atlas-player__book-sheet {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.atlas-player__book-character-name,
+.atlas-player__book-panel h2,
+.atlas-player__book-panel h3 {
+  margin: 0;
+  color: var(--atlas-theme-red);
+  font-family: $font-atlas-display;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.atlas-player__book-character-name {
+  font-size: 1.5rem;
+}
+
+.atlas-player__book-resources {
+  display: flex;
+  flex-direction: column;
+  gap: var(--atlas-player-gap, #{$spacing-xs});
+}
+
+.atlas-player__book-resource {
+  justify-content: space-between;
+  min-height: 36px;
+  gap: var(--atlas-player-gap, #{$spacing-s});
+}
+
+.atlas-player__book-resource-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--atlas-player-gap, #{$spacing-xs});
+  white-space: nowrap;
+}
+
+.atlas-player__book-resource-value .atlas-player__field {
+  width: 7ch;
+}
+
+.atlas-player__book-item,
+.atlas-player__book-note,
+.atlas-player__book-pin {
+  gap: var(--atlas-player-gap, #{$spacing-s});
+}
+
+.atlas-player__book-item h3,
+.atlas-player__book-note h3,
+.atlas-player__book-pin h3 {
+  font-size: 1.15rem;
+}
+
+.atlas-player__book-equip,
+.atlas-player__book-editor > label,
+.atlas-player__book-purse > label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--atlas-player-gap, #{$spacing-xs});
+}
+
+.atlas-player__book-editor,
+.atlas-player__book-purse {
+  max-width: 52rem;
+}
+
+.atlas-player__book-textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.atlas-player__book-purse-row > label {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--atlas-player-gap, #{$spacing-xs});
+}
+
+.atlas-player__book-slot {
+  justify-content: space-between;
+}
+
+.atlas-player__book-quest-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.atlas-player__book-quest-heading h2 {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.atlas-player__book-quest-details {
+  display: grid;
+  gap: var(--atlas-player-gap, #{$spacing-s});
+  margin: 0;
+}
+
+.atlas-player__book-quest-details > div {
+  display: grid;
+  gap: var(--atlas-player-gap, #{$spacing-xs});
+}
+
+.atlas-player__book-quest-details dt {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.atlas-player__book-quest-details dd {
+  margin: 0;
+}
+
+.atlas-player__book-document {
+  width: 100%;
+  max-width: 72ch;
+  margin: 0 auto;
+  overflow-wrap: anywhere;
+  color: var(--text-normal);
+  font-family: var(--font-text, Georgia, 'Times New Roman', serif);
+  line-height: 1.65;
+}
+
+.atlas-player__book-document .atlas-player__markdown {
+  overflow-wrap: anywhere;
+  line-height: inherit;
+}
+
+.atlas-player__book-document .atlas-player__markdown > :first-child {
+  margin-top: 0;
+}
+
+.atlas-player__book-document .atlas-player__markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.atlas-player__book-document img {
+  max-width: 100%;
+  height: auto;
+}
+
+.atlas-player__book-quest-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--atlas-player-gap, #{$spacing-s});
+  text-align: left;
+}
+
+.atlas-player__world-map-view {
+  min-width: 0;
+}
+
+.atlas-player__world-map-heading {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.atlas-player__world-map {
+  position: relative;
+  width: 100%;
+  cursor: crosshair;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+.atlas-player__world-map--read-only {
+  cursor: default;
+}
+
+.atlas-player__world-map .atlas-player__map-marker {
+  @include atlas-panel-radius($radius-2xl);
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--atlas-player-gap, #{$spacing-s});
+  max-width: min(14rem, calc(100% - #{$spacing-s}));
+  padding: var(--atlas-player-gap, #{$spacing-s});
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.atlas-player__world-map .atlas-player__map-marker--draft {
+  pointer-events: none;
+}
+
+.atlas-player__image-dialog {
+  width: min(1100px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+}
+
+.atlas-player__shown-image-content {
+  display: flex;
+  width: 100%;
+  max-height: 100%;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+.atlas-player__shown-image-content img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(75dvh, 100%);
+  object-fit: contain;
+}
+
+.atlas-player__book-reader-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+}
+
+.atlas-player__sheet-roll {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--atlas-player-gap, #{$spacing-xs});
+}
+
+.atlas-player__sheet-roll-action.btn {
+  display: inline;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-accent);
+  font: inherit;
+  line-height: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.atlas-player__sheet-roll-action.btn:hover { background: transparent; color: var(--text-accent-hover); }
+.atlas-player__sheet-roll-menu-trigger.btn { width: 18px; min-width: 18px; min-height: 18px; height: 18px; padding: 0; border: 0; background: transparent; }
+.atlas-player__sheet-roll-menu-trigger.btn svg { width: 12px; height: 12px; }
+.atlas-player-sheet-menu { @include atlas-elevated-surface; @include atlas-panel-radius($radius-2xl); display: flex; flex-direction: column; min-width: 150px; gap: $spacing-s; padding: $spacing-s; z-index: $z-atlas-dropdown; }
+.atlas-player-sheet-menu__item { @include atlas-panel-inset-radius($spacing-s); display: flex; align-items: center; min-height: 36px; padding: $spacing-s; color: var(--text-normal); font: 13px var(--font-interface); cursor: pointer; outline: none; }
+.atlas-player-sheet-menu__item[data-highlighted] { background: var(--background-modifier-hover); color: var(--text-accent); }

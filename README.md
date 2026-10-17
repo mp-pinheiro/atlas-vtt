@@ -89,6 +89,8 @@ Start a table from a map view and share its join link. Players connect only afte
 
 The browser includes read-only native sheets with GM-indexed rolls, character resources, a book, quests and nested world maps. Public, GM-only, blind and self-only rolls retain their separate audiences. Submitted movement paths stay private to their requester and the GM until approved or cancelled. The local player window remains the GM-driven shared screen.
 
+The browser opens on the map. Book holds your character, resources, character requests and allowed conditions. Open Dice, Initiative or Table log when you need them, then close the panel to return to the map. Settings holds player colour, Parchment or Candlelight appearance, and Leave table. Fit map restores the whole map after zooming or resizing. On a narrow screen, navigation stays at the bottom and panels open above it.
+
 Install `just` and `fnm` first, then run `just setup` once to install the repository Node version and dependencies. For a browser client smoke test with a temporary relay and GM table, run `just smoke`; it prints the GM URL, player URL and development join code. Open the player link in two separate browser profiles to test Alice and Bob, then stop the fixture with `Ctrl+C`.
 
 To install the plugin into an existing Obsidian test vault, run `just obsidian /path/to/test-vault`. This builds Atlas and copies only into that vault's `.obsidian/plugins/atlas-vtt/` folder, then starts the local relay. The vault must already contain `.obsidian/`; the recipe does not create a vault or modify another one. In Obsidian, enable Online play and use relay origin `http://127.0.0.1:8787` with development-only host key `atlas-vtt-local-test-host-key`. Use separate browser profiles for the players.
