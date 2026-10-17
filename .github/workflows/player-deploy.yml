@@ -52,20 +52,17 @@ jobs:
       - name: Check dependency boundaries
         run: npm run check:boundaries
 
-      - name: Test player state, transport and fake table
-        run: npm run test:player -- --exclude player/tests/conformance.test.ts
+      - name: Build player with corresponding source link
+        run: npm run build:player
+
+      - name: Test player state, transport, fake table and real local relay conformance
+        run: npm run test:player
 
       - name: Test relay in Workers runtime
         run: npm run test:relay
 
       - name: Test plugin, protocol and GM agency
         run: npx vitest run --project unit
-
-      - name: Build player with corresponding source link
-        run: npm run build:player
-
-      - name: Test real local relay conformance
-        run: npx vitest run --project player player/tests/conformance.test.ts
 
       - name: Record required workstation privacy acceptance
         run: |
