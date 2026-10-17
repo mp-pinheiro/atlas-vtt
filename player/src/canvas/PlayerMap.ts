@@ -128,7 +128,7 @@ export class PlayerMap {
     const pyramid = this.pyramid;
     if (this.destroyed || !pyramid) return Promise.reject(new Error('Map image is not available.'));
     if (!pyramid.levels[ref.level]) return Promise.reject(new Error('Map tile level is invalid.'));
-    if (signal.aborted) return Promise.reject(signal.reason);
+    if (signal.aborted) return Promise.reject(signal.reason instanceof Error ? signal.reason : new Error('Map tile request aborted'));
     const rect = tileSourceRect(pyramid, ref);
     const id = this.nextId++;
     return new Promise<ImageBitmap>((resolve, reject) => {

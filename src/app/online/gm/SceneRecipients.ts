@@ -252,7 +252,7 @@ export class SceneRecipients {
       }
       const art = new Map<string, string>();
       entry.initiative = sharedInitiative({ state, shown: this.ports.atlasSettings().showInitiative, showNames: this.ports.showNames(), rules: source?.rules() ?? null,
-        ownerOf: id => this.ports.seats?.ownerOf(id, state.objects.tokens[id]), player, alias: id => entry!.combatants.alias(id),
+        ownerOf: id => this.ports.seats?.ownerOf(id, state.objects.tokens[id]), player, alias: id => entry.combatants.alias(id),
         turnKey: this.actions.turnKey(),
         art: path => { const ref = this.art.get(path); if (ref !== null) art.set(ref.hash, path); return ref; },
       });

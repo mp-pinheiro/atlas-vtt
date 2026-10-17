@@ -17,7 +17,7 @@ export interface PendingPathQueueProps {
   readonly grid: GridGeometry;
   readonly measurement: MeasurementSettings;
   readonly labels: PathQueueLabels;
-  describe(path: PendingPath): string;
+  readonly describe: (path: PendingPath) => string;
 }
 export function PendingPathQueue({ paths, grid, measurement, labels, describe }: PendingPathQueueProps): ReactElement | null {
   const proposals = useSyncExternalStore(paths.subscribe, paths.getSnapshot);

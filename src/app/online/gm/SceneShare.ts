@@ -97,7 +97,7 @@ export class SceneShare {
       },
       explored: hash => this.personal ? undefined : this.party.inputs.exploredBytes(hash),
       artPath: (hash, from) => this.artPath(hash, from),
-      validity: from => this.assetValidity(from).valid,
+      validity: from => () => this.assetValidity(from).valid(),
     });
   }
 

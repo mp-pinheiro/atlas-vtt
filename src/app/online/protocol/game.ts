@@ -17,7 +17,7 @@ import { parseRules, type RulesMessage } from './rules.ts';
 import { MAX_TOKEN_SIZE, MAX_TOKENS, parseTokens, TOKEN_ID_PATTERN, type SharedToken } from './tokens.ts';
 import { parseWidgetBar, type SharedWidgetBar } from './widgets.ts';
 import { parsePlayerAgency, parseAgencyResponse, type PlayerAgencyMessage, type AgencyResponse } from './agency.ts';
-import { parsePlayerSheet, parseSharedSheet, type PlayerSheetMessage } from './sheet.ts';
+import { parsePlayerSheet, type PlayerSheetMessage } from './sheet.ts';
 import { parsePicture, parsePictureResync, type PicturePacket, type PictureResync } from './picture.ts';
 
 /** What the players see of the shared scene; null while nothing is shared. */

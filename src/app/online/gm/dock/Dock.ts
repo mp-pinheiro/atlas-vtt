@@ -58,7 +58,7 @@ export class Dock {
     this.store = store;
     this.deps = deps;
     this.feedback = new FeedbackDraft(deps.feedback, () => this.update());
-    this.agency = new DockAgencySurface(() => { this.shownKey = ''; this.schedule(); }, deps.imageSrc);
+    this.agency = new DockAgencySurface(() => { this.shownKey = ''; this.schedule(); }, path => deps.imageSrc(path));
     // Made in the view's own document (a popout's too), then kept apart until the row is there.
     this.root = detached(container, { cls: 'atlas-online-dock' });
     this.spacer = detached(container, { cls: 'atlas-online-room', attr: { 'aria-hidden': 'true' } });

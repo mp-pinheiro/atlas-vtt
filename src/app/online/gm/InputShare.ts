@@ -15,7 +15,7 @@ export interface InputSharePorts extends PacerClock {
   tokenAlias(tokenId: string): string;
   /** Where the GM's lighting reads its rules and measurement, or null while it cannot be read. */
   lightingSource(): LightingSource | null;
-  doorAlias?(id: string): string;
+  readonly doorAlias?: (id: string) => string;
 }
 
 /** The shortest time between two sends of the scene's inputs, as for the token list. */

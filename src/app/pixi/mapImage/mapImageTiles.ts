@@ -1,6 +1,6 @@
 import { drawMissingAssetImage, MISSING_ASSET_SIZE } from '../../services/AssetValidationService';
 import { fitWithin } from '../../imageProcessing/imageLayout';
-import { pyramidOf, type TileRef } from './pyramid';
+import { pyramidOf } from './pyramid';
 import type { OpenedPyramid, MapTiles, TileReader } from './mapTileTypes';
 
 

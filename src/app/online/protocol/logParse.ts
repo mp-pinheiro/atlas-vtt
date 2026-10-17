@@ -2,7 +2,7 @@ import { GM_AUTHOR, inlineMarks, isAuthor, MAX_FLAVOR, MAX_SPEAKER_NAME, parseAu
 import { parseSharedRoll, type SharedRoll } from './dice.ts';
 import { chatText, isLogId, isLogReaction, isTime, LOG_REACTIONS, LOG_REFUSALS, MAX_LOG_ENTRIES, MAX_REPLY_PREVIEW, type ChatRefusal, type LogEntry, type LogMessage, type LogReaction, type LogReply, type PlayerChat, type PlayerLogMessage, type RollRequestRef } from './log.ts';
 import { parseFoundNote, parseLootCard, parseShownImageRef } from './logShown.ts';
-import { MAX_PLAYERS, PLAYER_ID_PATTERN, playerName, UNSEEN, UNSHOWN } from './relay.ts';
+import { MAX_PLAYERS, playerName, UNSEEN, UNSHOWN } from './relay.ts';
 import { isRecord } from './shape.ts';
 import { TOKEN_ID_PATTERN } from './tokens.ts';
 

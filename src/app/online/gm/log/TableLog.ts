@@ -35,7 +35,7 @@ export class TableLog {
   constructor(ports: TableLogPorts, saved: unknown = undefined) {
     this.ports = ports;
     const kept = readSavedLog(saved);
-    this.colourOf = ports.colourOf ?? (() => undefined);
+    this.colourOf = (player) => ports.colourOf?.(player);
     this.list = kept.entries;
     // Who was there is kept beside the entries: their lines may have left the log, or the GM cleared it.
     this.presence = new LogPresence({
@@ -70,7 +70,7 @@ export class TableLog {
   }
 
   action(action: Extract<LogEntry, { kind: 'action' }>['action'], values: Pick<Extract<LogEntry, { kind: 'action' }>, 'player' | 'combatant' | 'count'>, audience: '*' | 'gm' | readonly string[]): boolean {
-    const allowed = action === 'turn-ended' ? '*' : action === 'approval-reminder' ? 'gm' : Array.isArray(audience) ? [...audience] : 'gm';
+    const allowed = action === 'turn-ended' ? '*' : action === 'approval-reminder' ? 'gm' : typeof audience === 'string' ? 'gm' : [...audience];
     return this.add({ ...this.stamp(GM_AUTHOR, GM_NAME), kind: 'action', action, ...values, audience: allowed });
   }
 

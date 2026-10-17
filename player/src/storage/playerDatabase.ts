@@ -37,7 +37,7 @@ export async function openPlayerDatabase(factory?: IDBFactory | null): Promise<P
         if (!db.objectStoreNames.contains('explored')) db.createObjectStore('explored', { keyPath: 'key' });
       };
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(request.error ?? new Error('Database could not be opened'));
       request.onblocked = () => reject(new Error('Database upgrade blocked'));
     });
     return resilientDatabase(indexedDatabase(database));
@@ -48,21 +48,21 @@ function indexedDatabase(db: IDBDatabase): PlayerDatabase {
   const read = <T>(store: string, key: IDBValidKey): Promise<T | null> => new Promise((resolve, reject) => {
     const request = db.transaction(store, 'readonly').objectStore(store).get(key);
     request.onsuccess = () => resolve((request.result as T | undefined) ?? null);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => reject(request.error ?? new Error('Database read failed'));
   });
   const write = (store: string, value: unknown): Promise<void> => new Promise((resolve, reject) => {
     const transaction = db.transaction(store, 'readwrite');
     transaction.objectStore(store).put(value);
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
+    transaction.onerror = () => reject(transaction.error ?? new Error('Database write failed'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('Database write aborted'));
   });
   const remove = (store: string, key: IDBValidKey): Promise<void> => new Promise((resolve, reject) => {
     const transaction = db.transaction(store, 'readwrite');
     transaction.objectStore(store).delete(key);
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
+    transaction.onerror = () => reject(transaction.error ?? new Error('Database delete failed'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('Database delete aborted'));
   });
   return {
     persistent: true,
@@ -71,7 +71,7 @@ function indexedDatabase(db: IDBDatabase): PlayerDatabase {
     allAssets: () => new Promise((resolve, reject) => {
       const request = db.transaction('assets', 'readonly').objectStore('assets').getAll();
       request.onsuccess = () => resolve(request.result as AssetRow[]);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(request.error ?? new Error('Database read failed'));
     }),
     deleteAsset: (key) => remove('assets', key),
     getPartial: (key) => read('partialAssets', key),
@@ -93,8 +93,8 @@ function indexedDatabase(db: IDBDatabase): PlayerDatabase {
         cursor.continue();
       };
       transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(transaction.error);
+      transaction.onerror = () => reject(transaction.error ?? new Error('Database delete failed'));
+      transaction.onabort = () => reject(transaction.error ?? new Error('Database delete aborted'));
     }),
   };
 }

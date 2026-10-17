@@ -78,6 +78,7 @@ export class PlayerOutbox {
   sceneChanged(scene: string | null): void {
     for (let index = this.queue.length - 1; index >= 0; index--) {
       const message = this.queue[index];
+      if (message === undefined) continue;
       if ('scene' in message && message.scene !== scene || message.t === 'sheet-roll') {
         this.queue.splice(index, 1);
         if (message.t === 'path-cancel') this.deferredMovement.delete(this.pathCancelKey(message));
@@ -108,6 +109,7 @@ export class PlayerOutbox {
     }
     for (let index = this.queue.length - 1; index >= 0; index--) {
       const message = this.queue[index];
+      if (message === undefined) continue;
       if (message.t === 'book-resource' || message.t === 'sheet-roll') {
         this.queue.splice(index, 1);
         this.options.onRefused?.(message);
@@ -129,7 +131,7 @@ export class PlayerOutbox {
     this.bookTimer = this.timers.setTimeout(() => {
       this.bookTimer = null;
       if (!this.options.online()) { this.clear(); return; }
-      const first = this.bookPending.entries().next().value as [string, PlayerMessage] | undefined;
+      const first = this.bookPending.entries().next().value;
       if (first !== undefined) {
         this.bookPending.delete(first[0]);
         this.queue.push(first[1]);
@@ -141,8 +143,7 @@ export class PlayerOutbox {
 
   private flush(): void {
     if (!this.options.online()) { this.clear(); return; }
-    while (this.queue.length > 0) {
-      const next = this.queue[0];
+    for (let next = this.queue[0]; next !== undefined; next = this.queue[0]) {
       if (this.options.ready && !this.options.ready()) {
         this.options.onBusy?.(true);
         this.scheduleFlush();

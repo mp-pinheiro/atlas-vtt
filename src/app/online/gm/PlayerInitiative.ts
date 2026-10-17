@@ -115,8 +115,8 @@ export class PlayerInitiative {
   }
 
   playerLeft(from: string): void {
-    for (const key of this.prepared.keys()) if (JSON.parse(key)[0] === from) this.prepared.delete(key);
-    for (const key of this.lookups.keys()) if (JSON.parse(key)[0] === from) this.lookups.delete(key);
+    for (const key of this.prepared.keys()) if ((JSON.parse(key) as [string])[0] === from) this.prepared.delete(key);
+    for (const key of this.lookups.keys()) if ((JSON.parse(key) as [string])[0] === from) this.lookups.delete(key);
   }
 
   sceneChanged(): void {

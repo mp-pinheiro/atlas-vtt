@@ -138,7 +138,7 @@ describe('browser canvas privacy inputs', () => {
     await vi.waitFor(() => {
       expect(gridContainer.children.some((child) => child instanceof Container && child.mask != null)).toBe(true);
       const pixels = stagePixels(canvas, 100, 100);
-      expect(pixels[(12 * 100 + 12) * 4 + 1]).toBeGreaterThan(pixels[(12 * 100 + 12) * 4]);
+      expect(pixels[(12 * 100 + 12) * 4 + 1]).toBeGreaterThan(pixels[(12 * 100 + 12) * 4] ?? Infinity);
     }, { timeout: 10_000 });
     const lineCandidate = gridContainer.children.find((child) => child instanceof Container && child.mask != null);
     if (!(lineCandidate instanceof Container)) throw new Error('Player grid mask container is missing.');
@@ -182,7 +182,7 @@ describe('browser canvas privacy inputs', () => {
       canvas.update(store.getState());
       await vi.waitFor(() => {
         const restored = stagePixels(canvas, 100, 100);
-        expect(restored[(12 * 100 + 12) * 4 + 1]).toBeGreaterThan(restored[(12 * 100 + 12) * 4]);
+        expect(restored[(12 * 100 + 12) * 4 + 1]).toBeGreaterThan(restored[(12 * 100 + 12) * 4] ?? Infinity);
       }, { timeout: 10_000 });
       const capture = vi.spyOn(canvas.app.canvas, 'setPointerCapture').mockImplementation(() => undefined);
       cleanups.push(() => capture.mockRestore());

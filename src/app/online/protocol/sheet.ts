@@ -69,7 +69,7 @@ export function parseSharedSheet(value: unknown): SharedSheet | null {
     indexes.add(item.index);
     rolls.push({ key: item.key, index: item.index, formula: item.formula, label: item.label });
   }
-  const result: SharedSheet = { revision: value.revision, name: value.name, template, fields: fields as Readonly<Record<string, SheetValue>>, images, rolls };
+  const result: SharedSheet = { revision: value.revision, name: value.name, template, fields, images, rolls };
   return new TextEncoder().encode(JSON.stringify(result)).byteLength <= MAX_SHEET_BYTES ? result : null;
 }
 

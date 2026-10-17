@@ -1,4 +1,4 @@
-import { deltaChanges, type AgencyMessage, type Claim, type GmMessage, type JsonRecord, type PictureMessage, type PicturePacket, type SharedGrid, type SharedInitiative, type SharedRules, type SharedScene } from '../protocol/index';
+import { deltaChanges, type AgencyMessage, type Claim, type GmMessage, type PictureMessage, type PicturePacket, type SharedGrid, type SharedInitiative, type SharedRules, type SharedScene } from '../protocol/index';
 import { NO_INSTANCE_NUMBERS, type InstanceNumbers } from '../../vision/instanceNumbers';
 import type { TokenEntity } from '../../types';
 import type { ShownRollToken } from '../../services/playerRollSource';
@@ -198,7 +198,7 @@ export class RecipientShare {
       return token === undefined ? [] : [[id, { name: tokenLabel(token), imagePath: token.imagePath, showRing: token.showRing !== false, ringColor: token.ringColor }] as const];
     }));
     const idsByAlias = new Map<string, string>();
-    const tokens = sharedTokens({ tokens: state.objects.tokens, shown, gridSize: snapshot.rules.grid.size, showNames: snapshot.showNames, rules: snapshot.tokenRules, claimOf: snapshot.claimOf,
+    const tokens = sharedTokens({ tokens: state.objects.tokens, shown, gridSize: snapshot.rules.grid.size, showNames: snapshot.showNames, rules: snapshot.tokenRules, claimOf: (id, token) => snapshot.claimOf(id, token),
       badge: id => badges.badge(id), alias: id => {
         const alias = this.alias(this.aliases, id);
         idsByAlias.set(alias, id);
@@ -272,7 +272,7 @@ export class RecipientShare {
         if (!whole && previous !== undefined) {
           const before = previous.whole as SequencedMessage;
           const { t: _t, scene: _scene, seq: _oldSeq, ...old } = before;
-          const changes = deltaChanges(t, old as unknown as JsonRecord, content as unknown as JsonRecord);
+          const changes = deltaChanges(t, old, content);
           const delta: PictureMessage | null = changes === null ? null : { t: 'delta', of: t, scene: id, seq, ...changes };
           if (delta !== null && JSON.stringify(delta).length < text.length) selected.push(delta);
           else selected.push(sent);

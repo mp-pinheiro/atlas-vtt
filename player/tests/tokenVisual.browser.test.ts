@@ -127,12 +127,12 @@ describe('shared token visual cutover', () => {
     const ui = new TokenVisualUI();
     const layout = { cellSize: 70, zoom: 0.75, selected: true, held: false };
     ui.update(token, layout);
-    expect(ui.view.children[0].scale.x).toBe(3);
-    const condition = ui.view.children[1].children[0];
-    expect(condition.scale.x).toBe(1);
-    expect(ui.view.children[0].children.filter((child) => child.zIndex === 10)).toHaveLength(2);
+    expect(ui.view.children[0]?.scale.x).toBe(3);
+    const condition = ui.view.children[1]?.children[0];
+    expect(condition?.scale.x).toBe(1);
+    expect(ui.view.children[0]?.children.filter((child) => child.zIndex === 10)).toHaveLength(2);
     ui.update(token, { ...layout, held: true });
-    expect(ui.view.children[0].scale.x).toBe(1);
+    expect(ui.view.children[0]?.scale.x).toBe(1);
     ui.destroy();
   });
 
@@ -143,8 +143,8 @@ describe('shared token visual cutover', () => {
     expect(browser.hitTest(96, 96)).toBe(second.id);
     browser.update([token, second], { cellSize: 70, zoom: 1, held: new Set([second.id]), visible: ({ id }) => id === token.id });
     expect(browser.hitTest(96, 96)).toBe(token.id);
-    expect(browser.view.children[1].visible).toBe(false);
-    expect(browser.ui.children[1].visible).toBe(false);
+    expect(browser.view.children[1]?.visible).toBe(false);
+    expect(browser.ui.children[1]?.visible).toBe(false);
     browser.destroy();
   });
 
@@ -231,7 +231,7 @@ describe('Canvas2D sight fallback', () => {
       const pixels = context.getImageData(0, 0, 128, 128).data;
       const centerOffset = (64 * 128 + 64) * 4;
       const outsideOffset = (8 * 128 + 8) * 4;
-      expect(pixels[centerOffset + 1]).toBeGreaterThan(pixels[centerOffset]);
+      expect(pixels[centerOffset + 1]).toBeGreaterThan(pixels[centerOffset] ?? Infinity);
       expect(pixels[outsideOffset]! + pixels[outsideOffset + 1]! + pixels[outsideOffset + 2]!).toBeLessThan(pixels[centerOffset]! + pixels[centerOffset + 1]! + pixels[centerOffset + 2]!);
       expect(errors).toHaveBeenCalled();
     } finally {

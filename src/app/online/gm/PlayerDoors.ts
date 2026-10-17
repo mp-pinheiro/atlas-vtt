@@ -30,7 +30,7 @@ export class PlayerDoors {
   private readonly seen: Map<string, Set<string>>;
   private readonly pending = new Map<string, Map<string, DoorRequest>>();
   constructor(private readonly store: DoorStore, private readonly ports: PlayerDoorPorts) {
-    this.seen = ports.nonces ?? new Map();
+    this.seen = ports.nonces ?? new Map<string, Set<string>>();
   }
   receive(from: string, message: DoorRequest): void {
     const allowed = this.ports.movementAllowed(from);

@@ -67,5 +67,5 @@ export function parseInitiative(value: unknown): SharedInitiative | null | undef
     if (combatant === null) return undefined;
     combatants.push(combatant);
   }
-  return { isActive: value.isActive, round: value.round, bySides: value.bySides, firstSide: value.firstSide, activeSide: value.activeSide, ...(value.turnKey!==undefined?{turnKey:value.turnKey as string|null}:{}), combatants };
+  return { isActive: value.isActive, round: value.round, bySides: value.bySides, firstSide: value.firstSide, activeSide: value.activeSide, ...(value.turnKey !== undefined ? { turnKey: value.turnKey } : {}), combatants };
 }

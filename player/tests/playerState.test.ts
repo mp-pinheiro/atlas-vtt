@@ -307,13 +307,13 @@ describe('connection recovery and pacing', () => {
       onStatus: () => undefined, onFrame: () => undefined,
     });
     connection.start({ name: 'Mira', code: '123456' });
-    transports[0].frame({ v: 1, t: 'welcome', role: 'player', id: 'abcdefghijklmnopqrst', key: 'A'.repeat(32), gmOnline: true });
+    transports[0]?.frame({ v: 1, t: 'welcome', role: 'player', id: 'abcdefghijklmnopqrst', key: 'A'.repeat(32), gmOnline: true });
     expect(connection.send({ t: 'roll', scene: 'scene', formula: '1d20', token: null })).toBe(true);
-    transports[0].close(1006, 'lost');
+    transports[0]?.close(1006, 'lost');
     clock.advance(400);
     expect(handshakes).toHaveLength(2);
     expect(handshakes[1]).toMatchObject({ key: 'A'.repeat(32) });
-    expect(handshakes[1].code).toBeUndefined();
+    expect(handshakes[1]?.code).toBeUndefined();
     expect(payloads[1]).toEqual([]);
     connection.stop();
   });
@@ -333,12 +333,12 @@ describe('connection recovery and pacing', () => {
       onStatus: () => undefined, onFrame: () => undefined,
     });
     connection.start({ name: 'Mira', code: '123456' });
-    transports[0].frame({ v: 1, t: 'waiting', id: 'abcdefghijklmnopqrst', name: 'Mira', wait: 'B'.repeat(32) } as RelayFrame);
+    transports[0]?.frame({ v: 1, t: 'waiting', id: 'abcdefghijklmnopqrst', name: 'Mira', wait: 'B'.repeat(32) } as RelayFrame);
     expect(identity.get().wait).toBe('B'.repeat(32));
     connection.stop();
     connection.start({ name: 'Mira' });
-    expect(handshakes[1].wait).toBe('B'.repeat(32));
-    expect(handshakes[1].code).toBeUndefined();
+    expect(handshakes[1]?.wait).toBe('B'.repeat(32));
+    expect(handshakes[1]?.code).toBeUndefined();
     connection.stop();
   });
 

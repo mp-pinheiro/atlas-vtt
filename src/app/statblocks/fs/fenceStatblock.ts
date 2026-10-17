@@ -6,7 +6,7 @@
 
 import type { App } from 'obsidian';
 import { resolveCreatureFromFence } from '../../services/FantasyStatblocksService';
-import { decodeStatblockLinks } from '../../services/statblockLinks';
+import { decodeStatblockLinks } from '../values/statblockLinks';
 import { noteName } from '../../utils/pathUtils';
 import { jsonRecordCopy } from '../format/jsonValues';
 import { isReservedKey } from '../model/reservedKeys';

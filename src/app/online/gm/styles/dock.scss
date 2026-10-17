@@ -217,3 +217,7 @@ $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
   left: 0;
   pointer-events: none;
 }
+
+.atlas-online-accent-probe {
+  color: var(--interactive-accent);
+}

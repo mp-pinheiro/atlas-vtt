@@ -4,7 +4,7 @@ import { MarkdownRenderer, type App } from 'obsidian';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { plainText } from '../../../../src/app/creatures/creatureValues';
 import { StatblockMarkdown } from '../../../../src/app/statblocks/render/shared/PluginMarkdown'
-import { decodeStatblockLinks } from '../../../../src/app/services/statblockLinks';
+import { decodeStatblockLinks } from '../../../../src/app/statblocks/values/statblockLinks';
 
 const WIKI = '<STATBLOCK-WIKI-LINK>Senses/Scent|scent<STATBLOCK-WIKI-LINK>';
 const MARKDOWN = '<STATBLOCK-MARKDOWN-LINK>rules/my skills.md#Perception|Perception<STATBLOCK-MARKDOWN-LINK>';

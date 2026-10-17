@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { boundedText } from '../../../creatures/statblockValues';
-import { statblockLinksAsText } from '../../../services/statblockLinks';
+import { statblockLinksAsText } from '../../values/statblockLinks';
 import { SheetRenderHostContext, SheetDiceText, useSheetRollLocation } from '../sheetRenderHost';
 import type { SheetValuePath } from './diceSegments';
 

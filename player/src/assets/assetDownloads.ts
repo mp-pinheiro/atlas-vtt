@@ -97,7 +97,11 @@ export class AssetDownloads implements AssetDownloadsContract {
       }
     }
     for (let index = this.queue.length - 1; index >= 0; index--) {
-      if (!this.isAuthorized(this.queue[index].ref)) this.rejectWaiting(this.queue.splice(index, 1)[0], new Error('Asset is no longer authorized'));
+      const pending = this.queue[index];
+      if (pending !== undefined && !this.isAuthorized(pending.ref)) {
+        this.queue.splice(index, 1);
+        this.rejectWaiting(pending, new Error('Asset is no longer authorized'));
+      }
     }
   }
 
@@ -186,7 +190,7 @@ export class AssetDownloads implements AssetDownloadsContract {
     this.exploredDeleting.add(owner);
     for (const [id, row] of this.volatileExplored) if (row.key.table === table && row.key.player === player) this.volatileExplored.delete(id);
     try {
-      await Promise.all(this.exploredWrites.get(owner) ?? []);
+      await Promise.all(this.exploredWrites.get(owner) ?? new Set<Promise<void>>());
       await (await this.database).deleteExplored(table, player);
     } finally { this.exploredDeleting.delete(owner); }
   }

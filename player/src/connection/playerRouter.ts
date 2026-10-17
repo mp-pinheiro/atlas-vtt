@@ -1,9 +1,8 @@
 import { DeltaReader } from '../../../src/app/online/protocol/deltaReader.ts';
 import { MAX_PARTS, parseGmMessage, type GmMessage, type PlayerMessage } from '../../../src/app/online/protocol/game.ts';
 import type { RelayFrame } from '../../../src/app/online/protocol/relay.ts';
-import type { PictureChannel, PictureMessage } from '../../../src/app/online/protocol/picture.ts';
+import type { PictureChannel } from '../../../src/app/online/protocol/picture.ts';
 import type { DeltaOf } from '../../../src/app/online/protocol/delta.ts';
-import type { AgencyResponse } from '../../../src/app/online/protocol/agency.ts';
 import type { PlayerState } from '../state/playerStore.ts';
 import type { StoreApi } from 'zustand/vanilla';
 import { ASSET_CHUNK_BYTES } from '../../../src/app/online/protocol/asset.ts';
@@ -108,7 +107,7 @@ export class PlayerRouter {
     else if ('scene' in message && state.scene?.scene.id === message.scene) {
       state.applySceneMessage(message);
       if (message.t === 'claim-result' || message.t === 'path-result' || message.t === 'door-result' || message.t === 'initiative-refused') {
-        state.recordAgencyResponse(message as AgencyResponse);
+        state.recordAgencyResponse(message);
       } else if (message.t === 'move-refused') {
         state.setPrediction(message.id, null);
         state.appendFeedback({ scene: message.scene, request: message.id, status: 'refused', reason: 'move' });
@@ -141,7 +140,7 @@ export class PlayerRouter {
     }
     const reader = message.whole ? new DeltaReader() : this.deltas.fork();
     const channels: Partial<Record<PictureChannel, GmMessage>> = {};
-    for (const child of message.messages as readonly PictureMessage[]) {
+    for (const child of message.messages) {
       const resolved = reader.read(child);
       if (resolved === 'gap' || resolved === null || resolved.t === 'delta') {
         this.coverScene(message.scene);

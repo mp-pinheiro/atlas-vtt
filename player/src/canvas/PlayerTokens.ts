@@ -48,7 +48,7 @@ export class PlayerTokens {
   private stopped = false;
 
   constructor(private readonly options: PlayerTokensOptions) {
-    this.downed = new DownedTokenOverlay(options.changed, () => options.ticker ?? null);
+    this.downed = new DownedTokenOverlay(() => options.changed(), () => options.ticker ?? null);
     void loadTokenRingTexture().then(() => {
       if (this.stopped) return;
       for (const token of this.tokens.values()) {
@@ -110,6 +110,7 @@ export class PlayerTokens {
     if (this.stopped || !this.view.visible) return null;
     for (let i = this.order.length - 1; i >= 0; i--) {
       const token = this.order[i];
+      if (token === undefined) continue;
       const entry = this.tokens.get(token.id);
       if (!entry?.art.visible) continue;
       if (token.ring) {

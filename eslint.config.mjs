@@ -74,7 +74,7 @@ const ATLAS_NOTICE = "src/app/ui/notice.ts";
 const VISION_ON_ASKERS = ["src/app/vision/sight.ts", "src/app/vision/selectSight.ts"];
 
 export default defineConfig([
-  globalIgnores(["atlas-website/", "token-ui-examples/", "party/", "logs/", "benchmarks/", "release/", "dist/", "node_modules/", "test-vault/", "networking-test-vault/", "tests/", "scripts/", "docs/", "vite/", "**/*.test.*", "*.js", "*.cjs", "*.mjs", "*.mts", "*.config.ts"]),
+  globalIgnores(["atlas-website/", "token-ui-examples/", "party/", "logs/", "benchmarks/", "release/", "dist/", "node_modules/", "test-vault/", "networking-test-vault/", "tests/", "scripts/", "docs/", "vite/", "**/*.test.*", "*.js", "*.cjs", "*.mjs", "*.mts", "*.config.ts", "player/dist/", "player/scripts/", "player/tests/", "relay/tests/", "relay/*.mts", "relay/.wrangler/"]),
   ...obsidianmd.configs.recommended,
   {
     files: SCRIPT_FILES,
@@ -168,9 +168,22 @@ export default defineConfig([
     },
   },
   {
+    files: ["player/src/**/*.{ts,tsx}", "relay/src/**/*.ts"],
+    rules: {
+      "no-restricted-globals": "off",
+      "no-undef": "off",
+      "obsidianmd/no-global-this": "off",
+      "obsidianmd/no-static-styles-assignment": "off",
+      "obsidianmd/no-unsupported-api": "off",
+      "obsidianmd/prefer-create-el": "off",
+      "obsidianmd/prefer-window-timers": "off",
+    },
+  },
+  {
     files: BOUNDARIES.shared.include,
     ignores: BOUNDARIES.shared.exclude,
     rules: {
+      "obsidianmd/prefer-create-el": "off",
       "no-restricted-imports": ["error", {
         patterns: [{
           regex: `^(obsidian|electron)(/|$)|^(@codemirror|@lezer)/|^node:|^(?:${nodeNames.join("|")})(/|$)|^(src/|@/)|${PLUGIN_ONLY_SPECIFIER.source}`,

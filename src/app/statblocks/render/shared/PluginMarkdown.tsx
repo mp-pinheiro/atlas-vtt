@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Component, MarkdownRenderer, type App } from 'obsidian';
 import { linkDiceIn } from '../../../services/statblockDiceLinks';
-import { decodeStatblockLinks, statblockLinksAsText } from '../../../services/statblockLinks';
+import { decodeStatblockLinks, statblockLinksAsText } from '../../values/statblockLinks';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { DiceText } from './DiceText';
 import { inlineMarkdown } from './inlineMarkdown';

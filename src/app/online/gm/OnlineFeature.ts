@@ -1,6 +1,7 @@
 import { runInBackground } from '../../utils/backgroundTask';
 import { Component, type App, type Plugin, type TFile } from 'obsidian';
 import { showNotice } from '../../ui/notice';
+import { confirmAction } from '../../ui/confirmDialog';
 import type { AtlasSettingSection } from '../../settings/settingSections';
 import { hostKeyStore } from './host/hostKeyStore.ts';
 import { HostControl } from './host/HostControl.ts';
@@ -66,7 +67,7 @@ export class OnlineFeature extends Component {
     super();
     this.app = plugin.app;
     this.online = new OnlineControl(this.app, new Ownership(readOwnership(undefined), () => undefined));
-    this.host = new HostControl({ http: obsidianHttp, store: hostKeyStore(this.app), origin: () => this.settings.relayOrigin, saveOrigin: async (origin) => { this.settings.relayOrigin = origin; await this.saveSettings(); }, stopTable: () => this.online.stop(), forgetTable: () => { this.savedTable = null; void this.saveSettings(); }, confirmOriginChange: async () => this.online.table === null && !this.online.isStarting() || window.confirm(t('onlinePlayer.confirmRelayChange')), notify: (text) => showNotice(text) });
+    this.host = new HostControl({ http: obsidianHttp, store: hostKeyStore(this.app), origin: () => this.settings.relayOrigin, saveOrigin: async (origin) => { this.settings.relayOrigin = origin; await this.saveSettings(); }, stopTable: () => this.online.stop(), forgetTable: () => { this.savedTable = null; void this.saveSettings(); }, confirmOriginChange: async () => this.online.table === null && !this.online.isStarting() || confirmAction({ title: t('onlinePlayer.relayOrigin'), message: [t('onlinePlayer.confirmRelayChange')], confirmLabel: t('onlinePlayer.saveRelay'), destructive: true }), notify: (text) => showNotice(text) });
   }
 
   /** The running table, or null. */

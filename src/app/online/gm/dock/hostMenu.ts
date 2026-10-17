@@ -12,7 +12,7 @@ export function renderHostMenu(layer: HTMLElement, state: HostState, hostKeyConf
   if (lost !== null) statusLine(title, { text: tableEndText(lost), tone: 'red' });
   const messages: Record<HostState, string> = { unconfigured: hostKeyConfigured ? 'A host key is stored; starting a table checks access.' : 'Host key is not configured.', checking: 'Checking relay access…', ready: 'Relay is ready to host.', 'invalid-key': 'The host key was refused.', unreachable: 'The relay could not be reached.', 'secret-storage-unavailable': 'Secure storage is unavailable; hosting is disabled.' };
   statusLine(layer, { text: messages[state], tone: state === 'ready' ? 'green' : state === 'invalid-key' ? 'red' : 'muted' });
-  if (state === 'unreachable' || state === 'invalid-key') textButton(layer, 'Check relay', actions.retry);
-  const start = textButton(layer, starting ? 'Starting…' : 'Start online table', actions.start, 'cta');
+  if (state === 'unreachable' || state === 'invalid-key') textButton(layer, 'Check relay', () => actions.retry());
+  const start = textButton(layer, starting ? 'Starting…' : 'Start online table', () => actions.start(), 'cta');
   start.disabled = starting || !hostKeyConfigured || state === 'secret-storage-unavailable' || state === 'invalid-key';
 }

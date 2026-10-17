@@ -12,7 +12,7 @@ export const SOCKET_RATE = { gmBurst: 200, gmPerSecond: 100, playerBurst: 300, p
 export const utf8Size = (text: string): number => new TextEncoder().encode(text).byteLength;
 
 export async function readUtf8Body(request: Request, limit: number): Promise<string | null> {
-  const reader = request.body?.getReader();
+  const reader: ReadableStreamDefaultReader<Uint8Array> | undefined = request.body?.getReader();
   if (!reader) return '';
   const chunks: Uint8Array[] = [];
   let length = 0;

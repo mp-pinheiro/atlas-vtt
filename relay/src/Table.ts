@@ -39,7 +39,7 @@ export class Table extends DurableObject<Env> {
     const ending = hasMeta ? readMeta(ctx.storage, 'ending') : null;
     this.ended = ending !== null;
     this.initialized = ending === null && hasMeta && readMeta(ctx.storage, 'secretHash') !== null;
-    if (ending !== null) ctx.blockConcurrencyWhile(() => this.end(Number(ending), 'ended'));
+    if (ending !== null) void ctx.blockConcurrencyWhile(() => this.end(Number(ending), 'ended'));
     if (this.initialized) {
       ctx.storage.sql.exec('DELETE FROM active_players');
       for (const socket of ctx.getWebSockets()) {
@@ -49,7 +49,7 @@ export class Table extends DurableObject<Env> {
         }
       }
       if (this.gmSocket() === null && readMeta(ctx.storage, 'gmAwayAt') === null) writeMeta(ctx.storage, 'gmAwayAt', String(Date.now()));
-      ctx.blockConcurrencyWhile(async () => {
+      void ctx.blockConcurrencyWhile(async () => {
         const fingerprint = env.HOST_KEY === undefined ? null : await sha256(env.HOST_KEY);
         if (fingerprint !== readMeta(ctx.storage, 'hostFingerprint')) await this.end(CLOSE.noAccess, 'no access');
         else await this.reschedule();
@@ -62,7 +62,7 @@ export class Table extends DurableObject<Env> {
     const path = new URL(request.url).pathname;
     if (path === '/initialize' && request.method === 'POST') {
       if (this.ended) return new Response(null, { status: 409 });
-      const config = await request.json() as TableConfig;
+      const config: TableConfig = await request.json();
       return this.ctx.blockConcurrencyWhile(async () => {
         if (this.ended) return new Response(null, { status: 409 });
         await initializeTable(this.ctx.storage, config);
@@ -80,9 +80,7 @@ export class Table extends DurableObject<Env> {
     }
     if (path.endsWith('/socket') && !this.live()) {
       if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response(null, { status: 426 });
-      const pair = new WebSocketPair();
-      const [client, server] = Object.values(pair);
-      this.ctx.acceptWebSocket(server);
+      const { client, server } = this.acceptedPair();
       closeSocket(server, CLOSE.ended, 'ended');
       return new Response(null, { status: 101, webSocket: client });
     }
@@ -91,19 +89,21 @@ export class Table extends DurableObject<Env> {
     if (path.endsWith('/stream')) return this.gateway.openStream(request);
     if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response(null, { status: 426 });
     if (this.ctx.getWebSockets().filter((socket) => attachment(socket)?.role === 'pending' && !attachment(socket)?.id).length >= 32) {
-      const pair = new WebSocketPair();
-      const [client, server] = Object.values(pair);
-      this.ctx.acceptWebSocket(server);
+      const { client, server } = this.acceptedPair();
       closeSocket(server, CLOSE.rateLimited, 'rate limited');
       return new Response(null, { status: 101, webSocket: client });
     }
-    const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
-    this.ctx.acceptWebSocket(server);
+    const { client, server } = this.acceptedPair();
     const now = Date.now();
     server.serializeAttachment({ role: 'pending', generation: this.nextGeneration(), deadline: now + 10_000, tokens: 0, updatedAt: now } satisfies Attachment);
     await this.reschedule();
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  private acceptedPair(): { client: WebSocket; server: WebSocket } {
+    const { 0: client, 1: server } = new WebSocketPair();
+    this.ctx.acceptWebSocket(server);
+    return { client, server };
   }
 
   async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer): Promise<void> {

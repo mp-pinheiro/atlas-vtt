@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import type { CellAt } from '../../model/tableGrid';
 import { HEADER_ROW } from '../../model/tableGrid';
 import type { TableAlign } from '../../model/templateTypes';

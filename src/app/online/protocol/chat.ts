@@ -78,7 +78,7 @@ export function parsePeople(value: unknown): readonly TablePerson[] | null {
     const name = playerName(item.name);
     if (name === null || (item.away !== undefined && item.away !== true)) return null;
     if (item.colour !== undefined && (!Number.isInteger(item.colour) || typeof item.colour !== 'number' || item.colour < 0 || item.colour > 7)) return null;
-    people.push({ id: item.id, name, ...(item.away === true && { away: true as const }), ...(item.colour !== undefined ? {colour:item.colour as number} : {}) });
+    people.push({ id: item.id, name, ...(item.away === true && { away: true as const }), ...(item.colour !== undefined ? { colour: item.colour } : {}) });
   }
   return people;
 }

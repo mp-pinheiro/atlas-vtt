@@ -47,7 +47,7 @@ function InitiativeFace({ combatant, assets }: { readonly combatant: SharedComba
 
 export function InitiativePanel({ scene, initiative, gmOnline, busy, assets, send }: InitiativePanelProps): ReactElement {
   const mayUseTurnOrder = initiative !== null && !initiative.bySides;
-  const endTurnReady = mayUseTurnOrder && initiative?.isActive === true && initiative.turnKey !== null && initiative.turnKey !== undefined;
+  const turnKey = mayUseTurnOrder && initiative.isActive ? initiative.turnKey ?? null : null;
   const canAct = scene !== null && gmOnline && !busy;
 
   return <section className="atlas-player__section atlas-player__initiative-panel" aria-label={playerText('tabInitiative')}>
@@ -55,8 +55,10 @@ export function InitiativePanel({ scene, initiative, gmOnline, busy, assets, sen
       {initiative.isActive && <p className="atlas-player__initiative-round">{playerText('round')} {initiative.round}</p>}
       {initiative.combatants.length === 0 ? <p className="atlas-player__empty">{playerText('noCombatants')}</p> : <ol className="atlas-player__list atlas-player__initiative-list">
         {initiative.combatants.map((combatant) => {
-          const mayRoll = canAct && mayUseTurnOrder && combatant.own === true && combatant.rolled === false && combatant.id !== undefined;
-          const mayEnd = canAct && endTurnReady && combatant.own === true && combatant.turn && combatant.id !== undefined;
+          const id = combatant.id;
+          const actor = scene !== null && canAct && mayUseTurnOrder && combatant.own === true && id !== undefined ? { scene, id } : null;
+          const mayRoll = actor !== null && combatant.rolled === false;
+          const mayEnd = actor !== null && turnKey !== null && combatant.turn;
           const name = combatant.name ?? playerText('hiddenCombatant');
           return <li className={`atlas-player__item atlas-player__initiative-entry${combatant.turn ? ' atlas-player__initiative-entry--active' : ''}`} key={combatant.id ?? `${combatant.side}:${combatant.name}:${combatant.initiative}`} aria-current={combatant.turn ? 'step' : undefined}>
             <InitiativeFace combatant={combatant} assets={assets} />
@@ -69,9 +71,9 @@ export function InitiativePanel({ scene, initiative, gmOnline, busy, assets, sen
               {combatant.sitsOut && <span className="atlas-player__muted">{playerText('sitsOut')}</span>}
             </div>
             <output className="atlas-player__initiative-score" aria-label={`${playerText('tabInitiative')}: ${combatant.initiative}`}>{combatant.initiative}</output>
-            {(mayRoll || mayEnd) && <div className="atlas-player__initiative-actions" role="group" aria-label={name}>
-              {mayRoll && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => send({ t: 'initiative-roll', scene: scene as string, combatant: combatant.id as string })}>{playerText('rollInitiative')}</Button>}
-              {mayEnd && <Button type="button" size="sm" disabled={busy} onClick={() => send({ t: 'end-turn', scene: scene as string, round: initiative.round, combatant: combatant.id as string, turnKey: initiative.turnKey as string })}>{playerText('endTurn')}</Button>}
+            {actor !== null && (mayRoll || mayEnd) && <div className="atlas-player__initiative-actions" role="group" aria-label={name}>
+              {mayRoll && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => send({ t: 'initiative-roll', scene: actor.scene, combatant: actor.id })}>{playerText('rollInitiative')}</Button>}
+              {mayEnd && turnKey !== null && <Button type="button" size="sm" disabled={busy} onClick={() => send({ t: 'end-turn', scene: actor.scene, round: initiative.round, combatant: actor.id, turnKey })}>{playerText('endTurn')}</Button>}
             </div>}
           </li>;
         })}

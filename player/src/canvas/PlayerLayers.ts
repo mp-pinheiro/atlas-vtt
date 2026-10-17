@@ -8,7 +8,7 @@ import { RemoteLasers } from '../../../src/app/online/marks/RemoteLasers.ts';
 import { RemoteMeasures, type MeasureRules } from '../../../src/app/online/marks/RemoteMeasures.ts';
 import { RemoteCursors, type CursorCamera } from '../../../src/app/online/marks/RemoteCursors.ts';
 import type { MarksMessage } from '../../../src/app/online/protocol/marks.ts';
-import type { DrawingStroke, TextElement } from '../../../src/app/types.ts';
+import type { DrawingStroke } from '../../../src/app/types.ts';
 import type { SharedAnnotations, SharedPin } from '../../../src/app/online/protocol/mapLayers.ts';
 import type { TablePerson } from '../../../src/app/online/protocol/chat.ts';
 import { canvasBadgeColors } from '../../../src/app/pixi/utils/canvasBadgeColors.ts';
@@ -42,7 +42,7 @@ export class PlayerLayers {
       this.lastAnnotations = annotations;
       this.drawingLayer.sync(Object.fromEntries((annotations?.drawings ?? []).map((drawing, index) => [String(index), { id: String(index), kind: 'drawing', type: drawing.type, points: Array.from({ length: drawing.points.length / 2 }, (_, i) => ({ x: drawing.points[i * 2]!, y: drawing.points[i * 2 + 1]! })), color: drawing.colour, width: drawing.width, opacity: drawing.opacity, icon: drawing.icon } as DrawingStroke])));
       for (const child of this.texts.removeChildren()) destroyTree(child);
-      for (const [index, text] of (annotations?.texts ?? []).entries()) this.texts.addChild(createTextElementView({ ...text, id: String(index), kind: 'text', color: text.colour, backgroundColor: text.background ?? undefined, borderRadius: text.radius } as TextElement));
+      for (const [index, text] of (annotations?.texts ?? []).entries()) this.texts.addChild(createTextElementView({ ...text, id: String(index), kind: 'text', color: text.colour, backgroundColor: text.background ?? undefined, borderRadius: text.radius }));
     }
     if (pins === this.lastPins && zoom === this.zoom) {
       this.pinList.forEach((pin, index) => { const child = this.pins.children[index]; if (child) child.visible = visible(pin); });
